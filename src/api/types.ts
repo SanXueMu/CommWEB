@@ -61,3 +61,38 @@ export interface TaskCreated {
   handle: string
   status: string
 }
+
+export interface PipelineStep {
+  tool: string
+  input: Record<string, string | number | boolean | null>
+}
+
+export interface PipelineSummary {
+  id: string
+  name: string
+  steps: PipelineStep[]
+}
+
+export interface PipelineRunCreated {
+  run_id: string
+  status: string
+}
+
+export interface PipelineRun {
+  run: {
+    id: string
+    pipeline_id: string
+    input: Record<string, unknown>
+    status: 'running' | 'succeeded' | 'failed' | string
+    error: { kind: string; message: string } | null
+    created_at: string
+    finished_at: string | null
+  }
+  tasks: Task[]
+}
+
+export interface FileUploaded {
+  path: string
+  name: string
+  size: number
+}

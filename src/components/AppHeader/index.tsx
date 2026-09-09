@@ -8,6 +8,7 @@ import type { ThemeName } from '@/theme/tokens'
 
 const NAV = [
   { path: '/', label: '工具库' },
+  { path: '/flows', label: '流' },
   { path: '/tasks', label: '任务中心' },
 ]
 

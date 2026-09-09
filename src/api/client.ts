@@ -1,6 +1,16 @@
 /** CommAND API typed 客户端——本项目唯一出站通道，不含任何 UI 知识。 */
 
-import type { Task, TaskCreated, TaskEvent, ToolDetail, ToolSummary } from './types'
+import type {
+  FileUploaded,
+  PipelineRun,
+  PipelineRunCreated,
+  PipelineSummary,
+  Task,
+  TaskCreated,
+  TaskEvent,
+  ToolDetail,
+  ToolSummary,
+} from './types'
 
 const API_BASE = '/api'
 
@@ -32,6 +42,25 @@ export const api = {
     request<{ handle: string; status: string }>(`/tasks/${handle}/cancel`, { method: 'POST' }),
   listTasks: (status?: string) =>
     request<{ tasks: Task[] }>(`/tasks${status ? `?status=${status}` : ''}`),
+  listPipelines: () => request<{ pipelines: PipelineSummary[] }>('/pipelines'),
+  getPipeline: (id: string) => request<PipelineSummary>(`/pipelines/${id}`),
+  runPipeline: (id: string, input: Record<string, unknown>) =>
+    request<PipelineRunCreated>(`/pipelines/${id}/run`, {
+      method: 'POST',
+      body: JSON.stringify({ input }),
+    }),
+  getPipelineRun: (runId: string) => request<PipelineRun>(`/pipeline-runs/${runId}`),
+  uploadFile: (file: File): Promise<FileUploaded> => {
+    const body = new FormData()
+    body.append('file', file)
+    return fetch(`${API_BASE}/files`, { method: 'POST', body }).then(async (response) => {
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({ detail: response.statusText }))
+        throw new ApiError(response.status, (detail as { detail?: string }).detail ?? String(response.status))
+      }
+      return response.json() as Promise<FileUploaded>
+    })
+  },
 }
 
 /** SSE 订阅：log/progress/artifact 逐事件回调，done 后自动关闭。 */

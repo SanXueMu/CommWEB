@@ -1,0 +1,19 @@
+# 生产部署 compose（192.168.8.41）：8801 → nginx，/api 反代 command-api
+# 用法：dist 落位后 docker compose -f docker-compose.prod.yml up -d --build
+services:
+  commweb-web:
+    image: commweb/web:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: commweb-web
+    restart: unless-stopped
+    ports:
+      - "8801:80"
+    networks:
+      - pgnet
+
+# 与 command-api / pglab 同网络（commweb 只与 command-api 对话，铁律）
+networks:
+  pgnet:
+    external: true

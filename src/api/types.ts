@@ -9,6 +9,7 @@ export interface ToolSummary {
   output_types: string[]
   runtime_kind: 'inproc' | 'subprocess' | 'http'
   path?: string | null
+  tags?: string[]
 }
 
 export interface ToolManifest {

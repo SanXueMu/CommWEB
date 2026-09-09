@@ -1,4 +1,26 @@
 html, body, #root {
   height: 100%;
   margin: 0;
+  background: #fff;
+}
+
+/* 列表式行 hover */
+.commweb-list-row {
+  border-bottom: 1px solid #f0f0f0;
+}
+.commweb-list-row:hover {
+  background: #fafafa;
+}
+.commweb-list-row:last-child {
+  border-bottom: none;
+}
+
+/* 质检待审行高亮（ResultRenderer） */
+.commweb-review-row > td {
+  background: rgba(175, 169, 236, 0.12) !important;
+}
+
+/* 暗色主题下行 hover 底色随算法走 */
+[data-theme='dark'] .commweb-list-row:hover {
+  background: rgba(255, 255, 255, 0.04);
 }

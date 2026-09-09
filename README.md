@@ -28,8 +28,8 @@ theme 横切注入；服务端态 = TanStack Query，UI 态 = theme store
 src/
 ├── api/          # CommAND typed 客户端（唯一出站通道）
 ├── protocol/     # ToolFace：resolver / widgets / renderers（纯函数，可单测）
-├── components/   # ToolForm / EventStream / ResultRenderer / ToolCard / TaskDrawer
-├── pages/        # Plaza / Tasks / ToolDetail（薄装配）
+├── components/   # AppHeader / DataListPanel（通用列表）/ HelpCardModal / ToolForm / EventStream / ResultRenderer / TaskDrawer
+├── pages/        # ToolsHub（工具库）/ Tasks / ToolDetail（薄装配）
 └── theme/        # design tokens 三预设 + localStorage 持久化
 ```
 
@@ -42,5 +42,6 @@ queued 蓝 / running 橙 / succeeded 青绿 / failed_review 紫 / 其余终态�
 | 日期 | 变更摘要 | 单组件>300行? | 数据流单向? | 反模式命中? | 新工具零代码入前端? | 处置 |
 |------|----------|---------------|-------------|-------------|--------------------|------|
 | 2026-09-09 | 初始骨架（api/protocol/components/pages/theme 五层 + 三页 + 五组件） | 否（最大 TaskDrawer ~90 行） | 是（pages→components→protocol→api 无越级） | 否 | 是（dev.string.reverse / text.llm.translate 零代码上架，表单自动生成） | 通过 |
+| 2026-09-09 | 美术重构（packy 风格）：白底细灰线 / AppHeader / DataListPanel 通用列表（卡片/列表双形态+输入即检）/ 工具库左标签筛选 + 阅读卡片弹窗 / 任务中心同构套用 / tags 链路 | 否 | 是（筛选与过滤留 pages，渲染下沉组件） | 否 | 是（tags 随 register 下发即筛选用） | 通过 |
 
 五列体检项：① 单组件 >300 行？② 数据流单向？③ 反模式（巨型 page/复制粘贴组件/绕过 protocol/绕过 api/内联魔法色值）？④ 新工具零代码入前端（回归测试）？⑤ UI 声明是否仍最简？

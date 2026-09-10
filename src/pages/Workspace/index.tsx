@@ -58,7 +58,8 @@ export function Workspace() {
   return (
     <Card size="small">
       <Tabs
-        type="card"
+        type="editable-card"
+        hideAdd
         className="workspace-tabs"
         activeKey={activeKey}
         items={items.length ? items : undefined}

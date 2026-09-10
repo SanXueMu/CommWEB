@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Form, Modal, Steps, Typography, message } from 'antd'
 import { useMemo, useState } from 'react'
-import { api, apiFor } from '@/api/client'
+import { apiFor } from '@/api/client'
 import type { RunSnapshot } from '@/api/types'
 import { FieldControl, fieldPropName } from '@/components/FieldControl'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -28,6 +28,7 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
     <div>
       <Steps
         size="small"
+        direction="vertical"
         items={steps.map((s) => ({
           title: (
             <span style={{ fontSize: 13 }}>
@@ -94,7 +95,7 @@ function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClo
       Object.entries(values).filter(([, v]) => v !== undefined && v !== ''),
     )
     try {
-      await api.rerunStep(runId, step.step_index, override)
+      await apiFor(pid).rerunStep(runId, step.step_index, override)
       queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runSnapshot', runId] })
       queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runEvents', runId] })
       onClose()

@@ -14,23 +14,56 @@ import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import { useQuery } from '@tanstack/react-query'
 
+const TYPE_LABELS = { flow: '普通流', workflow: '工作流' } as const
+
 export function Flows() {
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
+  const [flowType, setFlowType] = useState<'' | keyof typeof TYPE_LABELS>('')
   const pid = useActivePid()
   const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: () => apiFor(pid).listPipelines() })
   const pipelines = data?.pipelines ?? []
   const providerName: Record<string, string> = {}
 
   const flows = useMemo(() => {
-    if (!keyword) return pipelines
     return pipelines.filter(
-      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => (s.tool || s.pipeline || '').includes(keyword)),
+      (f) =>
+        (!flowType || f.type === flowType) &&
+        (!keyword || f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => (s.tool || s.pipeline || '').includes(keyword))),
     )
-  }, [pipelines, keyword])
+  }, [pipelines, keyword, flowType])
 
   return (
-    <div style={{ flex: 1, minWidth: 0 }}>
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+      <aside
+        style={{
+          width: 128,
+          flexShrink: 0,
+          position: 'sticky',
+          top: 76,
+          borderRight: '1px solid #f0f0f0',
+          paddingRight: 16,
+        }}
+      >
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          类型
+        </Typography.Text>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+          {(['', 'flow', 'workflow'] as const).map((k) => (
+            <Typography.Link
+              key={k || 'all'}
+              strong={flowType === k}
+              onClick={() => setFlowType(k)}
+              style={{ color: flowType === k ? '#202753' : '#8c8c8c' }}
+            >
+              {k ? TYPE_LABELS[k] : '全部'}（
+                {k ? pipelines.filter((f) => f.type === k).length : pipelines.length}）
+            </Typography.Link>
+          ))}
+        </div>
+      </aside>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
       <DataListPanel
         panelKey="flows"
         items={flows}
@@ -46,6 +79,7 @@ export function Flows() {
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         共 {flows.length} 条流 · {PORTAL.footNote.flows}
       </Typography.Text>
+      </div>
     </div>
   )
 }

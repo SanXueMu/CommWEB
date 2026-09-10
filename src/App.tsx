@@ -31,6 +31,19 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
 function App() {
   const { config } = useTheme()
+  return (
+    <ConfigProvider theme={config}>
+      <AntApp>
+        <TransferProvider>
+          <SiteFrame />
+        </TransferProvider>
+      </AntApp>
+    </ConfigProvider>
+  )
+}
+
+/** 站点装配与路由壳：必须在 TransferProvider 内渲染（useSiteCatalog 依赖会员上下文）。 */
+function SiteFrame() {
   const location = useLocation()
   const { site } = useSiteCatalog()
   const detailPrefixes = site.navItems
@@ -40,46 +53,40 @@ function App() {
     location.pathname.startsWith('/tools/') || location.pathname.startsWith('/flows/')
 
   return (
-    <ConfigProvider theme={config}>
-      <AntApp>
-      <TransferProvider>
-      <AppShell>
-      <WorkspaceProvider>
-      <div style={{ minHeight: '100vh', background: '#fff' }}>
-        <AppHeader />
-        <main
-          style={{
-            padding: isDetail ? '24px' : '24px 24px 48px',
-            maxWidth: 1200,
-            margin: '0 auto',
-          }}
-        >
-          <Routes>
-            <Route path="/home" element={<Home />} />
-            {site.landing !== '/' && <Route path="/" element={<Navigate to={site.landing} replace />} />}
-            {site.routes.map((r) => (
-              <Route key={r.path} path={r.path} element={React.createElement(viewComponent(r.type))} />
-            ))}
-            {site.navItems.flatMap((n) => {
-              const type = site.routes.find((r) => r.viewId === n.viewId)?.type ?? ''
-              return viewDetailRoutes(type).map((d) => (
-                <Route key={d.path} path={d.path} element={d.element} />
-              ))
-            })}
-            <Route path="*" element={<Navigate to={site.landing} replace />} />
-          </Routes>
-          {!isDetail && (
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 32 }}>
-              {PORTAL.footer}
-            </Typography.Text>
-          )}
-        </main>
-      </div>
-      </WorkspaceProvider>
-      </AppShell>
-      </TransferProvider>
-      </AntApp>
-    </ConfigProvider>
+    <AppShell>
+    <WorkspaceProvider>
+    <div style={{ minHeight: '100vh', background: '#fff' }}>
+      <AppHeader />
+      <main
+        style={{
+          padding: isDetail ? '24px' : '24px 24px 48px',
+          maxWidth: 1200,
+          margin: '0 auto',
+        }}
+      >
+        <Routes>
+          <Route path="/home" element={<Home />} />
+          {site.landing !== '/' && <Route path="/" element={<Navigate to={site.landing} replace />} />}
+          {site.routes.map((r) => (
+            <Route key={r.path} path={r.path} element={React.createElement(viewComponent(r.type))} />
+          ))}
+          {site.navItems.flatMap((n) => {
+            const type = site.routes.find((r) => r.viewId === n.viewId)?.type ?? ''
+            return viewDetailRoutes(type).map((d) => (
+              <Route key={d.path} path={d.path} element={d.element} />
+            ))
+          })}
+          <Route path="*" element={<Navigate to={site.landing} replace />} />
+        </Routes>
+        {!isDetail && (
+          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 32 }}>
+            {PORTAL.footer}
+          </Typography.Text>
+        )}
+      </main>
+    </div>
+    </WorkspaceProvider>
+    </AppShell>
   )
 }
 export { App }

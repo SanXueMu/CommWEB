@@ -3,13 +3,15 @@
 import { AppstoreOutlined, DesktopOutlined } from '@ant-design/icons'
 import { Popover, Space, Typography } from 'antd'
 import { Link, useLocation } from 'react-router-dom'
+import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
 import type { ThemeName } from '@/theme/tokens'
 
 const NAV = [
-  { path: '/', label: '工具库' },
-  { path: '/flows', label: '流' },
-  { path: '/tasks', label: '任务中心' },
+  { path: '/', label: PORTAL.nav.tools },
+  { path: '/flows', label: PORTAL.nav.flows },
+  { path: '/workspace', label: PORTAL.nav.workspace },
+  { path: '/tasks', label: PORTAL.nav.tasks },
 ]
 
 const THEME_OPTIONS: { value: ThemeName; label: string }[] = [

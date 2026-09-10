@@ -6,8 +6,10 @@ import { Flows } from '@/pages/Flows'
 import { Tasks } from '@/pages/Tasks'
 import { ToolDetail } from '@/pages/ToolDetail'
 import { ToolsHub } from '@/pages/ToolsHub'
+import { Workspace } from '@/pages/Workspace'
 import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
+import { WorkspaceProvider } from '@/workspace/store'
 
 export function App() {
   const { config } = useTheme()
@@ -17,6 +19,7 @@ export function App() {
 
   return (
     <ConfigProvider theme={config}>
+      <WorkspaceProvider>
       <div style={{ minHeight: '100vh', background: '#fff' }}>
         <AppHeader />
         <main
@@ -32,6 +35,7 @@ export function App() {
             <Route path="/tools/:id" element={<ToolDetail />} />
             <Route path="/flows" element={<Flows />} />
             <Route path="/flows/:id" element={<FlowDetail />} />
+            <Route path="/workspace" element={<Workspace />} />
           </Routes>
           {!isDetail && (
             <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 32 }}>
@@ -40,6 +44,7 @@ export function App() {
           )}
         </main>
       </div>
+      </WorkspaceProvider>
     </ConfigProvider>
   )
 }

@@ -33,6 +33,7 @@ export interface UiDecl {
   group?: Record<string, string>
   field?: Record<string, { widget?: string; label?: string; help?: string; placeholder?: string }>
   submit_label?: string
+  render?: { highlight?: string[] }
 }
 
 export interface Task {
@@ -68,6 +69,38 @@ export interface StatusInfo {
   label: string
   group: string
   terminal: boolean
+}
+
+export interface RunEvent {
+  id: number
+  task_handle: string | null
+  kind: string
+  actor: string
+  detail: Record<string, unknown>
+  created_at: string
+}
+
+export interface StepLatest {
+  step_index: number
+  handle: string
+  status: string
+  attempt: number
+  input: Record<string, unknown> | null
+  output: Record<string, unknown> | null
+}
+
+export interface RunSnapshot {
+  run: {
+    id: string
+    pipeline_id: string
+    status: string
+    progress?: number | null
+    error?: unknown
+    input?: Record<string, unknown>
+    created_at?: string
+    finished_at?: string | null
+  }
+  steps: { step_index: number; tool: string; latest: StepLatest | null }[]
 }
 
 export interface PipelineStep {

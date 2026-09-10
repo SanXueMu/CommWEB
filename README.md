@@ -43,5 +43,7 @@ queued 蓝 / running 橙 / succeeded 青绿 / failed_review 紫 / 其余终态�
 |------|----------|---------------|-------------|-------------|--------------------|------|
 | 2026-09-09 | 初始骨架（api/protocol/components/pages/theme 五层 + 三页 + 五组件） | 否（最大 TaskDrawer ~90 行） | 是（pages→components→protocol→api 无越级） | 否 | 是（dev.string.reverse / text.llm.translate 零代码上架，表单自动生成） | 通过 |
 | 2026-09-09 | 美术重构（packy 风格）：白底细灰线 / AppHeader / DataListPanel 通用列表（卡片/列表双形态+输入即检）/ 工具库左标签筛选 + 阅读卡片弹窗 / 任务中心同构套用 / tags 链路 | 否 | 是（筛选与过滤留 pages，渲染下沉组件） | 否 | 是（tags 随 register 下发即筛选用） | 通过 |
+| 2026-09-10 | 组件库纯化：config/ 门户配置层（portal/helpCards/statusCatalog）+ StatusBadge 目录驱动 + rowNeedsReview 通用化（*_flags + highlight 声明）+ PanelCard 消三处复制 | 否 | 是（文案只出自 config，组件零业务语义） | 否 | 是（状态机加状态前端零改动，目录驱动） | 通过 |
+| 2026-09-10 | doc/md 渲染（DocPanel + react-markdown）+ S5 工作区：浏览器式多标签（workspace store 持久化）/ ToolSession（表单→内联事件流+结果）/ FlowSession（snapshot 轮询）/ RunControlBar（暂停/恢复/中止）/ StepTrack（断点重跑+字段覆盖）/ AuditTimeline（审计轨迹）/ 三处「在工作区打开」入口 | 否（最大 Workspace ~230 行） | 是（store 只存会话指针，数据全走 react-query） | 否 | 是（流控制按钮显隐由 run.status 驱动） | 通过 |
 
 五列体检项：① 单组件 >300 行？② 数据流单向？③ 反模式（巨型 page/复制粘贴组件/绕过 protocol/绕过 api/内联魔法色值）？④ 新工具零代码入前端（回归测试）？⑤ UI 声明是否仍最简？

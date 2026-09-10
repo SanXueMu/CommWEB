@@ -10,21 +10,8 @@ import { FileUpload } from '@/components/FileUpload'
 import { DocPanel } from '@/components/DocPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 
-/** 从 steps 模板里提取 `{{ input.xxx }}` 引用的键（保持出现顺序）。 */
-function extractInputKeys(steps: { input: Record<string, unknown> }[]): string[] {
-  const keys: string[] = []
-  for (const step of steps) {
-    for (const template of Object.values(step.input)) {
-      const text = String(template ?? '')
-      for (const match of text.matchAll(/\{\{\s*input\.(\w+)\s*\}\}/g)) {
-        if (!keys.includes(match[1])) keys.push(match[1])
-      }
-    }
-  }
-  return keys
-}
-
-const FILE_FIELD_RE = /file|path|文档|文件/
+import { FILE_FIELD_RE, extractInputKeys } from '@/protocol/flow'
+import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 
 export function FlowDetail() {
   const { id = '' } = useParams()
@@ -81,6 +68,7 @@ export function FlowDetail() {
       <Card size="small">
         <Space direction="vertical" size={4}>
           <Space size={8}>
+            <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} />
             <Typography.Title level={4} style={{ margin: 0 }}>{flow.name}</Typography.Title>
             <Tag color="purple">{flow.id}</Tag>
             <Tag>{flow.steps.length} 步</Tag>

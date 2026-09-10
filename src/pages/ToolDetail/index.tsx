@@ -6,6 +6,7 @@ import { api } from '@/api/client'
 import { TaskDrawer } from '@/components/TaskDrawer'
 import { ToolForm } from '@/components/ToolForm'
 import { DocPanel } from '@/components/DocPanel'
+import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
 
@@ -34,6 +35,7 @@ export function ToolDetail() {
         <Space direction="vertical" size={4}>
           <Space size={8}>
             <Typography.Title level={4} style={{ margin: 0 }}>{tool.name}</Typography.Title>
+            <OpenInWorkspace kind="tool" refId={tool.id} title={tool.name} />
             <Tag color="blue">{tool.id}</Tag>
             <Tag>v{tool.version}</Tag>
             <Tag>{tool.runtime_kind}</Tag>

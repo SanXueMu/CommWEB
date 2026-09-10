@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
+import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
 
@@ -84,6 +85,7 @@ function FlowRow({ flow }: { flow: PipelineSummary }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <StepChain flow={flow} />
       </div>
+      <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} />
     </div>
   )
 }

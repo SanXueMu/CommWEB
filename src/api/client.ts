@@ -5,6 +5,8 @@ import type {
   PipelineRun,
   PipelineRunCreated,
   PipelineSummary,
+  RunEvent,
+  RunSnapshot,
   StatusInfo,
   Task,
   TaskCreated,
@@ -52,6 +54,20 @@ export const api = {
       body: JSON.stringify({ input }),
     }),
   getPipelineRun: (runId: string) => request<PipelineRun>(`/pipeline-runs/${runId}`),
+  getRunSnapshot: (runId: string) => request<RunSnapshot>(`/pipeline-runs/${runId}/snapshot`),
+  listRunEvents: (runId: string, limit = 200) =>
+    request<{ events: RunEvent[] }>(`/pipeline-runs/${runId}/events?limit=${limit}`),
+  pauseRun: (runId: string) => request<{ run_id: string; status: string }>(`/pipeline-runs/${runId}/pause`, { method: 'POST' }),
+  resumeRun: (runId: string) =>
+    request<{ run_id: string; status: string; dispatched?: string }>(`/pipeline-runs/${runId}/resume`, { method: 'POST' }),
+  abortRun: (runId: string) => request<{ run_id: string; status: string }>(`/pipeline-runs/${runId}/abort`, { method: 'POST' }),
+  abortStep: (runId: string, stepIndex: number) =>
+    request<{ run_id: string; step_index: number; status: string }>(`/pipeline-runs/${runId}/steps/${stepIndex}/abort`, { method: 'POST' }),
+  rerunStep: (runId: string, stepIndex: number, override?: Record<string, unknown>) =>
+    request<{ run_id: string; step_index: number; handle: string; status: string }>(`/pipeline-runs/${runId}/steps/${stepIndex}/rerun`, {
+      method: 'POST',
+      body: JSON.stringify({ override: override ?? null }),
+    }),
   uploadFile: (file: File): Promise<FileUploaded> => {
     const body = new FormData()
     body.append('file', file)

@@ -1,8 +1,44 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  background: #fff;
 }
+
+/* DocPanel：markdown 渲染基线（packy 风：细灰线表格、代码块浅底） */
+.commweb-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.commweb-doc th,
+.commweb-doc td {
+  border: 1px solid #f0f0f0;
+  padding: 6px 10px;
+  text-align: left;
+}
+.commweb-doc th {
+  background: #fafafa;
+}
+.commweb-doc pre {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12.5px;
+}
+.commweb-doc code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.commweb-doc blockquote {
+  border-left: 3px solid #f0f0f0;
+  margin: 8px 0;
+  padding: 2px 12px;
+  color: #8c8c8c;
+}
+.commweb-doc h1 { font-size: 20px; }
+.commweb-doc h2 { font-size: 17px; }
+.commweb-doc h3 { font-size: 15px; }
+
 
 /* 列表式行 hover */
 .commweb-list-row {

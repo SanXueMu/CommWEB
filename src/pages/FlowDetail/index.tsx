@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { PipelineRun } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
+import { DocPanel } from '@/components/DocPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 
 /** 从 steps 模板里提取 `{{ input.xxx }}` 引用的键（保持出现顺序）。 */
@@ -118,6 +119,8 @@ export function FlowDetail() {
           })}
         />
       </Card>
+
+      <DocPanel docMd={flow.doc_md} />
 
       <Card size="small" title="运行（表单由管线模板自动生成）">
         <Form form={form} layout="vertical" onFinish={submit}>

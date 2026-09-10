@@ -21,6 +21,7 @@ export interface ToolManifest {
     output_types: string[]
   }
   runtime: { kind: string; entry: string; sync?: boolean }
+  doc_md?: string | null
   resources: { timeout_s: number; concurrency: number; max_attempts: number }
   ui?: UiDecl
 }
@@ -78,6 +79,7 @@ export interface PipelineSummary {
   id: string
   name: string
   steps: PipelineStep[]
+  doc_md?: string | null
 }
 
 export interface PipelineRunCreated {

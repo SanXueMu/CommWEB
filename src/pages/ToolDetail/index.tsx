@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { api } from '@/api/client'
 import { TaskDrawer } from '@/components/TaskDrawer'
 import { ToolForm } from '@/components/ToolForm'
+import { DocPanel } from '@/components/DocPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
 
@@ -64,6 +65,8 @@ export function ToolDetail() {
           dataSource={tasks}
         />
       </Card>
+
+      <DocPanel docMd={tool.manifest.doc_md} />
 
       <TaskDrawer handle={drawerHandle} onClose={() => setDrawerHandle(null)} />
     </Space>

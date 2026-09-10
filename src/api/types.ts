@@ -141,3 +141,26 @@ export interface FileUploaded {
   name: string
   size: number
 }
+
+export interface OcrKey {
+  name: string
+  provider: string
+  base_url: string
+  api_key: string
+  is_default: boolean
+}
+
+export interface OcrDbFile {
+  path: string
+  name: string
+  size: number
+  modified: string
+}
+
+export interface PipelineDefinition {
+  id: string
+  name: string
+  steps: { tool: string; input: Record<string, unknown> }[]
+  doc_md?: string | null
+  status?: string
+}

@@ -30,15 +30,12 @@ export interface ParsedSite {
   declared: SiteViewDecl[]
 }
 
-/** 内置默认视图集（v1 会员兜底，与 CommAND 声明同构）。 */
+/** 空站点（纯壳准则，2026-09-10 申明）：CommWEB 代码不存任何业务内容，
+ *  业务视图一律来自会员声明（CommAND /meta/site，PG site_views 表）。
+ *  无声明/拉取失败时回落空站点，由调用方渲染引导页。 */
 export const DEFAULT_SITE: SiteManifest = {
   name: 'CommWEB',
-  views: [
-    { id: 'tools', type: 'tools.grid', title: '工具库', icon: 'appstore-outlined', default: true },
-    { id: 'flows', type: 'flows.list', title: '流', when: { capability: 'has_pipelines' } },
-    { id: 'tasks', type: 'tasks.table', title: '任务中心' },
-    { id: 'work', type: 'workspace.tabs', title: '工作区' },
-  ],
+  views: [],
 }
 
 interface Capabilities {

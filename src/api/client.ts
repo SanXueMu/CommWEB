@@ -2,6 +2,9 @@
 
 import type {
   FileUploaded,
+  OcrDbFile,
+  OcrKey,
+  PipelineDefinition,
   PipelineRun,
   PipelineRunCreated,
   PipelineSummary,
@@ -101,6 +104,25 @@ function createApi(pid?: string) {
       body: JSON.stringify({ override: override ?? null }),
     }),
   uploadFile: (file: File): Promise<FileUploaded> => apiUpload(file, pid),
+  listKeys: () => request<{ keys: OcrKey[] }>('/keys'),
+  putKey: (body: OcrKey) =>
+    request<{ name: string; stored: boolean }>(`/keys/${encodeURIComponent(body.name)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteKey: (name: string) =>
+    request<{ name: string; deleted: boolean }>(`/keys/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  listDbs: () => request<{ dbs: OcrDbFile[] }>('/data/dbs'),
+  createPipeline: (body: PipelineDefinition) =>
+    request<PipelineDefinition>('/pipelines', { method: 'POST', body: JSON.stringify(body) }),
+  updatePipeline: (id: string, body: PipelineDefinition) =>
+    request<PipelineDefinition>(`/pipelines/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deletePipeline: (id: string) =>
+    request<{ id: string; status: string }>(`/pipelines/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  downloadUrl: (path: string) => `${apiBaseOf(pid)}/files/download?path=${encodeURIComponent(path)}`,
   }
 }
 

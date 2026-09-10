@@ -23,6 +23,9 @@ import { Flows } from '@/pages/Flows'
 import { Workspace } from '@/pages/Workspace'
 import { ToolDetail } from '@/pages/ToolDetail'
 import { FlowDetail } from '@/pages/FlowDetail'
+import { DataBrowser } from '@/components/DataBrowser'
+import { PipelineStudio } from '@/components/PipelineStudio'
+import { SettingsKeys } from '@/components/SettingsKeys'
 
 /** icon 白名单：声明用 kebab-case，未知名回落默认（防任意组件注入）。 */
 const ICONS: Record<string, ComponentType> = {
@@ -60,6 +63,9 @@ export const VIEW_TYPES: Record<string, ViewTypeEntry> = {
   },
   'tasks.table': { component: Tasks },
   'workspace.tabs': { component: Workspace },
+  'data.browser': { component: DataBrowser },
+  'pipeline.studio': { component: PipelineStudio },
+  'settings.keys': { component: SettingsKeys },
 }
 
 /** 未知类型降级：不炸、不瞒（蓝图 03 治理规则）。 */

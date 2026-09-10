@@ -8,6 +8,7 @@ import { WorkspaceProvider } from '@/workspace/store'
 import { TransferProvider, useProviders } from '@/transfer/context'
 import { Home } from '@/pages/Home'
 import { useSiteCatalog } from '@/config/useSiteCatalog'
+import { ViewScope } from '@/protocol/ViewPropsContext'
 import { viewComponent, viewDetailRoutes } from '@/protocol/views'
 
 /** 会话壳：未激活守卫（蓝图05 §五.3）；被删会员回退提示（§七.2）。 */
@@ -46,6 +47,8 @@ function App() {
 function SiteFrame() {
   const location = useLocation()
   const { site } = useSiteCatalog()
+  const { activeId: activePid } = useProviders()
+  const pidForViews = activePid ?? ''
   const detailPrefixes = site.navItems
     .flatMap((n) => viewDetailRoutes(site.routes.find((r) => r.viewId === n.viewId)?.type ?? ''))
     .map((r) => r.path.split('/:')[0])
@@ -64,12 +67,21 @@ function SiteFrame() {
           margin: '0 auto',
         }}
       >
+      {site.routes.length === 0 && <EmptySiteGuide />}
         <Routes>
           <Route path="/home" element={<Home />} />
           {site.landing !== '/' && <Route path="/" element={<Navigate to={site.landing} replace />} />}
-          {site.routes.map((r) => (
-            <Route key={r.path} path={r.path} element={React.createElement(viewComponent(r.type))} />
-          ))}
+          {site.routes.map((r) => {
+            const DeclView = viewComponent(r.type)
+            const decl = site.declared.find((d) => d.id === r.viewId)
+            return (
+              <Route
+                key={r.path}
+                path={r.path}
+                element={decl ? <ViewScope decl={decl} pid={pidForViews}><DeclView /></ViewScope> : <DeclView />}
+              />
+            )
+          })}
           {site.navItems.flatMap((n) => {
             const type = site.routes.find((r) => r.viewId === n.viewId)?.type ?? ''
             return viewDetailRoutes(type).map((d) => (
@@ -90,3 +102,16 @@ function SiteFrame() {
   )
 }
 export { App }
+
+/** 空站点引导（纯壳准则）：会员未声明任何视图时的协议级提示，非业务页面。 */
+function EmptySiteGuide() {
+  return (
+    <div style={{ textAlign: 'center', padding: '80px 0' }}>
+      <Typography.Title level={3} style={{ marginBottom: 8 }}>该会员尚未声明站点视图</Typography.Title>
+      <Typography.Text type="secondary">
+        CommWEB 不内置任何业务内容。视图集由会员经 <Typography.Text code>/meta/site</Typography.Text> 声明
+        （存于会员的数据库，注册与每次热部署后生效）。
+      </Typography.Text>
+    </div>
+  )
+}

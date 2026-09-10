@@ -21,6 +21,7 @@ export const PORTAL = {
   sidebar: {
     tags: '标签',
     status: '状态',
+    clear: '清空筛选',
   },
   search: {
     tools: '搜索工具（名称 / id / 描述 / 标签）',

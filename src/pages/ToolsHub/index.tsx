@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { ToolSummary } from '@/api/types'
 import { ProviderBadge } from '@/components/ProviderBadge'
 import { DataListPanel } from '@/components/DataListPanel'
+import { FilterSidebar, normalizeTags } from '@/components/FilterSidebar'
 import { HelpCardModal } from '@/components/HelpCardModal'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
@@ -11,6 +12,8 @@ import { HELP_CARDS } from '@/config/helpCards'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import { useQuery } from '@tanstack/react-query'
+
+const norm = (t: string) => t.trim().toLowerCase()
 
 /** 货架（packy 风格，T3 聚合模式）：多会员工具混排 + 左侧标签/会员双筛选。 */
 export function ToolsHub() {
@@ -20,20 +23,18 @@ export function ToolsHub() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: () => apiFor(pid).listTools() })
   const tools = data?.tools ?? []
-  const allTags = useMemo(
-    () => [...new Set(tools.flatMap((t) => t.tags ?? []))],
-    [tools],
-  )
+  const allTags = useMemo(() => normalizeTags(tools.flatMap((t) => t.tags ?? [])), [tools])
   const filtered = tools.filter((tool) => {
+    const kw = keyword.trim()
     const hitKeyword =
-      !keyword ||
-      tool.id.includes(keyword) ||
-      tool.name.includes(keyword) ||
-      (tool.description ?? '').includes(keyword) ||
-      (tool.tags ?? []).some((t) => t.includes(keyword))
+      !kw ||
+      tool.id.includes(kw) ||
+      tool.name.includes(kw) ||
+      (tool.description ?? '').includes(kw) ||
+      (tool.tags ?? []).some((t) => t.includes(kw))
     const hitTags =
       selectedTags.length === 0 ||
-      selectedTags.every((tag) => (tool.tags ?? []).includes(tag))
+      selectedTags.every((tag) => (tool.tags ?? []).some((t) => norm(t) === norm(tag)))
     return hitKeyword && hitTags
   })
 
@@ -44,44 +45,10 @@ export function ToolsHub() {
 
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-      <aside
-        style={{
-          width: 168,
-          flexShrink: 0,
-          position: 'sticky',
-          top: 76,
-          borderRight: '1px solid #f0f0f0',
-          paddingRight: 16,
-        }}
-      >
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          标签
-        </Typography.Text>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-          {allTags.map((tag) => (
-            <Tag.CheckableTag
-              key={tag}
-              checked={selectedTags.includes(tag)}
-              onChange={() => toggleTag(tag)}
-            >
-              {tag}
-            </Tag.CheckableTag>
-          ))}
-          {allTags.length === 0 && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {PORTAL.empty.noTags}
-            </Typography.Text>
-          )}
-        </div>
-        {selectedTags.length > 0 && (
-          <Typography.Link
-            style={{ fontSize: 12, marginTop: 8, display: 'inline-block' }}
-            onClick={() => setSelectedTags([])}
-          >
-            清空筛选
-          </Typography.Link>
-        )}
-      </aside>
+      <FilterSidebar
+        groups={[{ title: PORTAL.sidebar.tags, items: allTags, selected: selectedTags, onToggle: toggleTag }]}
+        onClear={() => setSelectedTags([])}
+      />
 
       <main style={{ flex: 1, minWidth: 0 }}>
         <DataListPanel
@@ -125,7 +92,7 @@ function ToolCard({ tool }: { tool: ToolSummary }) {
           {tool.description || '（无描述）'}
         </Typography.Paragraph>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {(tool.tags ?? []).map((t) => (
+          {normalizeTags(tool.tags ?? []).map((t) => (
             <Tag key={t} style={{ marginRight: 0 }}>{t}</Tag>
           ))}
           <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
@@ -157,7 +124,7 @@ function ToolRow({ tool }: { tool: ToolSummary }) {
         {tool.description || '（无描述）'}
       </Typography.Text>
       <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-        {(tool.tags ?? []).map((t) => (
+        {normalizeTags(tool.tags ?? []).map((t) => (
           <Tag key={t} style={{ marginRight: 0 }}>{t}</Tag>
         ))}
       </div>

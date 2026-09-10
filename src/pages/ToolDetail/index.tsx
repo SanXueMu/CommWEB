@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { Card, Descriptions, Space, Spin, Table, Tag, Typography } from 'antd'
+import { Card, Descriptions, Spin, Table, Tag, Typography } from 'antd'
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { apiFor } from '@/api/client'
+import { DocPanel } from '@/components/DocPanel'
+import { EntityDetailLayout } from '@/components/EntityDetailLayout'
 import { TaskDrawer } from '@/components/TaskDrawer'
 import { ToolForm } from '@/components/ToolForm'
-import { DocPanel } from '@/components/DocPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
@@ -33,25 +34,26 @@ export function ToolDetail() {
   const tasks = (recent?.tasks ?? []).filter((t) => t.tool_id === tool.id).slice(0, 5)
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card size="small">
-        <Space direction="vertical" size={4}>
-          <Space size={8}>
-            <Typography.Title level={4} style={{ margin: 0 }}>{tool.name}</Typography.Title>
-            <OpenInWorkspace kind="tool" refId={tool.id} title={tool.name} providerId={pid} />
-            <Tag color="blue">{tool.id}</Tag>
-            <Tag>v{tool.version}</Tag>
-            <Tag>{tool.runtime_kind}</Tag>
-          </Space>
-          <Typography.Text type="secondary">{tool.description}</Typography.Text>
-          <Descriptions size="small" column={3}>
-            <Descriptions.Item label="超时">{tool.manifest.resources.timeout_s}s</Descriptions.Item>
-            <Descriptions.Item label="并发">{tool.manifest.resources.concurrency}</Descriptions.Item>
-            <Descriptions.Item label="重试上限">{tool.manifest.resources.max_attempts}</Descriptions.Item>
-          </Descriptions>
-        </Space>
-      </Card>
-
+    <EntityDetailLayout
+      workspaceAction={<OpenInWorkspace kind="tool" refId={tool.id} title={tool.name} providerId={pid} />}
+      title={tool.name}
+      tags={
+        <>
+          <Tag color="blue">{tool.id}</Tag>
+          <Tag>v{tool.version}</Tag>
+          <Tag>{tool.runtime_kind}</Tag>
+        </>
+      }
+      description={tool.description}
+      meta={
+        <Descriptions size="small" column={3}>
+          <Descriptions.Item label="超时">{tool.manifest.resources.timeout_s}s</Descriptions.Item>
+          <Descriptions.Item label="并发">{tool.manifest.resources.concurrency}</Descriptions.Item>
+          <Descriptions.Item label="重试上限">{tool.manifest.resources.max_attempts}</Descriptions.Item>
+        </Descriptions>
+      }
+      docs={<DocPanel docMd={tool.manifest.doc_md} />}
+    >
       <Card size="small" title={PORTAL.run.formTitle}>
         <ToolForm tool={tool} onSubmitted={setDrawerHandle} />
       </Card>
@@ -71,9 +73,7 @@ export function ToolDetail() {
         />
       </Card>
 
-      <DocPanel docMd={tool.manifest.doc_md} />
-
       <TaskDrawer handle={drawerHandle} onClose={() => setDrawerHandle(null)} />
-    </Space>
+    </EntityDetailLayout>
   )
 }

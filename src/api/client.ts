@@ -64,6 +64,8 @@ function createApi(pid?: string) {
   return {
   /** 通用 GET（协议面端点如 /meta/site，由 Transfer 解析层使用）。 */
   get: <T>(path: string) => request<T>(path, undefined, pid),
+  /** 通用出站（管理面同步端点如 /ocr/templates 的 PATCH/POST/DELETE）。 */
+  send: <T>(path: string, init: RequestInit) => request<T>(path, init, pid),
   getStatuses: async (): Promise<{ statuses: StatusInfo[] }> => ({ statuses: normalizeStatuses((await request<{ statuses: unknown[] }>('/meta/statuses')).statuses) }),
   listTools: async (): Promise<{ tools: ToolSummary[] }> => {
     const providerId = pid ?? registry.activeId() ?? 'default'

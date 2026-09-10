@@ -6,6 +6,7 @@ import { Flows } from '@/pages/Flows'
 import { Tasks } from '@/pages/Tasks'
 import { ToolDetail } from '@/pages/ToolDetail'
 import { ToolsHub } from '@/pages/ToolsHub'
+import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
 
 export function App() {
@@ -34,7 +35,7 @@ export function App() {
           </Routes>
           {!isDetail && (
             <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 32 }}>
-              CommWEB · CommAND 之上的筋络 · 小工具与全自动流零前端代码自动上架
+              {PORTAL.footer}
             </Typography.Text>
           )}
         </main>

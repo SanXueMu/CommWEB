@@ -3,6 +3,7 @@ import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Select, Sw
 import { api } from '@/api/client'
 import type { ToolDetail } from '@/api/types'
 import { resolveForm } from '@/protocol/resolver'
+import { PORTAL } from '@/config/portal'
 
 /** 自动表单：resolver 产物 → AntD 控件。工具零前端代码即得可用表单。 */
 export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted: (handle: string) => void }) {
@@ -22,7 +23,7 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
       case 'multiSelect':
         return <Select mode="multiple" options={field.options} />
       case 'tags':
-        return <Select mode="tags" placeholder={field.placeholder ?? '回车逐项添加'} open={false} />
+        return <Select mode="tags" placeholder={field.placeholder ?? PORTAL.form.tagsPlaceholder} open={false} />
       case 'number':
         return <InputNumber style={{ width: '100%' }} />
       case 'switch':
@@ -67,7 +68,7 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
         </Form.Item>
       ))}
       <Button type="primary" htmlType="submit">
-        {tool.manifest.ui?.submit_label ?? '提交任务'}
+        {tool.manifest.ui?.submit_label ?? PORTAL.run.submit}
       </Button>
     </Form>
   )

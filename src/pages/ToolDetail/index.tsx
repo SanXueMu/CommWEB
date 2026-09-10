@@ -5,7 +5,8 @@ import { useParams } from 'react-router-dom'
 import { api } from '@/api/client'
 import { TaskDrawer } from '@/components/TaskDrawer'
 import { ToolForm } from '@/components/ToolForm'
-import { STATUS_COLORS } from '@/theme/tokens'
+import { StatusBadge } from '@/components/StatusBadge'
+import { PORTAL } from '@/config/portal'
 
 /** 工作台：manifest 信息 + 自动表单 + 该工具近期任务。 */
 export function ToolDetail() {
@@ -45,7 +46,7 @@ export function ToolDetail() {
         </Space>
       </Card>
 
-      <Card size="small" title="运行（表单由 input_schema 自动生成）">
+      <Card size="small" title={PORTAL.run.formTitle}>
         <ToolForm tool={tool} onSubmitted={setDrawerHandle} />
       </Card>
 
@@ -57,7 +58,7 @@ export function ToolDetail() {
           onRow={(record) => ({ onClick: () => setDrawerHandle(record.handle), style: { cursor: 'pointer' } })}
           columns={[
             { title: 'handle', dataIndex: 'handle', render: (v: string) => <code>{v.slice(0, 14)}…</code> },
-            { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={STATUS_COLORS[v]}>{v}</Tag> },
+            { title: '状态', dataIndex: 'status', render: (v: string) => <StatusBadge value={v} /> },
             { title: '创建', dataIndex: 'created_at', render: (v: string) => v?.slice(0, 19) },
           ]}
           dataSource={tasks}

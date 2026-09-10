@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { App as AntApp, Button, Descriptions, Drawer, Popconfirm, Space, Tag } from 'antd'
+import { App as AntApp, Button, Descriptions, Drawer, Popconfirm, Space } from 'antd'
 import { api } from '@/api/client'
 import { EventStream } from '@/components/EventStream'
 import { ResultRenderer } from '@/components/ResultRenderer'
-import { STATUS_COLORS } from '@/theme/tokens'
+import { StatusBadge } from '@/components/StatusBadge'
 
 /** 任务详情抽屉：状态徽章 + SSE 事件流 + 输出渲染 + 取消。 */
 export function TaskDrawer({ handle, onClose }: { handle: string | null; onClose: () => void }) {
@@ -45,7 +45,7 @@ export function TaskDrawer({ handle, onClose }: { handle: string | null; onClose
         <Descriptions size="small" column={2} bordered>
           <Descriptions.Item label="工具">{task.tool_id}</Descriptions.Item>
           <Descriptions.Item label="状态">
-            <Tag color={STATUS_COLORS[task.status]}>{task.status}</Tag>
+            <StatusBadge value={task.status} />
           </Descriptions.Item>
           <Descriptions.Item label="尝试">{task.attempt}/{task.max_attempts}</Descriptions.Item>
           <Descriptions.Item label="创建">{task.created_at?.slice(0, 19)}</Descriptions.Item>

@@ -7,7 +7,7 @@ import { useParams } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { PipelineRun } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
-import { STATUS_COLORS } from '@/theme/tokens'
+import { StatusBadge } from '@/components/StatusBadge'
 
 /** 从 steps 模板里提取 `{{ input.xxx }}` 引用的键（保持出现顺序）。 */
 function extractInputKeys(steps: { input: Record<string, unknown> }[]): string[] {
@@ -88,7 +88,7 @@ export function FlowDetail() {
             <Descriptions size="small" column={3} style={{ marginTop: 8 }}>
               <Descriptions.Item label="运行 ID"><code>{run.id}</code></Descriptions.Item>
               <Descriptions.Item label="状态">
-                <Tag color={STATUS_COLORS[run.status] ?? 'default'}>{run.status}</Tag>
+                <StatusBadge value={run.status} />
               </Descriptions.Item>
               <Descriptions.Item label="完成">{run.finished_at?.slice(0, 19) ?? '—'}</Descriptions.Item>
             </Descriptions>

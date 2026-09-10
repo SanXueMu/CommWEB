@@ -6,6 +6,9 @@ import { api } from '@/api/client'
 import type { ToolSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
 import { HelpCardModal } from '@/components/HelpCardModal'
+import { PanelCard } from '@/components/ui/PanelCard'
+import { PORTAL } from '@/config/portal'
+import { HELP_CARDS } from '@/config/helpCards'
 
 /** 货架（packy 风格）：左侧标签筛选 + 右侧通用列表面板（卡片/列表双形态）。 */
 export function ToolsHub() {
@@ -64,7 +67,7 @@ export function ToolsHub() {
           ))}
           {allTags.length === 0 && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              （工具暂无标签）
+              {PORTAL.empty.noTags}
             </Typography.Text>
           )}
         </div>
@@ -85,15 +88,15 @@ export function ToolsHub() {
           loading={isLoading}
           rowKey={(t) => t.id}
           onSearch={setKeyword}
-          searchPlaceholder="搜索工具（名称 / id / 描述 / 标签）"
-          extraActions={<HelpCardModal />}
+          searchPlaceholder={PORTAL.search.tools}
+          extraActions={<HelpCardModal cards={HELP_CARDS} />}
           onItemClick={(t) => navigate(`/tools/${t.id}`)}
-          emptyText="暂无工具——先在 CommAND 侧 register"
+          emptyText={PORTAL.empty.tools}
           renderCard={(tool) => <ToolCard tool={tool} />}
           renderRow={(tool) => <ToolRow tool={tool} />}
         />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          共 {filtered.length} 个工具 · 零前端代码自动上架
+          共 {filtered.length} 个工具 · {PORTAL.footNote.tools}
         </Typography.Text>
       </main>
     </div>
@@ -103,18 +106,7 @@ export function ToolsHub() {
 function ToolCard({ tool }: { tool: ToolSummary }) {
   return (
     <Link to={`/tools/${tool.id}`}>
-      <div
-        style={{
-          border: '1px solid #ececec',
-          borderRadius: 10,
-          padding: 16,
-          height: '100%',
-          background: '#fff',
-          transition: 'box-shadow .2s',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)')}
-        onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
-      >
+      <PanelCard>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Typography.Text strong>{tool.name}</Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -136,7 +128,7 @@ function ToolCard({ tool }: { tool: ToolSummary }) {
             {tool.input_types.join(', ')} → {tool.output_types.join(', ')}
           </Typography.Text>
         </div>
-      </div>
+      </PanelCard>
     </Link>
   )
 }

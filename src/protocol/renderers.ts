@@ -10,7 +10,7 @@ function isArrayOfObjects(value: unknown): value is Record<string, unknown>[] {
   return Array.isArray(value) && value.length > 0 && value.every(isPlainObject)
 }
 
-/** 提取表格：顶层对象数组，或对象内首个对象数组（一深度探测）。 */
+/** 深度探测提取表格：顶层对象数组，或对象内首个对象数组（一深度）。 */
 export function extractTable(output: unknown): { columns: string[]; rows: Record<string, unknown>[] } | null {
   let rows: Record<string, unknown>[] | null = null
   if (isArrayOfObjects(output)) rows = output
@@ -35,12 +35,17 @@ export function detectRenderer(output: unknown): RendererKind {
   return 'json'
 }
 
-/** 质检高亮：行内含 review_flags 非空或 review_ 前缀真值字段 → 待审行。 */
-export function rowNeedsReview(row: Record<string, unknown>): boolean {
-  if (Array.isArray(row.review_flags) && row.review_flags.length > 0) return true
-  return Object.entries(row).some(
-    ([key, value]) => key.startsWith('review_') && Boolean(value),
-  )
+/** 待审行判定（通用数据约定，不含业务字段名）：
+ *  ① 任意键名以 `_flags` 结尾且值为非空数组；② 工具声明 highlight 字段命中且真值。 */
+export function rowNeedsReview(row: Record<string, unknown>, highlight?: string[]): boolean {
+  if (
+    Object.entries(row).some(
+      ([key, value]) => key.endsWith('_flags') && Array.isArray(value) && value.length > 0,
+    )
+  ) {
+    return true
+  }
+  return (highlight ?? []).some((key) => Boolean(row[key]))
 }
 
 /** 纯文本提取：数组字符串逐行，字符串整体。 */

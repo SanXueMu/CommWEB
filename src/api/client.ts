@@ -5,6 +5,7 @@ import type {
   PipelineRun,
   PipelineRunCreated,
   PipelineSummary,
+  StatusInfo,
   Task,
   TaskCreated,
   TaskEvent,
@@ -33,6 +34,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getStatuses: () => request<{ statuses: StatusInfo[] }>('/meta/statuses'),
   listTools: () => request<{ tools: ToolSummary[] }>('/tools'),
   getTool: (id: string) => request<ToolDetail>(`/tools/${id}`),
   createTask: (tool: string, input: Record<string, unknown>) =>

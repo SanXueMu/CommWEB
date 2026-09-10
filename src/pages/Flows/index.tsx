@@ -7,6 +7,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
+import { PanelCard } from '@/components/ui/PanelCard'
+import { PORTAL } from '@/config/portal'
 
 export function Flows() {
   const navigate = useNavigate()
@@ -29,14 +31,14 @@ export function Flows() {
         loading={isLoading}
         rowKey={(f) => f.id}
         onSearch={setKeyword}
-        searchPlaceholder="搜索流（名称 / id / 步骤工具）"
+        searchPlaceholder={PORTAL.search.flows}
         onItemClick={(f) => navigate(`/flows/${f.id}`)}
-        emptyText="暂无流工具——先在 CommAND 侧注册管线"
+        emptyText={PORTAL.empty.flows}
         renderCard={(flow) => <FlowCard flow={flow} />}
         renderRow={(flow) => <FlowRow flow={flow} />}
       />
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        共 {flows.length} 条流 · 管线步骤可在任务中心逐步追踪
+        共 {flows.length} 条流 · {PORTAL.footNote.flows}
       </Typography.Text>
     </div>
   )
@@ -53,18 +55,7 @@ function StepChain({ flow }: { flow: PipelineSummary }) {
 function FlowCard({ flow }: { flow: PipelineSummary }) {
   return (
     <Link to={`/flows/${flow.id}`}>
-      <div
-        style={{
-          border: '1px solid #ececec',
-          borderRadius: 10,
-          padding: 16,
-          height: '100%',
-          background: '#fff',
-          transition: 'box-shadow .2s',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)')}
-        onMouseLeave={(e) => (e.currentTarget.style.boxShadow = 'none')}
-      >
+      <PanelCard>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Typography.Text strong>{flow.name}</Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -74,7 +65,7 @@ function FlowCard({ flow }: { flow: PipelineSummary }) {
         <div style={{ margin: '10px 0 6px' }}>
           <StepChain flow={flow} />
         </div>
-      </div>
+      </PanelCard>
     </Link>
   )
 }

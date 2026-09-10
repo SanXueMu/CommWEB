@@ -62,6 +62,13 @@ export interface TaskCreated {
   status: string
 }
 
+export interface StatusInfo {
+  value: string
+  label: string
+  group: string
+  terminal: boolean
+}
+
 export interface PipelineStep {
   tool: string
   input: Record<string, string | number | boolean | null>

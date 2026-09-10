@@ -1,7 +1,7 @@
 /** 流工作台：步骤链总览 + 自动运行表单（模板键 → 字段；file 键 → 上传组件）+ 运行跟踪。 */
 
-import { useQuery } from '@tanstack/react-query'
-import { Alert, Button, Card, Descriptions, Form, Input, Space, Spin, Steps, Tag, Typography, message } from 'antd'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { Alert, Button, Card, Descriptions, Form, Input, Space, Spin, Steps, Tag, Typography, message, Select } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '@/api/client'
@@ -10,7 +10,7 @@ import { FileUpload } from '@/components/FileUpload'
 import { DocPanel } from '@/components/DocPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 
-import { FILE_FIELD_RE, extractInputKeys } from '@/protocol/flow'
+import { extractFlowFields } from '@/protocol/flow'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 
 export function FlowDetail() {
@@ -39,10 +39,22 @@ export function FlowDetail() {
     }
   }, [runDetail?.run.status, runDetail?.run.error])
 
-  const inputKeys = useMemo(
-    () => (flow ? extractInputKeys(flow.steps) : []),
-    [flow],
-  )
+  const toolQueries = useQueries({
+    queries: (flow ? [...new Set(flow.steps.map((s) => s.tool))] : []).map((tid) => ({
+      queryKey: ['tool', tid],
+      queryFn: () => api.getTool(tid),
+      staleTime: 60_000,
+    })),
+  })
+  const fields = useMemo(() => {
+    if (!flow) return []
+    const schemaMap: Record<string, Record<string, unknown>> = {}
+    toolQueries.forEach((q: { data?: { id: string; manifest: { io: { input_schema: Record<string, unknown> } } } }) => {
+      if (q.data) schemaMap[q.data.id] = (q.data as { manifest: { io: { input_schema: Record<string, unknown> } } }).manifest.io.input_schema
+    })
+    return extractFlowFields(flow.steps, schemaMap as never)
+  }, [flow, toolQueries])
+  const inputKeys = fields.map((f) => f.key)
 
   if (isLoading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
   if (error || !flow) return <Typography.Text type="danger">流加载失败：{(error as Error)?.message ?? id}</Typography.Text>
@@ -112,17 +124,19 @@ export function FlowDetail() {
 
       <Card size="small" title="运行（表单由管线模板自动生成）">
         <Form form={form} layout="vertical" onFinish={submit}>
-          {inputKeys.map((key) => (
+          {fields.map((field) => (
             <Form.Item
-              key={key}
-              name={key}
-              label={key}
-              rules={FILE_FIELD_RE.test(key) ? [] : [{ required: true, message: `请填写 ${key}` }]}
+              key={field.key}
+              name={field.key}
+              label={field.key}
+              rules={field.widget === 'file' ? [] : [{ required: true, message: `请填写 ${field.key}` }]}
             >
-              {FILE_FIELD_RE.test(key) ? (
+              {field.widget === 'file' ? (
                 <FileUpload />
+              ) : field.widget === 'tags' ? (
+                <Select mode="tags" open={false} placeholder="回车逐项添加" style={{ width: '100%' }} />
               ) : (
-                <Input placeholder={`{{ input.${key} }}`} />
+                <Input placeholder={`{{ input.${field.key} }}`} />
               )}
             </Form.Item>
           ))}

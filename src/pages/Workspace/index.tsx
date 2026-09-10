@@ -1,7 +1,7 @@
 /** 工作区：浏览器式多标签工作台——工具/流会话多开互不干扰，流的全控制操作面板。 */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, Card, Dropdown, Empty, Form, Input, Space, Spin, Tabs, Typography, message } from 'antd'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { App as AntApp, Button, Card, Dropdown, Empty, Form, Input, Select, Space, Spin, Tabs, Typography, message } from 'antd'
 import { useMemo, useState } from 'react'
 import { api } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
@@ -12,7 +12,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { StepTrack } from '@/components/StepTrack'
 import { ToolForm } from '@/components/ToolForm'
 import { PORTAL } from '@/config/portal'
-import { FILE_FIELD_RE, extractInputKeys } from '@/protocol/flow'
+import { extractFlowFields } from '@/protocol/flow'
 import { useWorkspace } from '@/workspace/store'
 
 export function Workspace() {
@@ -207,7 +207,19 @@ function FlowRunForm({ flow, onRun }: { flow: { id: string; name: string; steps:
   const { message } = AntApp.useApp()
   const [runSubmitting, setRunSubmitting] = useState(false)
   const queryClient = useQueryClient()
-  const inputKeys = useMemo(() => extractInputKeys(flow.steps), [flow.steps])
+
+  const toolIds = useMemo(() => [...new Set(flow.steps.map((s) => s.tool))], [flow.steps])
+  const toolQueries = useQueries({
+    queries: toolIds.map((id) => ({ queryKey: ['tool', id], queryFn: () => api.getTool(id), staleTime: 60_000 })),
+  })
+  const schemaMap = useMemo(() => {
+    const map: Record<string, Record<string, unknown>> = {}
+    toolQueries.forEach((q) => {
+      if (q.data) map[q.data.id] = (q.data as { manifest: { io: { input_schema: Record<string, unknown> } } }).manifest.io.input_schema
+    })
+    return map
+  }, [toolQueries])
+  const fields = useMemo(() => extractFlowFields(flow.steps, schemaMap as never), [flow.steps, schemaMap])
 
   const submit = async (values: Record<string, unknown>) => {
     setRunSubmitting(true)
@@ -225,14 +237,20 @@ function FlowRunForm({ flow, onRun }: { flow: { id: string; name: string; steps:
   return (
     <Card size="small" title={`运行 ${flow.name}（${flow.steps.length} 步）`}>
       <Form form={form} layout="vertical" onFinish={submit} style={{ maxWidth: 560 }}>
-        {inputKeys.map((key) => (
+        {fields.map((field) => (
           <Form.Item
-            key={key}
-            name={key}
-            label={key}
-            rules={FILE_FIELD_RE.test(key) ? [] : [{ required: true, message: `请填写 ${key}` }]}
+            key={field.key}
+            name={field.key}
+            label={field.key}
+            rules={field.widget === 'file' ? [] : [{ required: true, message: `请填写 ${field.key}` }]}
           >
-            {FILE_FIELD_RE.test(key) ? <Input placeholder={PORTAL.form.filePathPlaceholder} /> : <Input.TextArea rows={2} />}
+            {field.widget === 'tags' ? (
+              <Select mode="tags" open={false} placeholder={PORTAL.form.tagsPlaceholder} />
+            ) : field.widget === 'file' ? (
+              <Input placeholder={PORTAL.form.filePathPlaceholder} />
+            ) : (
+              <Input.TextArea rows={2} />
+            )}
           </Form.Item>
         ))}
         <Button type="primary" htmlType="submit" loading={runSubmitting}>

@@ -64,3 +64,20 @@ describe('resolveForm UI 声明覆盖', () => {
     expect(fields[1].name).toBe('segments')
   })
 })
+
+describe('resolveForm schema.title 中文化', () => {
+  it('label 优先级：ui.label > schema.title > 字段名', () => {
+    const s = {
+      type: 'object',
+      properties: {
+        a: { type: 'string', title: '标题甲' },
+        b: { type: 'string', title: '标题乙' },
+        c: { type: 'string' },
+      },
+    }
+    const fields = resolveForm(s, { field: { a: { label: 'UI覆盖' } } })
+    expect(fields.find((f) => f.name === 'a')?.label).toBe('UI覆盖')
+    expect(fields.find((f) => f.name === 'b')?.label).toBe('标题乙')
+    expect(fields.find((f) => f.name === 'c')?.label).toBe('c')
+  })
+})

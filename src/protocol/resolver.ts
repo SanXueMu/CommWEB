@@ -17,6 +17,7 @@ export interface FormField {
 
 interface PropertySchema {
   type?: string
+  title?: string
   description?: string
   default?: unknown
   enum?: unknown[]
@@ -50,7 +51,8 @@ function flatten(
   return fields
 }
 
-/** 解析：推导默认 widget → [ui] 覆盖 label/help/placeholder/widget → order 排序。 */
+/** 解析：推导默认 widget → [ui] 覆盖 label/help/placeholder/widget → order 排序。
+ *  label 三级优先：ui.field[name].label > schema.title（JSON Schema 正统中文化）> 字段名。 */
 export function resolveForm(
   inputSchema: Record<string, unknown>,
   ui?: UiDecl,
@@ -68,7 +70,7 @@ export function resolveForm(
       : inferWidget(schema)
     return {
       name,
-      label: override?.label ?? name,
+      label: override?.label ?? schema.title ?? name,
       widget,
       required,
       help: override?.help ?? schema.description,

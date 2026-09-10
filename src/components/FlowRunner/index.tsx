@@ -2,16 +2,17 @@
  *  页面（FlowDetail）与工作区（FlowSession）共用，禁止再自绘流运行 UI。 */
 
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Alert, Button, Card, Form, Input, Select, Space, Typography } from 'antd'
+import { App as AntApp, Alert, Button, Card, Form, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
-import { FileUpload } from '@/components/FileUpload'
+import { FieldControl, fieldPropName } from '@/components/FieldControl'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { RunControlBar } from '@/components/RunControlBar'
 import { StepTrack } from '@/components/StepTrack'
 import { PORTAL } from '@/config/portal'
 import { extractFlowFields } from '@/protocol/flow'
+import type { FormField } from '@/protocol/resolver'
 import { useActivePid } from '@/transfer/context'
 
 interface FlowLike {
@@ -39,6 +40,17 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
     return map
   }, [toolQueries])
   const fields = useMemo(() => extractFlowFields(flow.steps, schemaMap as never), [flow.steps, schemaMap])
+  const formFields = useMemo<FormField[]>(
+    () =>
+      fields.map((f) => ({
+        name: f.key,
+        label: f.title ?? f.key,
+        widget: f.widget === 'text' ? 'textarea' : f.widget,
+        required: f.widget !== 'file',
+        placeholder: f.widget === 'text' ? `{{ input.${f.key} }}` : undefined,
+      })),
+    [fields],
+  )
 
   const { data: snap } = useQuery({
     queryKey: ['provider', pid, 'runSnapshot', runId],
@@ -51,7 +63,7 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
   })
 
   if (!runId) {
-    return <FlowRunForm flow={flow} fields={fields} providerId={pid} onRun={(id) => onRunIdChange(id)} />
+    return <FlowRunForm flow={flow} fields={formFields} providerId={pid} onRun={(id) => onRunIdChange(id)} />
   }
 
   const status = snap?.run.status ?? 'running'
@@ -79,7 +91,7 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
 
 function FlowRunForm({ flow, fields, providerId, onRun }: {
   flow: FlowLike
-  fields: { key: string; widget: 'text' | 'tags' | 'file' }[]
+  fields: FormField[]
   providerId: string
   onRun: (runId: string) => void
 }) {
@@ -107,18 +119,13 @@ function FlowRunForm({ flow, fields, providerId, onRun }: {
       <Form form={form} layout="vertical" onFinish={submit} style={{ maxWidth: 560 }}>
         {fields.map((field) => (
           <Form.Item
-            key={field.key}
-            name={field.key}
-            label={field.key}
-            rules={field.widget === 'file' ? [] : [{ required: true, message: `请填写 ${field.key}` }]}
+            key={field.name}
+            name={field.name}
+            label={field.label}
+            rules={field.required ? [{ required: true, message: `请填写 ${field.label}` }] : undefined}
+            valuePropName={fieldPropName(field.widget)}
           >
-            {field.widget === 'file' ? (
-              <FileUpload />
-            ) : field.widget === 'tags' ? (
-              <Select mode="tags" open={false} placeholder={PORTAL.form.tagsPlaceholder} style={{ width: '100%' }} />
-            ) : (
-              <Input.TextArea rows={2} placeholder={`{{ input.${field.key} }}`} />
-            )}
+            <FieldControl field={field} />
           </Form.Item>
         ))}
         {fields.length === 0 && (

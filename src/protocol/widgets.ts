@@ -6,12 +6,13 @@ export type WidgetKind =
   | 'select'
   | 'multiSelect'
   | 'tags'
+  | 'file'
   | 'number'
   | 'switch'
   | 'date'
 
 const WIDGETS = new Set<WidgetKind>([
-  'input', 'textarea', 'select', 'multiSelect', 'tags', 'number', 'switch', 'date',
+  'input', 'textarea', 'select', 'multiSelect', 'tags', 'file', 'number', 'switch', 'date',
 ])
 
 export function isWidgetKind(value: string): value is WidgetKind {

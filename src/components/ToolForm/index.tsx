@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Select, Switch } from 'antd'
+import { App as AntApp, Button, Form } from 'antd'
 import { api } from '@/api/client'
 import type { ToolDetail } from '@/api/types'
-import { cachedResolveForm, resolveForm } from '@/protocol/resolver'
+import { FieldControl, fieldPropName } from '@/components/FieldControl'
 import { PORTAL } from '@/config/portal'
+import { cachedResolveForm } from '@/protocol/resolver'
 
-/** 自动表单：resolver 产物 → AntD 控件。工具零前端代码即得可用表单。 */
+/** 自动表单：resolver 产物 → FieldControl 控件。工具零前端代码即得可用表单。 */
 export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted: (handle: string) => void }) {
   const [form] = Form.useForm()
   const { message } = AntApp.useApp()
@@ -14,29 +15,6 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
     () => cachedResolveForm(tool.manifest.io.input_schema, tool.manifest.ui, tool.manifest.io.input_types),
     [tool],
   )
-
-  const renderControl = (widget: string, field: ReturnType<typeof resolveForm>[number]) => {
-    switch (widget) {
-      case 'textarea':
-        return <Input.TextArea rows={4} placeholder={field.placeholder} />
-      case 'select':
-        return <Select options={field.options} placeholder={field.placeholder} />
-      case 'multiSelect':
-        return <Select mode="multiple" options={field.options} />
-      case 'tags':
-        return <Select mode="tags" placeholder={field.placeholder ?? PORTAL.form.tagsPlaceholder} open={false} />
-      case 'number':
-        return <InputNumber style={{ width: '100%' }} />
-      case 'switch':
-        return <Switch />
-      case 'date':
-        return <DatePicker style={{ width: '100%' }} />
-      default:
-        return <Input placeholder={field.placeholder} />
-    }
-  }
-
-  const valuePropName = (widget: string) => (widget === 'switch' ? 'checked' : 'value')
 
   return (
     <Form
@@ -66,9 +44,9 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
           label={field.label}
           help={field.help}
           rules={field.required ? [{ required: true, message: `${field.label} 必填` }] : undefined}
-          valuePropName={valuePropName(field.widget)}
+          valuePropName={fieldPropName(field.widget)}
         >
-          {renderControl(field.widget, field)}
+          <FieldControl field={field} />
         </Form.Item>
       ))}
       <Button type="primary" htmlType="submit" loading={submitting}>

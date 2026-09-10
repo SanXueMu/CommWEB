@@ -20,15 +20,17 @@ export type FlowFieldWidget = 'text' | 'tags' | 'file'
 export interface FlowField {
   key: string
   widget: FlowFieldWidget
+  title?: string
 }
 
 /**
  * 流输入字段推导：key 出现顺序 + 首个引用它的步骤工具的 input_schema 定类型。
- * array → tags（回车逐项），file 特征 → 单行路径，其余 → 多行文本。
+ * array → tags（回车逐项），file 特征 → 文件上传，其余 → 多行文本。
+ * schema.title 透传（中文 label 来源之一，与 resolver 的 title 优先级一致）。
  */
 export function extractFlowFields(
   steps: { tool: string; input: Record<string, unknown> }[],
-  toolSchemas: Record<string, { properties?: Record<string, { type?: string; format?: string }> }>,
+  toolSchemas: Record<string, { properties?: Record<string, { type?: string; format?: string; title?: string }> }>,
 ): FlowField[] {
   const keys = extractInputKeys(steps)
   const firstToolByKey: Record<string, string> = {}
@@ -42,8 +44,9 @@ export function extractFlowFields(
   }
   return keys.map((key) => {
     const schema = toolSchemas[firstToolByKey[key]]?.properties?.[key]
-    if (schema?.type === 'array') return { key, widget: 'tags' as const }
-    if (FILE_FIELD_RE.test(key) || schema?.format === 'file') return { key, widget: 'file' as const }
-    return { key, widget: 'text' as const }
+    const title = typeof schema?.title === 'string' ? schema.title : undefined
+    if (schema?.type === 'array') return { key, widget: 'tags' as const, title }
+    if (FILE_FIELD_RE.test(key) || schema?.format === 'file') return { key, widget: 'file' as const, title }
+    return { key, widget: 'text' as const, title }
   })
 }

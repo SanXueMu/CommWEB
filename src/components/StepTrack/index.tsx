@@ -1,12 +1,14 @@
 /** 步骤轨道：每步最新任务状态 + 断点重跑（留档 input 为底的字段级覆盖）。 */
 
-import { useQueryClient } from '@tanstack/react-query'
-import { Button, Form, Input, Modal, Steps, Typography, message } from 'antd'
-import { useState } from 'react'
-import { api } from '@/api/client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button, Form, Modal, Steps, Typography, message } from 'antd'
+import { useMemo, useState } from 'react'
+import { api, apiFor } from '@/api/client'
 import type { RunSnapshot } from '@/api/types'
+import { FieldControl, fieldPropName } from '@/components/FieldControl'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
+import { resolveForm } from '@/protocol/resolver'
 import { useActivePid } from '@/transfer/context'
 
 type Step = RunSnapshot['steps'][number]
@@ -61,21 +63,26 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
   )
 }
 
+/** 断点重跑弹窗：按步骤工具 schema 生成覆盖表单（留档 input 预填为底）。
+ *  覆盖语义：填写即覆盖、留空即沿用留档值，故不设必填校验。 */
 function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClose: () => void }) {
   const pid = useActivePid()
   const queryClient = useQueryClient()
   const [form] = Form.useForm()
+  const { data: tool } = useQuery({
+    queryKey: ['provider', pid, 'tool', step.tool],
+    queryFn: () => apiFor(pid).getTool(step.tool),
+    staleTime: 60_000,
+  })
+  const fields = useMemo(
+    () => (tool ? resolveForm(tool.manifest.io.input_schema, tool.manifest.ui) : []),
+    [tool],
+  )
 
-  const submit = async (values: { override?: string }) => {
-    let override: Record<string, unknown> | undefined
-    if (values.override?.trim()) {
-      try {
-        override = JSON.parse(values.override)
-      } catch {
-        message.error('覆盖 JSON 解析失败')
-        return
-      }
-    }
+  const submit = async (values: Record<string, unknown>) => {
+    const override = Object.fromEntries(
+      Object.entries(values).filter(([, v]) => v !== undefined && v !== ''),
+    )
     try {
       await api.rerunStep(runId, step.step_index, override)
       queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runSnapshot', runId] })
@@ -95,19 +102,26 @@ function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClo
       destroyOnClose
     >
       <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-        留档输入（原样为底）：
+        留档输入（原样为底，填写即覆盖、留空即沿用）：
       </Typography.Paragraph>
       <pre style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: 10, fontSize: 12, maxHeight: 180, overflow: 'auto' }}>
         {JSON.stringify(step.latest?.input ?? {}, null, 2)}
       </pre>
-      <Form form={form} layout="vertical" onFinish={submit}>
-        <Form.Item name="override" label="字段覆盖">
-          <Input.TextArea
-            rows={3}
-            placeholder={PORTAL.workspace.overridePlaceholder}
-            style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}
-          />
-        </Form.Item>
+      <Form form={form} layout="vertical" initialValues={step.latest?.input ?? {}} onFinish={submit}>
+        {fields.map((field) => (
+          <Form.Item
+            key={field.name}
+            name={field.name.split('.')}
+            label={field.label}
+            help={field.help}
+            valuePropName={fieldPropName(field.widget)}
+          >
+            <FieldControl field={field} />
+          </Form.Item>
+        ))}
+        {tool && fields.length === 0 && (
+          <Typography.Text type="secondary">该工具无可覆盖字段。</Typography.Text>
+        )}
       </Form>
     </Modal>
   )

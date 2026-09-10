@@ -16,6 +16,7 @@ import type {
 } from './types'
 
 import { registry } from '@/transfer/registry'
+import { normalizePipeline, normalizeStatuses, normalizeTask, normalizeToolDetail, normalizeToolSummary } from '@/transfer/translator'
 
 /** 出站基址：当前活跃会员（Transfer T1 切换制，api 方法签名保持不变）。 */
 function apiBase(): string {
@@ -56,18 +57,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getStatuses: () => request<{ statuses: StatusInfo[] }>('/meta/statuses'),
-  listTools: () => request<{ tools: ToolSummary[] }>('/tools'),
-  getTool: (id: string) => request<ToolDetail>(`/tools/${id}`),
+  getStatuses: async (): Promise<{ statuses: StatusInfo[] }> => ({ statuses: normalizeStatuses((await request<{ statuses: unknown[] }>('/meta/statuses')).statuses) }),
+  listTools: async (): Promise<{ tools: ToolSummary[] }> => {
+    const pid = registry.activeId()
+    const { tools } = await request<{ tools: unknown[] }>('/tools')
+    return { tools: tools.map((t) => normalizeToolSummary(t, pid)) }
+  },
+  getTool: async (id: string): Promise<ToolDetail> => normalizeToolDetail(await request<unknown>(`/tools/${id}`), registry.activeId()),
   createTask: (tool: string, input: Record<string, unknown>) =>
     request<TaskCreated>('/tasks', { method: 'POST', body: JSON.stringify({ tool, input }) }),
-  getTask: (handle: string) => request<Task>(`/tasks/${handle}`),
+  getTask: async (handle: string): Promise<Task> => normalizeTask(await request<unknown>(`/tasks/${handle}`), registry.activeId()),
   cancelTask: (handle: string) =>
     request<{ handle: string; status: string }>(`/tasks/${handle}/cancel`, { method: 'POST' }),
   listTasks: (status?: string) =>
     request<{ tasks: Task[] }>(`/tasks${status ? `?status=${status}` : ''}`),
-  listPipelines: () => request<{ pipelines: PipelineSummary[] }>('/pipelines'),
-  getPipeline: (id: string) => request<PipelineSummary>(`/pipelines/${id}`),
+  listPipelines: async (): Promise<{ pipelines: PipelineSummary[] }> => {
+    const pid = registry.activeId()
+    const { pipelines } = await request<{ pipelines: unknown[] }>('/pipelines')
+    return { pipelines: pipelines.map((p) => normalizePipeline(p, pid)) }
+  },
+  getPipeline: async (id: string): Promise<PipelineSummary> => normalizePipeline(await request<unknown>(`/pipelines/${id}`), registry.activeId()),
   runPipeline: (id: string, input: Record<string, unknown>) =>
     request<PipelineRunCreated>(`/pipelines/${id}/run`, {
       method: 'POST',

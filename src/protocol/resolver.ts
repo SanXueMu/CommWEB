@@ -90,3 +90,19 @@ export function resolveForm(
   }
   return fields
 }
+
+
+/** Transfer 记忆接入：schema-hash 缓存的表单推导（命中 0ms，变更精准失效=热部署）。 */
+import { TranslationMemory, contentHash } from '@/transfer/memory'
+
+const formMemory = new TranslationMemory<ReturnType<typeof resolveForm>>('resolveForm')
+
+export function cachedResolveForm(
+  inputSchema: Record<string, unknown>,
+  ui: UiDecl | undefined,
+  inputTypes: string[],
+): ReturnType<typeof resolveForm> {
+  return formMemory.remember(contentHash([inputSchema, ui ?? {}, inputTypes]), () =>
+    resolveForm(inputSchema, ui, inputTypes),
+  )
+}

@@ -1,6 +1,7 @@
 /** 与 CommAND schemas/模型同构的类型（api 层唯一类型源）。 */
 
 export interface ToolSummary {
+  providerId?: string
   id: string
   name: string
   version: string
@@ -37,6 +38,7 @@ export interface UiDecl {
 }
 
 export interface Task {
+  providerId?: string
   handle: string
   tool_id: string
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'failed_review' | 'cancelled' | 'interrupted'
@@ -109,6 +111,7 @@ export interface PipelineStep {
 }
 
 export interface PipelineSummary {
+  providerId?: string
   id: string
   name: string
   steps: PipelineStep[]

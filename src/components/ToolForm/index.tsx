@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Select, Switch } from 'antd'
 import { api } from '@/api/client'
 import type { ToolDetail } from '@/api/types'
-import { resolveForm } from '@/protocol/resolver'
+import { cachedResolveForm, resolveForm } from '@/protocol/resolver'
 import { PORTAL } from '@/config/portal'
 
 /** 自动表单：resolver 产物 → AntD 控件。工具零前端代码即得可用表单。 */
@@ -11,7 +11,7 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
   const { message } = AntApp.useApp()
   const [submitting, setSubmitting] = useState(false)
   const fields = useMemo(
-    () => resolveForm(tool.manifest.io.input_schema, tool.manifest.ui, tool.manifest.io.input_types),
+    () => cachedResolveForm(tool.manifest.io.input_schema, tool.manifest.ui, tool.manifest.io.input_types),
     [tool],
   )
 

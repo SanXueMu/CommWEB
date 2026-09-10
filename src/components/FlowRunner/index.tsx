@@ -4,7 +4,7 @@
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Alert, Button, Card, Form, Input, Select, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
-import { api } from '@/api/client'
+import { apiFor } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
 import { FileUpload } from '@/components/FileUpload'
 import { ResultRenderer } from '@/components/ResultRenderer'
@@ -20,15 +20,16 @@ interface FlowLike {
   steps: { tool: string; input: Record<string, unknown> }[]
 }
 
-export function FlowRunner({ flow, runId, onRunIdChange }: {
+export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
   flow: FlowLike
   runId: string | null | undefined
   onRunIdChange: (runId: string | null) => void
+  providerId?: string
 }) {
-  const pid = useActivePid()
+  const pid = providerId ?? useActivePid()
   const toolIds = useMemo(() => [...new Set(flow.steps.map((s) => s.tool))], [flow.steps])
   const toolQueries = useQueries({
-    queries: toolIds.map((id) => ({ queryKey: ['provider', pid, 'tool', id], queryFn: () => api.getTool(id), staleTime: 60_000 })),
+    queries: toolIds.map((id) => ({ queryKey: ['provider', pid, 'tool', id], queryFn: () => apiFor(pid).getTool(id), staleTime: 60_000 })),
   })
   const schemaMap = useMemo(() => {
     const map: Record<string, Record<string, unknown>> = {}
@@ -41,7 +42,7 @@ export function FlowRunner({ flow, runId, onRunIdChange }: {
 
   const { data: snap } = useQuery({
     queryKey: ['provider', pid, 'runSnapshot', runId],
-    queryFn: () => api.getRunSnapshot(runId!),
+    queryFn: () => apiFor(pid).getRunSnapshot(runId!),
     enabled: Boolean(runId),
     refetchInterval: (query) => {
       const status = query.state.data?.run.status
@@ -50,7 +51,7 @@ export function FlowRunner({ flow, runId, onRunIdChange }: {
   })
 
   if (!runId) {
-    return <FlowRunForm flow={flow} fields={fields} onRun={(id) => onRunIdChange(id)} />
+    return <FlowRunForm flow={flow} fields={fields} providerId={pid} onRun={(id) => onRunIdChange(id)} />
   }
 
   const status = snap?.run.status ?? 'running'
@@ -76,12 +77,13 @@ export function FlowRunner({ flow, runId, onRunIdChange }: {
   )
 }
 
-function FlowRunForm({ flow, fields, onRun }: {
+function FlowRunForm({ flow, fields, providerId, onRun }: {
   flow: FlowLike
   fields: { key: string; widget: 'text' | 'tags' | 'file' }[]
+  providerId: string
   onRun: (runId: string) => void
 }) {
-  const pid = useActivePid()
+  const pid = providerId
   const [form] = Form.useForm()
   const { message } = AntApp.useApp()
   const [runSubmitting, setRunSubmitting] = useState(false)
@@ -90,7 +92,7 @@ function FlowRunForm({ flow, fields, onRun }: {
   const submit = async (values: Record<string, unknown>) => {
     setRunSubmitting(true)
     try {
-      const created = await api.runPipeline(flow.id, values)
+      const created = await apiFor(pid).runPipeline(flow.id, values)
       queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', created.run_id] })
       onRun(created.run_id)
     } catch (err) {

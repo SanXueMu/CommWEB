@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Dropdown, Empty, Space, Spin, Tabs, Typography } from 'antd'
 import { useMemo } from 'react'
-import { api } from '@/api/client'
+import { apiFor } from '@/api/client'
 import { EventStream } from '@/components/EventStream'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -12,6 +12,7 @@ import { ToolForm } from '@/components/ToolForm'
 import { PORTAL } from '@/config/portal'
 import { useWorkspace } from '@/workspace/store'
 import { useActivePid } from '@/transfer/context'
+import { useAggregatedPipelines, useAggregatedTools } from '@/transfer/aggregate'
 
 export function Workspace() {
   const { tabs, activeKey, closeTab, updateTab, openTab, setActive } = useWorkspace()
@@ -61,9 +62,8 @@ export function Workspace() {
 }
 
 function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: string; title: string; providerId: string }) => void }) {
-  const pid = useActivePid()
-  const { data: tools } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: api.listTools })
-  const { data: flows } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: api.listPipelines })
+  const { tools } = useAggregatedTools()
+  const { pipelines: flows } = useAggregatedPipelines()
   return (
     <Dropdown
       menu={{
@@ -71,19 +71,19 @@ function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: 
           {
             key: 'tools',
             label: '打开工具',
-            children: (tools?.tools ?? []).map((t) => ({
-              key: t.id,
-              label: `${t.name}（${t.id}）`,
-              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name, providerId: pid }),
+            children: tools.map((t) => ({
+              key: `${t.providerId ?? 'default'}:${t.id}`,
+              label: `${t.name}（${t.id}）${t.providerId && t.providerId !== 'default' ? ` · ${t.providerId}` : ''}`,
+              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name, providerId: t.providerId ?? 'default' }),
             })),
           },
           {
             key: 'flows',
             label: '打开流',
-            children: (flows?.pipelines ?? []).map((p) => ({
-              key: p.id,
-              label: `${p.name}（${p.id}）`,
-              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name, providerId: pid }),
+            children: flows.map((p) => ({
+              key: `${p.providerId ?? 'default'}:${p.id}`,
+              label: `${p.name}（${p.id}）${p.providerId && p.providerId !== 'default' ? ` · ${p.providerId}` : ''}`,
+              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name, providerId: p.providerId ?? 'default' }),
             })),
           },
         ],
@@ -95,8 +95,9 @@ function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: 
 }
 
 /** 工具会话：表单提交 → tab 内联事件流 + 结果渲染。 */
-function ToolSession({ tab, update }: { tab: { refId: string; handle?: string }; update: (patch: { handle?: string }) => void }) {
-  const pid = useActivePid()
+function ToolSession({ tab, update }: { tab: { refId: string; providerId?: string; handle?: string }; update: (patch: { handle?: string }) => void }) {
+  const pid = tab.providerId ?? useActivePid()
+  const api = apiFor(pid)
   const { data: tool, isLoading } = useQuery({
     queryKey: ['provider', pid, 'tool', tab.refId],
     queryFn: () => api.getTool(tab.refId),
@@ -157,11 +158,11 @@ function ToolSession({ tab, update }: { tab: { refId: string; handle?: string };
 }
 
 /** 流会话：FlowRunner 唯一实现，本组件只绑定工作区标签页状态。 */
-function FlowSession({ tab, update }: { tab: { refId: string; title: string; runId?: string }; update: (patch: { runId?: string }) => void }) {
-  const pid = useActivePid()
+function FlowSession({ tab, update }: { tab: { refId: string; title: string; providerId?: string; runId?: string }; update: (patch: { runId?: string }) => void }) {
+  const pid = tab.providerId ?? useActivePid()
   const { data: flow, isLoading } = useQuery({
     queryKey: ['provider', pid, 'pipeline', tab.refId],
-    queryFn: () => api.getPipeline(tab.refId),
+    queryFn: () => apiFor(pid).getPipeline(tab.refId),
   })
 
   if (isLoading) return <Spin />

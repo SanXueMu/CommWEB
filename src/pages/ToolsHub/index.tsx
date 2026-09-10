@@ -1,40 +1,46 @@
-import { useQuery } from '@tanstack/react-query'
 import { Tag, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '@/api/client'
 import type { ToolSummary } from '@/api/types'
+import { ProviderBadge } from '@/components/ProviderBadge'
 import { DataListPanel } from '@/components/DataListPanel'
 import { HelpCardModal } from '@/components/HelpCardModal'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
 import { HELP_CARDS } from '@/config/helpCards'
-import { useActivePid } from '@/transfer/context'
+import { useProviders } from '@/transfer/context'
+import { useAggregatedTools } from '@/transfer/aggregate'
 
-/** 货架（packy 风格）：左侧标签筛选 + 右侧通用列表面板（卡片/列表双形态）。 */
+/** 货架（packy 风格，T3 聚合模式）：多会员工具混排 + 左侧标签/会员双筛选。 */
 export function ToolsHub() {
-  const pid = useActivePid()
   const navigate = useNavigate()
+  const { providers } = useProviders()
   const [keyword, setKeyword] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: api.listTools })
-
-  const tools = data?.tools ?? []
+  const [selectedPids, setSelectedPids] = useState<string[]>([])
+  const { tools, loading: isLoading } = useAggregatedTools()
+  const providerName = useMemo(
+    () => Object.fromEntries(providers.map((p) => [p.id, p.name])),
+    [providers],
+  )
   const allTags = useMemo(
     () => [...new Set(tools.flatMap((t) => t.tags ?? []))],
     [tools],
   )
   const filtered = tools.filter((tool) => {
+    const pid = tool.providerId ?? 'default'
     const hitKeyword =
       !keyword ||
       tool.id.includes(keyword) ||
       tool.name.includes(keyword) ||
       (tool.description ?? '').includes(keyword) ||
+      (providerName[pid] ?? pid).includes(keyword) ||
       (tool.tags ?? []).some((t) => t.includes(keyword))
     const hitTags =
       selectedTags.length === 0 ||
       selectedTags.every((tag) => (tool.tags ?? []).includes(tag))
-    return hitKeyword && hitTags
+    const hitPid = selectedPids.length === 0 || selectedPids.includes(pid)
+    return hitKeyword && hitTags && hitPid
   })
 
   const toggleTag = (tag: string) =>
@@ -54,6 +60,24 @@ export function ToolsHub() {
           paddingRight: 16,
         }}
       >
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          会员
+        </Typography.Text>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 16 }}>
+          {providers.map((p) => (
+            <Tag.CheckableTag
+              key={p.id}
+              checked={selectedPids.includes(p.id)}
+              onChange={() =>
+                setSelectedPids((prev) =>
+                  prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+                )
+              }
+            >
+              {p.name}
+            </Tag.CheckableTag>
+          ))}
+        </div>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           标签
         </Typography.Text>
@@ -88,11 +112,11 @@ export function ToolsHub() {
           panelKey="tools"
           items={filtered}
           loading={isLoading}
-          rowKey={(t) => t.id}
+          rowKey={(t) => `${t.providerId ?? 'default'}:${t.id}`}
           onSearch={setKeyword}
           searchPlaceholder={PORTAL.search.tools}
           extraActions={<HelpCardModal cards={HELP_CARDS} />}
-          onItemClick={(t) => navigate(`/tools/${t.id}`)}
+          onItemClick={(t) => navigate(`/tools/${encodeURIComponent(t.id)}?provider=${t.providerId ?? 'default'}`)}
           emptyText={PORTAL.empty.tools}
           renderCard={(tool) => <ToolCard tool={tool} />}
           renderRow={(tool) => <ToolRow tool={tool} />}
@@ -114,6 +138,7 @@ function ToolCard({ tool }: { tool: ToolSummary }) {
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             v{tool.version}
           </Typography.Text>
+          <ProviderBadge pid={tool.providerId ?? 'default'} />
         </div>
         <Typography.Paragraph
           type="secondary"
@@ -140,6 +165,7 @@ function ToolRow({ tool }: { tool: ToolSummary }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px' }}>
       <div style={{ width: 200, flexShrink: 0 }}>
         <Typography.Text strong>{tool.name}</Typography.Text>
+        <ProviderBadge pid={tool.providerId ?? 'default'} />
         <div>
           <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
             {tool.id}

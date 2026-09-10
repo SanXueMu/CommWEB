@@ -1,20 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import { Card, Descriptions, Space, Spin, Table, Tag, Typography } from 'antd'
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { api } from '@/api/client'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { apiFor } from '@/api/client'
 import { TaskDrawer } from '@/components/TaskDrawer'
 import { ToolForm } from '@/components/ToolForm'
 import { DocPanel } from '@/components/DocPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
-import { useActivePid } from '@/transfer/context'
 
 /** 工作台：manifest 信息 + 自动表单 + 该工具近期任务。 */
 export function ToolDetail() {
-  const pid = useActivePid()
   const { id = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const pid = searchParams.get('provider') ?? 'default'
+  const api = apiFor(pid)
   const [drawerHandle, setDrawerHandle] = useState<string | null>(null)
   const { data: tool, isLoading, error } = useQuery({
     queryKey: ['provider', pid, 'tool', id],
@@ -37,7 +38,7 @@ export function ToolDetail() {
         <Space direction="vertical" size={4}>
           <Space size={8}>
             <Typography.Title level={4} style={{ margin: 0 }}>{tool.name}</Typography.Title>
-            <OpenInWorkspace kind="tool" refId={tool.id} title={tool.name} />
+            <OpenInWorkspace kind="tool" refId={tool.id} title={tool.name} providerId={pid} />
             <Tag color="blue">{tool.id}</Tag>
             <Tag>v{tool.version}</Tag>
             <Tag>{tool.runtime_kind}</Tag>

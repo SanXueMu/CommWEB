@@ -18,9 +18,9 @@ import type {
 import { registry } from '@/transfer/registry'
 import { normalizePipeline, normalizeStatuses, normalizeTask, normalizeToolDetail, normalizeToolSummary } from '@/transfer/translator'
 
-/** 出站基址：当前活跃会员（Transfer T1 切换制，api 方法签名保持不变）。 */
-function apiBase(): string {
-  return registry.baseUrlOf(registry.activeId())
+/** 出站基址解析：显式 pid 优先，缺省跟随活跃会员。 */
+function apiBaseOf(pid?: string): string {
+  return registry.baseUrlOf(pid ?? pid ?? registry.activeId())
 }
 
 class ApiError extends Error {
@@ -44,8 +44,8 @@ function formatDetail(detail: unknown): string {
   return JSON.stringify(detail)
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, {
+async function request<T>(path: string, init?: RequestInit, pid?: string): Promise<T> {
+  const response = await fetch(`${apiBaseOf(pid)}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
@@ -56,27 +56,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export const api = {
+function createApi(pid?: string) {
+  return {
   getStatuses: async (): Promise<{ statuses: StatusInfo[] }> => ({ statuses: normalizeStatuses((await request<{ statuses: unknown[] }>('/meta/statuses')).statuses) }),
   listTools: async (): Promise<{ tools: ToolSummary[] }> => {
-    const pid = registry.activeId()
+    const providerId = pid ?? registry.activeId()
     const { tools } = await request<{ tools: unknown[] }>('/tools')
-    return { tools: tools.map((t) => normalizeToolSummary(t, pid)) }
+    return { tools: tools.map((t) => normalizeToolSummary(t, providerId)) }
   },
-  getTool: async (id: string): Promise<ToolDetail> => normalizeToolDetail(await request<unknown>(`/tools/${id}`), registry.activeId()),
+  getTool: async (id: string): Promise<ToolDetail> => normalizeToolDetail(await request<unknown>(`/tools/${id}`), pid ?? registry.activeId()),
   createTask: (tool: string, input: Record<string, unknown>) =>
     request<TaskCreated>('/tasks', { method: 'POST', body: JSON.stringify({ tool, input }) }),
-  getTask: async (handle: string): Promise<Task> => normalizeTask(await request<unknown>(`/tasks/${handle}`), registry.activeId()),
+  getTask: async (handle: string): Promise<Task> => normalizeTask(await request<unknown>(`/tasks/${handle}`), pid ?? registry.activeId()),
   cancelTask: (handle: string) =>
     request<{ handle: string; status: string }>(`/tasks/${handle}/cancel`, { method: 'POST' }),
   listTasks: (status?: string) =>
     request<{ tasks: Task[] }>(`/tasks${status ? `?status=${status}` : ''}`),
   listPipelines: async (): Promise<{ pipelines: PipelineSummary[] }> => {
-    const pid = registry.activeId()
+    const providerId = pid ?? registry.activeId()
     const { pipelines } = await request<{ pipelines: unknown[] }>('/pipelines')
-    return { pipelines: pipelines.map((p) => normalizePipeline(p, pid)) }
+    return { pipelines: pipelines.map((p) => normalizePipeline(p, providerId)) }
   },
-  getPipeline: async (id: string): Promise<PipelineSummary> => normalizePipeline(await request<unknown>(`/pipelines/${id}`), registry.activeId()),
+  getPipeline: async (id: string): Promise<PipelineSummary> => normalizePipeline(await request<unknown>(`/pipelines/${id}`), pid ?? registry.activeId()),
   runPipeline: (id: string, input: Record<string, unknown>) =>
     request<PipelineRunCreated>(`/pipelines/${id}/run`, {
       method: 'POST',
@@ -97,17 +98,29 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ override: override ?? null }),
     }),
-  uploadFile: (file: File): Promise<FileUploaded> => {
-    const body = new FormData()
-    body.append('file', file)
-    return fetch(`${apiBase()}/files`, { method: 'POST', body }).then(async (response) => {
-      if (!response.ok) {
-        const detail = await response.json().catch(() => ({ detail: response.statusText }))
-        throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
-      }
-      return response.json() as Promise<FileUploaded>
-    })
-  },
+  uploadFile: (file: File): Promise<FileUploaded> => apiUpload(file, pid),
+  }
+}
+
+/** 上传出站（api 工厂与页面共用）。 */
+function apiUpload(file: File, pid?: string): Promise<FileUploaded> {
+  const body = new FormData()
+  body.append('file', file)
+  return fetch(`${apiBaseOf(pid)}/files`, { method: 'POST', body }).then(async (response) => {
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({ detail: response.statusText }))
+      throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
+    }
+    return response.json() as Promise<FileUploaded>
+  })
+}
+
+/** 活跃会员视图（页面级跟随切换）。 */
+export const api = createApi()
+
+/** 会员绑定视图（工作区 tab 级：出站固定，切换全局不影响已开 tab）。 */
+export function apiFor(pid: string) {
+  return createApi(pid)
 }
 
 /** SSE 订阅：log/progress/artifact 逐事件回调，done 后自动关闭。 */
@@ -118,8 +131,9 @@ export function streamTaskEvents(
     onDone?: (payload: { status: string; output: unknown; error: unknown }) => void
     onError?: (error: Event) => void
   },
+  pid?: string,
 ): () => void {
-  const source = new EventSource(`${apiBase()}/tasks/${handle}/events`)
+  const source = new EventSource(`${apiBaseOf(pid)}/tasks/${handle}/events`)
   const parse = (e: MessageEvent): TaskEvent => {
     const raw = JSON.parse(e.data as string) as { data: Record<string, unknown>; created_at: string }
     return { id: Number(e.lastEventId), type: e.type as TaskEvent['type'], data: raw.data, created_at: raw.created_at }

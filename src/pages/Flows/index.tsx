@@ -1,30 +1,30 @@
 /** 流工具货架：管线 = 串联通用小工具的全自动流，零前端代码自动上架。 */
 
-import { useQuery } from '@tanstack/react-query'
-import { Typography } from 'antd'
+import { Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '@/api/client'
+import { ProviderBadge } from '@/components/ProviderBadge'
 import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
-import { useActivePid } from '@/transfer/context'
+import { useProviders } from '@/transfer/context'
+import { useAggregatedPipelines } from '@/transfer/aggregate'
 
 export function Flows() {
-  const pid = useActivePid()
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
-  const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: api.listPipelines })
+  const { providers } = useProviders()
+  const { pipelines, loading: isLoading } = useAggregatedPipelines()
+  const providerName = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p.name])), [providers])
 
   const flows = useMemo(() => {
-    const list = data?.pipelines ?? []
-    if (!keyword) return list
-    return list.filter(
-      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => s.tool.includes(keyword)),
+    if (!keyword) return pipelines
+    return pipelines.filter(
+      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => s.tool.includes(keyword)) || (providerName[f.providerId ?? 'default'] ?? '').includes(keyword),
     )
-  }, [data, keyword])
+  }, [pipelines, keyword, providerName])
 
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
@@ -32,13 +32,13 @@ export function Flows() {
         panelKey="flows"
         items={flows}
         loading={isLoading}
-        rowKey={(f) => f.id}
+        rowKey={(f) => `${f.providerId ?? 'default'}:${f.id}`}
         onSearch={setKeyword}
         searchPlaceholder={PORTAL.search.flows}
-        onItemClick={(f) => navigate(`/flows/${f.id}`)}
+        onItemClick={(f) => navigate(`/flows/${encodeURIComponent(f.id)}?provider=${f.providerId ?? 'default'}`)}
         emptyText={PORTAL.empty.flows}
-        renderCard={(flow) => <FlowCard flow={flow} />}
-        renderRow={(flow) => <FlowRow flow={flow} />}
+        renderCard={(flow) => <FlowCard flow={flow} providerName={providerName} />}
+        renderRow={(flow) => <FlowRow flow={flow} providerName={providerName} />}
       />
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         共 {flows.length} 条流 · {PORTAL.footNote.flows}
@@ -55,12 +55,13 @@ function StepChain({ flow }: { flow: PipelineSummary }) {
   )
 }
 
-function FlowCard({ flow }: { flow: PipelineSummary }) {
+function FlowCard({ flow, providerName }: { flow: PipelineSummary; providerName: Record<string, string> }) {
   return (
     <Link to={`/flows/${flow.id}`}>
       <PanelCard>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Typography.Text strong>{flow.name}</Typography.Text>
+          <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {flow.steps.length} 步
           </Typography.Text>
@@ -73,11 +74,14 @@ function FlowCard({ flow }: { flow: PipelineSummary }) {
   )
 }
 
-function FlowRow({ flow }: { flow: PipelineSummary }) {
+function FlowRow({ flow, providerName }: { flow: PipelineSummary; providerName: Record<string, string> }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px' }}>
       <div style={{ width: 260, flexShrink: 0 }}>
-        <Typography.Text strong>{flow.name}</Typography.Text>
+        <Space size={6}>
+          <Typography.Text strong>{flow.name}</Typography.Text>
+          <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
+        </Space>
         <div>
           <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
             {flow.id}

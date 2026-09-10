@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { parseSite, type SiteManifest } from './siteManifest'
+import { parseSite, viewPathByType, type SiteManifest } from './siteManifest'
 
 /** 测试本地声明（协议级四视图；纯壳准则下 SITE 为空站点，测试数据自理）。 */
 const SITE: SiteManifest = {
@@ -69,6 +69,13 @@ describe('site manifest 解析（协议 v2 逆向控制）', () => {
     const parsed = parseSite(noDefault as never, CAPS, 'p4')
     expect(parsed.landing).toBe('/')
     expect(parsed.routes[0].path).toBe('/')
+  })
+
+  it('viewPathByType：按类型解析视图路由路径（声明 id 非硬编码）', () => {
+    const parsed = parseSite(SITE, CAPS, 'test')
+    expect(viewPathByType(parsed, 'workspace.tabs')).toBe('/work')
+    expect(viewPathByType(parsed, 'flows.list')).toBe('/flows')
+    expect(viewPathByType(parsed, 'no.such.type')).toBeUndefined()
   })
 })
 

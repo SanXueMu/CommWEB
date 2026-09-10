@@ -59,7 +59,7 @@ function StepChain({ flow }: { flow: PipelineSummary }) {
 
 function FlowCard({ flow, providerName }: { flow: PipelineSummary; providerName: Record<string, string> }) {
   return (
-    <Link to={`/flows/${flow.id}`}>
+    <Link to={`/flows/${encodeURIComponent(flow.id)}?provider=${flow.providerId ?? 'default'}`}>
       <PanelCard>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Typography.Text strong>{flow.name}</Typography.Text>
@@ -93,7 +93,7 @@ function FlowRow({ flow, providerName }: { flow: PipelineSummary; providerName: 
       <div style={{ flex: 1, minWidth: 0 }}>
         <StepChain flow={flow} />
       </div>
-      <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} />
+      <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} providerId={flow.providerId} />
     </div>
   )
 }

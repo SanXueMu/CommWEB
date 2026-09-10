@@ -55,6 +55,12 @@ function pathOf(decl: SiteViewDecl, isDefault: boolean): string {
   return isDefault ? '/' : `/${decl.id}`
 }
 
+/** 按视图类型解析路由路径（如 workspace.tabs → /work）；该类型未声明时返回 undefined。
+ *  视图路由由会员 site 声明动态生成（id 未必等于类型名），任何跳转不得硬编码路径。 */
+export function viewPathByType(site: ParsedSite, type: string): string | undefined {
+  return site.routes.find((r) => r.type === type)?.path
+}
+
 /** 解析纯函数（声明+能力+偏好 → 装配模型）；解析产物留档 memory。 */
 const siteMemory = new TranslationMemory<ParsedSite>('siteManifest')
 

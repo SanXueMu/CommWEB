@@ -93,7 +93,7 @@ function FlowRunForm({ flow, fields, providerId, onRun }: {
     setRunSubmitting(true)
     try {
       const created = await apiFor(pid).runPipeline(flow.id, values)
-      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', created.run_id] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runSnapshot', created.run_id] })
       onRun(created.run_id)
     } catch (err) {
       message.error(`提交失败：${(err as Error).message ?? err}`)

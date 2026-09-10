@@ -21,8 +21,8 @@ export function RunControlBar({ runId, status, onNewRound }: RunControlBarProps)
   const act = async (fn: () => Promise<unknown>) => {
     try {
       await fn()
-      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', runId] })
-      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runEvents', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runSnapshot', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runEvents', runId] })
     } catch (err) {
       message.error(String((err as Error).message ?? err))
     }

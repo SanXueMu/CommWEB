@@ -33,29 +33,29 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
             </span>
           ),
           status: stepStatus(s.latest),
-          description: s.latest ? (
-            <span style={{ fontSize: 12 }}>
-              <StatusBadge value={s.latest.status} /> · 试 {s.latest.attempt}
-            </span>
-          ) : (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              未开始
-            </Typography.Text>
+          description: (
+            <div style={{ fontSize: 12 }}>
+              <div>
+                {s.latest ? (
+                  <span>
+                    <StatusBadge value={s.latest.status} /> · 试 {s.latest.attempt}
+                  </span>
+                ) : (
+                  <Typography.Text type="secondary">未开始</Typography.Text>
+                )}
+              </div>
+              <Button
+                size="small"
+                style={{ marginTop: 4 }}
+                disabled={!rerunnable || (s.latest?.status ?? '') === 'queued' || (s.latest?.status ?? '') === 'running'}
+                onClick={() => setRerunStep(s)}
+              >
+                {PORTAL.workspace.rerun}
+              </Button>
+            </div>
           ),
         }))}
       />
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-        {steps.map((s) => (
-          <Button
-            key={s.step_index}
-            size="small"
-            disabled={!rerunnable || (s.latest?.status ?? '') === 'queued' || (s.latest?.status ?? '') === 'running'}
-            onClick={() => setRerunStep(s)}
-          >
-            {PORTAL.workspace.rerun} {s.step_index}
-          </Button>
-        ))}
-      </div>
       {rerunStep && <RerunModal runId={runId} step={rerunStep} onClose={() => setRerunStep(null)} />}
     </div>
   )
@@ -78,8 +78,8 @@ function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClo
     }
     try {
       await api.rerunStep(runId, step.step_index, override)
-      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', runId] })
-      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runEvents', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runSnapshot', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runEvents', runId] })
       onClose()
     } catch (err) {
       message.error(String((err as Error).message ?? err))

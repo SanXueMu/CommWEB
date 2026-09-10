@@ -61,6 +61,22 @@ html, body, #root {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* ===== 工作区标签等分收缩（多标签平分宽度、溢出省略，尽量避免进「更多」下拉） =====
+   注意：.ant-tabs-nav-list / .ant-tabs-tab 为 AntD 内部结构，AntD 大版本升级需回归验证 */
+.workspace-tabs .ant-tabs-nav-list {
+  width: 100%;
+}
+.workspace-tabs .ant-tabs-tab {
+  flex: 1 1 0;
+  min-width: 96px; /* 收缩下限：图标+省略号+关闭钮；超出容器才回落 AntD 滚动/下拉 */
+}
+.workspace-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ===== 起始首页（蓝图04：零状态界面） ===== */
 .home-shell { min-height: calc(100vh - 61px); display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
 .home-column { width: 100%; max-width: 560px; }

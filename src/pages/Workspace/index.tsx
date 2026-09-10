@@ -18,25 +18,40 @@ export function Workspace() {
 
   const items = useMemo(
     () =>
-      tabs.map((tab) => ({
-        key: tab.key,
-        label: (
-          <span>
-            {tab.kind === 'flow' ? '⛓ ' : '🔧 '}
-            {tab.title}
-            {tab.providerId && tab.providerId !== 'default' && (
-              <Typography.Text code style={{ fontSize: 10, marginLeft: 6 }}>{tab.providerId}</Typography.Text>
-            )}
-          </span>
-        ),
-        closable: true,
-        children:
-          tab.kind === 'tool' ? (
-            <ToolSession tab={tab} update={(patch) => updateTab(tab.key, patch)} />
-          ) : (
-            <FlowSession tab={tab} update={(patch) => updateTab(tab.key, patch)} />
+      tabs.map((tab) => {
+        const fullLabel = `${tab.kind === 'flow' ? '⛓' : '🔧'} ${tab.title}${
+          tab.providerId && tab.providerId !== 'default' ? `（${tab.providerId}）` : ''
+        }`
+        return {
+          key: tab.key,
+          label: (
+            <span
+              title={fullLabel}
+              style={{
+                display: 'inline-block',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'bottom',
+              }}
+            >
+              {tab.kind === 'flow' ? '⛓ ' : '🔧 '}
+              {tab.title}
+              {tab.providerId && tab.providerId !== 'default' && (
+                <Typography.Text code style={{ fontSize: 10, marginLeft: 6 }}>{tab.providerId}</Typography.Text>
+              )}
+            </span>
           ),
-      })),
+          closable: true,
+          children:
+            tab.kind === 'tool' ? (
+              <ToolSession tab={tab} update={(patch) => updateTab(tab.key, patch)} />
+            ) : (
+              <FlowSession tab={tab} update={(patch) => updateTab(tab.key, patch)} />
+            ),
+        }
+      }),
     [tabs, updateTab],
   )
 
@@ -44,6 +59,7 @@ export function Workspace() {
     <Card size="small">
       <Tabs
         type="card"
+        className="workspace-tabs"
         activeKey={activeKey}
         items={items.length ? items : undefined}
         onChange={setActive}

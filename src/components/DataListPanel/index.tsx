@@ -5,10 +5,12 @@
 
 import { BarsOutlined, AppstoreOutlined, SearchOutlined } from '@ant-design/icons'
 import { Col, Empty, Input, List, Row, Segmented, Spin } from 'antd'
+import { getViewPrefs, setViewProp } from '@/transfer/preferences'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 export interface DataListPanelProps<T> {
   panelKey: string
+  providerId?: string
   items: T[]
   loading?: boolean
   rowKey: (item: T) => string
@@ -24,6 +26,7 @@ export interface DataListPanelProps<T> {
 
 export function DataListPanel<T>({
   panelKey,
+  providerId,
   items,
   loading,
   rowKey,
@@ -36,10 +39,16 @@ export function DataListPanel<T>({
   defaultView = 'card',
   emptyText = '暂无数据',
 }: DataListPanelProps<T>) {
-  const storageKey = `commweb.view.${panelKey}`
-  const [view, setView] = useState<'card' | 'list'>(
-    () => (localStorage.getItem(storageKey) as 'card' | 'list') ?? defaultView,
-  )
+/** 布局偏好收编（蓝图03 §4.4）：有 providerId 时走 preferences（按会员隔离），否则回落旧 localStorage 键。 */
+  const readLayout = (): 'card' | 'list' => {
+    if (providerId) {
+      const fromPrefs = getViewPrefs(providerId).viewProps[panelKey]?.defaultLayout
+      if (fromPrefs === 'card' || fromPrefs === 'list') return fromPrefs
+    }
+    const legacy = localStorage.getItem(`commweb.view.${panelKey}`) as 'card' | 'list' | null
+    return legacy ?? defaultView
+  }
+  const [view, setView] = useState<'card' | 'list'>(() => readLayout())
   const [keyword, setKeyword] = useState('')
   const timer = useRef<number>()
 
@@ -52,7 +61,8 @@ export function DataListPanel<T>({
   }, [keyword])
 
   const switchView = (next: 'card' | 'list') => {
-    localStorage.setItem(storageKey, next)
+    if (providerId) setViewProp(providerId, panelKey, 'defaultLayout', next)
+    else localStorage.setItem(`commweb.view.${panelKey}`, next)
     setView(next)
   }
 

@@ -74,6 +74,7 @@ export function Tasks() {
 
       <main style={{ flex: 1, minWidth: 0 }}>
         <DataListPanel
+          providerId={pid}
           panelKey="tasks"
           items={tasks}
           loading={isLoading}

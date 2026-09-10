@@ -58,6 +58,8 @@ async function request<T>(path: string, init?: RequestInit, pid?: string): Promi
 
 function createApi(pid?: string) {
   return {
+  /** 通用 GET（协议面端点如 /meta/site，由 Transfer 解析层使用）。 */
+  get: <T>(path: string) => request<T>(path, undefined, pid),
   getStatuses: async (): Promise<{ statuses: StatusInfo[] }> => ({ statuses: normalizeStatuses((await request<{ statuses: unknown[] }>('/meta/statuses')).statuses) }),
   listTools: async (): Promise<{ tools: ToolSummary[] }> => {
     const providerId = pid ?? registry.activeId() ?? 'default'

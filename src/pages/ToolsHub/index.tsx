@@ -85,6 +85,7 @@ export function ToolsHub() {
 
       <main style={{ flex: 1, minWidth: 0 }}>
         <DataListPanel
+          providerId={pid}
           panelKey="tools"
           items={filtered}
           loading={isLoading}

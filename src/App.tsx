@@ -1,4 +1,4 @@
-import { ConfigProvider, Typography } from 'antd'
+import { App as AntApp, ConfigProvider, Typography } from 'antd'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AppHeader } from '@/components/AppHeader'
 import { FlowDetail } from '@/pages/FlowDetail'
@@ -19,6 +19,7 @@ export function App() {
 
   return (
     <ConfigProvider theme={config}>
+      <AntApp>
       <WorkspaceProvider>
       <div style={{ minHeight: '100vh', background: '#fff' }}>
         <AppHeader />
@@ -45,6 +46,7 @@ export function App() {
         </main>
       </div>
       </WorkspaceProvider>
+      </AntApp>
     </ConfigProvider>
   )
 }

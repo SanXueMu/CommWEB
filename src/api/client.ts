@@ -23,6 +23,21 @@ class ApiError extends Error {
   }
 }
 
+
+function formatDetail(detail: unknown): string {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((e) => {
+        const item = e as { loc?: unknown[]; msg?: string }
+        const loc = (item.loc ?? []).filter((x) => x !== 'body').join('.')
+        return loc ? `${loc}: ${item.msg ?? ''}` : (item.msg ?? '')
+      })
+      .join('；')
+  }
+  return JSON.stringify(detail)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -30,7 +45,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new ApiError(response.status, (detail as { detail?: string }).detail ?? String(response.status))
+    throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
   }
   return response.json() as Promise<T>
 }
@@ -74,7 +89,7 @@ export const api = {
     return fetch(`${API_BASE}/files`, { method: 'POST', body }).then(async (response) => {
       if (!response.ok) {
         const detail = await response.json().catch(() => ({ detail: response.statusText }))
-        throw new ApiError(response.status, (detail as { detail?: string }).detail ?? String(response.status))
+        throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
       }
       return response.json() as Promise<FileUploaded>
     })

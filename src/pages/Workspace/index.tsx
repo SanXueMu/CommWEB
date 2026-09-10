@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { App as AntApp, Button, Card, Dropdown, Empty, Form, Input, Space, Spin, Tabs, Typography, message } from 'antd'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { api } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
 import { EventStream } from '@/components/EventStream'
@@ -205,16 +205,20 @@ function FlowSession({ tab, update }: { tab: { refId: string; title: string; run
 function FlowRunForm({ flow, onRun }: { flow: { id: string; name: string; steps: { tool: string; input: Record<string, unknown> }[] }; onRun: (runId: string) => void }) {
   const [form] = Form.useForm()
   const { message } = AntApp.useApp()
+  const [runSubmitting, setRunSubmitting] = useState(false)
   const queryClient = useQueryClient()
   const inputKeys = useMemo(() => extractInputKeys(flow.steps), [flow.steps])
 
   const submit = async (values: Record<string, unknown>) => {
+    setRunSubmitting(true)
     try {
       const created = await api.runPipeline(flow.id, values)
       queryClient.invalidateQueries({ queryKey: ['runSnapshot', created.run_id] })
       onRun(created.run_id)
     } catch (err) {
-      message.error(String((err as Error).message ?? err))
+      message.error(`提交失败：${(err as Error).message ?? err}`)
+    } finally {
+      setRunSubmitting(false)
     }
   }
 
@@ -231,7 +235,7 @@ function FlowRunForm({ flow, onRun }: { flow: { id: string; name: string; steps:
             {FILE_FIELD_RE.test(key) ? <Input placeholder={PORTAL.form.filePathPlaceholder} /> : <Input.TextArea rows={2} />}
           </Form.Item>
         ))}
-        <Button type="primary" htmlType="submit">
+        <Button type="primary" htmlType="submit" loading={runSubmitting}>
           {PORTAL.run.submit}
         </Button>
       </Form>

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Select, Switch } from 'antd'
 import { api } from '@/api/client'
 import type { ToolDetail } from '@/api/types'
@@ -9,6 +9,7 @@ import { PORTAL } from '@/config/portal'
 export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted: (handle: string) => void }) {
   const [form] = Form.useForm()
   const { message } = AntApp.useApp()
+  const [submitting, setSubmitting] = useState(false)
   const fields = useMemo(
     () => resolveForm(tool.manifest.io.input_schema, tool.manifest.ui, tool.manifest.io.input_types),
     [tool],
@@ -45,6 +46,7 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
         const input = Object.fromEntries(
           Object.entries(values).filter(([, v]) => v !== undefined && v !== ''),
         )
+        setSubmitting(true)
         try {
           const created = await api.createTask(tool.id, input)
           message.success(`已入队：${created.handle}`)
@@ -52,6 +54,8 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
           form.resetFields()
         } catch (error) {
           message.error(`提交失败：${(error as Error).message}`)
+        } finally {
+          setSubmitting(false)
         }
       }}
     >
@@ -67,7 +71,7 @@ export function ToolForm({ tool, onSubmitted }: { tool: ToolDetail; onSubmitted:
           {renderControl(field.widget, field)}
         </Form.Item>
       ))}
-      <Button type="primary" htmlType="submit">
+      <Button type="primary" htmlType="submit" loading={submitting}>
         {tool.manifest.ui?.submit_label ?? PORTAL.run.submit}
       </Button>
     </Form>

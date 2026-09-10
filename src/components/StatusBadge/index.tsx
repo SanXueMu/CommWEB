@@ -1,19 +1,20 @@
-/** 状态徽章：value → label + color，目录驱动（CommAND /api/meta/statuses）。 */
+/** 状态徽章：value → label + color，目录驱动（CommAND /api/meta/statuses）→ CatalogBadge 底座。 */
 
-import { Tag } from 'antd'
+import type { CSSProperties } from 'react'
+import { CatalogBadge } from '@/components/CatalogBadge'
 import { useStatusCatalog } from '@/config/useStatusCatalog'
 import { STATUS_GROUP_COLORS, STATUS_COLOR_OVERRIDES } from '@/theme/tokens'
 
-export function StatusBadge({ value, style }: { value: string; style?: React.CSSProperties }) {
+export function StatusBadge({ value, style }: { value: string; style?: CSSProperties }) {
   const { byValue } = useStatusCatalog()
-  const entry = byValue.get(value)
-  const color =
-    STATUS_COLOR_OVERRIDES[value] ??
-    STATUS_GROUP_COLORS[entry?.group ?? ''] ??
-    '#8c8c8c'
   return (
-    <Tag color={color} style={{ marginRight: 0, ...style }}>
-      {entry?.label ?? value}
-    </Tag>
+    <CatalogBadge
+      value={value}
+      catalog={byValue}
+      resolveColor={(v, entry) =>
+        STATUS_COLOR_OVERRIDES[v] ?? STATUS_GROUP_COLORS[entry?.group ?? ''] ?? '#8c8c8c'
+      }
+      style={style}
+    />
   )
 }

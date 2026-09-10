@@ -1,5 +1,5 @@
 import { App as AntApp, ConfigProvider, Typography } from 'antd'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppHeader } from '@/components/AppHeader'
 import { FlowDetail } from '@/pages/FlowDetail'
 import { Flows } from '@/pages/Flows'
@@ -10,9 +10,18 @@ import { Workspace } from '@/pages/Workspace'
 import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
 import { WorkspaceProvider } from '@/workspace/store'
-import { TransferProvider } from '@/transfer/context'
+import { TransferProvider, useProviders } from '@/transfer/context'
+import { Home } from '@/pages/Home'
 
-export function App() {
+/** 会话壳：未激活守卫（蓝图05 §五.3）——业务路由全部包在 RequireActive 内。 */
+function AppShell({ children }: { children: React.ReactNode }) {
+  const { activeId } = useProviders()
+  const location = useLocation()
+  if (!activeId && location.pathname !== '/home') return <Navigate to="/home" replace />
+  return <>{children}</>
+}
+
+function App() {
   const { config } = useTheme()
   const location = useLocation()
   const isDetail =
@@ -22,6 +31,7 @@ export function App() {
     <ConfigProvider theme={config}>
       <AntApp>
       <TransferProvider>
+      <AppShell>
       <WorkspaceProvider>
       <div style={{ minHeight: '100vh', background: '#fff' }}>
         <AppHeader />
@@ -33,6 +43,7 @@ export function App() {
           }}
         >
           <Routes>
+            <Route path="/home" element={<Home />} />
             <Route path="/" element={<ToolsHub />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/tools/:id" element={<ToolDetail />} />
@@ -48,8 +59,10 @@ export function App() {
         </main>
       </div>
       </WorkspaceProvider>
+      </AppShell>
       </TransferProvider>
       </AntApp>
     </ConfigProvider>
   )
 }
+export { App }

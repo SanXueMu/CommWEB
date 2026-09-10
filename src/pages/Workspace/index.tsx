@@ -12,7 +12,6 @@ import { ToolForm } from '@/components/ToolForm'
 import { PORTAL } from '@/config/portal'
 import { useWorkspace } from '@/workspace/store'
 import { useActivePid } from '@/transfer/context'
-import { useAggregatedPipelines, useAggregatedTools } from '@/transfer/aggregate'
 
 export function Workspace() {
   const { tabs, activeKey, closeTab, updateTab, openTab, setActive } = useWorkspace()
@@ -62,8 +61,11 @@ export function Workspace() {
 }
 
 function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: string; title: string; providerId: string }) => void }) {
-  const { tools } = useAggregatedTools()
-  const { pipelines: flows } = useAggregatedPipelines()
+  const pid = useActivePid()
+  const { data: toolsData } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: () => apiFor(pid).listTools() })
+  const { data: flowsData } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: () => apiFor(pid).listPipelines() })
+  const tools = toolsData?.tools ?? []
+  const flows = flowsData?.pipelines ?? []
   return (
     <Dropdown
       menu={{
@@ -72,18 +74,18 @@ function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: 
             key: 'tools',
             label: '打开工具',
             children: tools.map((t) => ({
-              key: `${t.providerId ?? 'default'}:${t.id}`,
-              label: `${t.name}（${t.id}）${t.providerId && t.providerId !== 'default' ? ` · ${t.providerId}` : ''}`,
-              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name, providerId: t.providerId ?? 'default' }),
+              key: t.id,
+              label: `${t.name}（${t.id}）`,
+              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name, providerId: pid }),
             })),
           },
           {
             key: 'flows',
             label: '打开流',
             children: flows.map((p) => ({
-              key: `${p.providerId ?? 'default'}:${p.id}`,
-              label: `${p.name}（${p.id}）${p.providerId && p.providerId !== 'default' ? ` · ${p.providerId}` : ''}`,
-              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name, providerId: p.providerId ?? 'default' }),
+              key: p.id,
+              label: `${p.name}（${p.id}）`,
+              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name, providerId: pid }),
             })),
           },
         ],

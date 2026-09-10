@@ -3,13 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { registry } from './registry'
+import { DEFAULT_PROVIDER } from './protocol'
 import type { ProviderDescriptor } from './protocol'
 
 interface ProviderContextApi {
   providers: ProviderDescriptor[]
-  activeId: string
-  active: ProviderDescriptor
-  setActiveId: (id: string) => void
+  activeId: string | null
+  active: ProviderDescriptor | null
+  setActiveId: (id: string | null) => void
   upsert: (provider: { id: string; name: string; baseUrl: string }) => void
   remove: (id: string) => void
   probe: (id: string) => Promise<ProviderDescriptor>
@@ -20,7 +21,7 @@ const ProviderContext = createContext<ProviderContextApi | null>(null)
 
 export function TransferProvider({ children }: { children: ReactNode }) {
   const [providers, setProviders] = useState<ProviderDescriptor[]>(() => registry.list())
-  const [activeId, setActive] = useState<string>(() => registry.activeId())
+  const [activeId, setActive] = useState<string | null>(() => registry.activeId())
 
   useEffect(() => {
     registry.setActiveId(activeId)
@@ -48,7 +49,7 @@ export function TransferProvider({ children }: { children: ReactNode }) {
     () => ({
       providers,
       activeId,
-      active: providers.find((p) => p.id === activeId) ?? providers[0],
+      active: activeId ? providers.find((p) => p.id === activeId) ?? null : null,
       setActiveId: setActive,
       upsert: (provider) => {
         registry.upsert({ ...provider, protocolVersion: '1' })
@@ -57,7 +58,7 @@ export function TransferProvider({ children }: { children: ReactNode }) {
       remove: (id) => {
         registry.remove(id)
         setProviders(registry.list())
-        if (activeId === id) setActive('default')
+        if (activeId === id) setActive(null)
       },
       probe: async (id) => {
         const next = await registry.probe(id)
@@ -78,7 +79,8 @@ export function useProviders(): ProviderContextApi {
   return ctx
 }
 
-/** 当前会员 id（client 出站解析与 queryKey 维度共用）。 */
+/** 当前激活会员 id（未激活为 null；调用方需处理空值或确保在守卫内）。 */
 export function useActivePid(): string {
-  return useProviders().activeId
+  const pid = useProviders().activeId
+  return pid ?? DEFAULT_PROVIDER.id
 }

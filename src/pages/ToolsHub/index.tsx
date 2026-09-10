@@ -8,39 +8,33 @@ import { HelpCardModal } from '@/components/HelpCardModal'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
 import { HELP_CARDS } from '@/config/helpCards'
-import { useProviders } from '@/transfer/context'
-import { useAggregatedTools } from '@/transfer/aggregate'
+import { useActivePid } from '@/transfer/context'
+import { apiFor } from '@/api/client'
+import { useQuery } from '@tanstack/react-query'
 
 /** 货架（packy 风格，T3 聚合模式）：多会员工具混排 + 左侧标签/会员双筛选。 */
 export function ToolsHub() {
   const navigate = useNavigate()
-  const { providers } = useProviders()
+  const pid = useActivePid()
   const [keyword, setKeyword] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [selectedPids, setSelectedPids] = useState<string[]>([])
-  const { tools, loading: isLoading } = useAggregatedTools()
-  const providerName = useMemo(
-    () => Object.fromEntries(providers.map((p) => [p.id, p.name])),
-    [providers],
-  )
+  const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: () => apiFor(pid).listTools() })
+  const tools = data?.tools ?? []
   const allTags = useMemo(
     () => [...new Set(tools.flatMap((t) => t.tags ?? []))],
     [tools],
   )
   const filtered = tools.filter((tool) => {
-    const pid = tool.providerId ?? 'default'
     const hitKeyword =
       !keyword ||
       tool.id.includes(keyword) ||
       tool.name.includes(keyword) ||
       (tool.description ?? '').includes(keyword) ||
-      (providerName[pid] ?? pid).includes(keyword) ||
       (tool.tags ?? []).some((t) => t.includes(keyword))
     const hitTags =
       selectedTags.length === 0 ||
       selectedTags.every((tag) => (tool.tags ?? []).includes(tag))
-    const hitPid = selectedPids.length === 0 || selectedPids.includes(pid)
-    return hitKeyword && hitTags && hitPid
+    return hitKeyword && hitTags
   })
 
   const toggleTag = (tag: string) =>
@@ -60,24 +54,6 @@ export function ToolsHub() {
           paddingRight: 16,
         }}
       >
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          会员
-        </Typography.Text>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 16 }}>
-          {providers.map((p) => (
-            <Tag.CheckableTag
-              key={p.id}
-              checked={selectedPids.includes(p.id)}
-              onChange={() =>
-                setSelectedPids((prev) =>
-                  prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
-                )
-              }
-            >
-              {p.name}
-            </Tag.CheckableTag>
-          ))}
-        </div>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           标签
         </Typography.Text>

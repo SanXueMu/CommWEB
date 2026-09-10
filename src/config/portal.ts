@@ -3,6 +3,15 @@
 export const PORTAL = {
   siteName: 'CommWEB',
   footer: 'CommWEB · CommAND 之上的筋络 · 小工具与全自动流零前端代码自动上架',
+  home: {
+    title: '选择系统',
+    subtitle: (n: number) => `共 ${n} 个已登记系统 · 点击进入`,
+    manage: '管理会员',
+    using: '本页正在使用',
+    allOffline: '所有系统均不可达——检查网络或代理',
+    retry: '重试探测',
+    singleHint: '登记更多系统以接入多源渲染',
+  },
   nav: {
     tools: '工具库',
     flows: '流工具',

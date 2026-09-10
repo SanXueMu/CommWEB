@@ -9,22 +9,24 @@ import { DataListPanel } from '@/components/DataListPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
-import { useProviders } from '@/transfer/context'
-import { useAggregatedPipelines } from '@/transfer/aggregate'
+import { useActivePid } from '@/transfer/context'
+import { apiFor } from '@/api/client'
+import { useQuery } from '@tanstack/react-query'
 
 export function Flows() {
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
-  const { providers } = useProviders()
-  const { pipelines, loading: isLoading } = useAggregatedPipelines()
-  const providerName = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p.name])), [providers])
+  const pid = useActivePid()
+  const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: () => apiFor(pid).listPipelines() })
+  const pipelines = data?.pipelines ?? []
+  const providerName: Record<string, string> = {}
 
   const flows = useMemo(() => {
     if (!keyword) return pipelines
     return pipelines.filter(
-      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => s.tool.includes(keyword)) || (providerName[f.providerId ?? 'default'] ?? '').includes(keyword),
+      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => s.tool.includes(keyword)),
     )
-  }, [pipelines, keyword, providerName])
+  }, [pipelines, keyword])
 
   return (
     <div style={{ flex: 1, minWidth: 0 }}>

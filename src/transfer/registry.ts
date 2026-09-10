@@ -3,8 +3,27 @@
 import { DEFAULT_PROVIDER, FULL_CAPABILITIES } from './protocol'
 import type { ProviderCapabilities, ProviderDescriptor } from './protocol'
 
+/** registry 全局共享（localStorage）；激活会话标签页隔离（sessionStorage，蓝图05 §二）。 */
 const STORAGE_KEY = 'commweb.providers.v1'
-const ACTIVE_KEY = 'commweb.providers.active'
+const SESSION_KEY = 'commweb.session.active'
+
+/** sessionStorage 不可用时的内存降级（隐私模式，R1）。 */
+const memoryActive: { value: string | null } = { value: null }
+function sessionGet(): string | null {
+  try {
+    return sessionStorage.getItem(SESSION_KEY)
+  } catch {
+    return memoryActive.value
+  }
+}
+function sessionSet(value: string | null): void {
+  try {
+    if (value === null) sessionStorage.removeItem(SESSION_KEY)
+    else sessionStorage.setItem(SESSION_KEY, value)
+  } catch {
+    memoryActive.value = value
+  }
+}
 
 function load(): ProviderDescriptor[] {
   try {
@@ -49,15 +68,16 @@ export const registry = {
   remove(id: string) {
     if (id === DEFAULT_PROVIDER.id) return
     save(load().filter((p) => p.id !== id))
-    if (localStorage.getItem(ACTIVE_KEY) === id) localStorage.removeItem(ACTIVE_KEY)
+    if (sessionGet() === id) sessionSet(null)
   },
 
-  activeId(): string {
-    return localStorage.getItem(ACTIVE_KEY) ?? DEFAULT_PROVIDER.id
+  /** 激活会员（本标签页）；未选择 = 未激活 = null（无默认兜底，蓝图05）。 */
+  activeId(): string | null {
+    return sessionGet()
   },
 
-  setActiveId(id: string) {
-    localStorage.setItem(ACTIVE_KEY, id)
+  setActiveId(id: string | null) {
+    sessionSet(id)
   },
 
   /** 握手探测：health → statuses → 能力矩阵。 */

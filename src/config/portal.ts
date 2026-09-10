@@ -21,6 +21,8 @@ export const PORTAL = {
   sidebar: {
     tags: '标签',
     status: '状态',
+    kind: '分类',
+    all: '全部',
     clear: '清空筛选',
   },
   search: {
@@ -60,7 +62,28 @@ export const PORTAL = {
     newRound: '新开一轮',
     pausedHint: '暂停中（等待当前节点完成后停在边界）',
     runningHint: '运行中——暂停将在当前节点完成后生效',
+    skipped: '已跳过（when 条件未满足）',
+    subrun: '子流',
+    rerunFlowFull: '重跑流（原运行留档，另起新运行）',
+    rerunFlowTitle: '重跑流',
+    rerunFlowHint: '已按上一轮数据预填；仅修改过的字段作为覆盖提交，原运行留档不受影响。',
+    rerunFlowOk: '重跑',
+    rerunFlowSuccessPrefix: '已另起新运行 ',
   },
+  toolDisabled: '已停用',
+}
+
+/** 流类型展示标签（语义由 CommAND pipelines.type 定义，标签属门户文案）。 */
+export const FLOW_TYPE_LABELS: Record<string, string> = {
+  flow: '普通流',
+  workflow: '工作流',
+}
+
+/** 任务三层归类展示标签（语义由 CommAND tasks.task_kind 派生，标签属门户文案）。 */
+export const TASK_KIND_LABELS: Record<string, string> = {
+  tool: '工具任务',
+  flow: '普通流任务',
+  workflow: '工作流任务',
 }
 
 /** run_events 审计事件展示标签（kind 语义由 CommAND 定义，标签属门户文案）。 */

@@ -38,7 +38,11 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
           description: (
             <div style={{ fontSize: 12 }}>
               <div>
-                {s.latest ? (
+                {s.skipped ? (
+                  <Typography.Text type="secondary" style={{ color: '#bfbfbf' }}>
+                    {PORTAL.workspace.skipped}
+                  </Typography.Text>
+                ) : s.latest ? (
                   <span>
                     <StatusBadge value={s.latest.status} /> · 试 {s.latest.attempt}
                   </span>
@@ -46,10 +50,16 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
                   <Typography.Text type="secondary">未开始</Typography.Text>
                 )}
               </div>
+              {s.subrun && (
+                <div style={{ marginTop: 2 }}>
+                  <Typography.Text type="secondary">{PORTAL.workspace.subrun} </Typography.Text>
+                  <StatusBadge value={s.subrun.status} />
+                </div>
+              )}
               <Button
                 size="small"
                 style={{ marginTop: 4 }}
-                disabled={!rerunnable || (s.latest?.status ?? '') === 'queued' || (s.latest?.status ?? '') === 'running'}
+                disabled={s.skipped || !rerunnable || (s.latest?.status ?? '') === 'queued' || (s.latest?.status ?? '') === 'running'}
                 onClick={() => setRerunStep(s)}
               >
                 {PORTAL.workspace.rerun}

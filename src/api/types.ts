@@ -11,6 +11,8 @@ export interface ToolSummary {
   runtime_kind: 'inproc' | 'subprocess' | 'http'
   path?: string | null
   tags?: string[]
+  enabled?: boolean
+  hidden?: boolean
 }
 
 export interface ToolManifest {
@@ -37,6 +39,8 @@ export interface UiDecl {
   render?: { highlight?: string[] }
 }
 
+export type TaskKind = 'tool' | 'flow' | 'workflow'
+
 export interface Task {
   providerId?: string
   handle: string
@@ -46,6 +50,9 @@ export interface Task {
   output: Record<string, unknown> | null
   error: { kind: string; message: string } | null
   pipeline_run: string | null
+  task_kind?: TaskKind
+  root_run_id?: string | null
+  root_pipeline_id?: string | null
   step_index: number
   attempt: number
   max_attempts: number
@@ -102,12 +109,21 @@ export interface RunSnapshot {
     created_at?: string
     finished_at?: string | null
   }
-  steps: { step_index: number; tool: string; latest: StepLatest | null }[]
+  steps: {
+    step_index: number
+    tool: string
+    pipeline?: string | null
+    latest: StepLatest | null
+    skipped?: boolean
+    subrun?: { run_id: string; status: string; pipeline_id: string } | null
+  }[]
 }
 
 export interface PipelineStep {
-  tool: string
-  input: Record<string, string | number | boolean | null>
+  tool?: string
+  pipeline?: string
+  when?: Record<string, unknown> | null
+  input: Record<string, unknown>
 }
 
 export interface PipelineSummary {
@@ -116,6 +132,8 @@ export interface PipelineSummary {
   name: string
   steps: PipelineStep[]
   doc_md?: string | null
+  type?: 'flow' | 'workflow'
+  input_schema?: Record<string, unknown> | null
 }
 
 export interface PipelineRunCreated {

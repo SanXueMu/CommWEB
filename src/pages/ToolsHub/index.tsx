@@ -73,12 +73,22 @@ export function ToolsHub() {
   )
 }
 
-function ToolCard({ tool }: { tool: ToolSummary }) {
+function DisabledBadge() {
   return (
-    <Link to={`/tools/${tool.id}`}>
+    <span style={{ background: '#fff1f0', color: '#cf1322', borderRadius: 4, padding: '0 6px', fontSize: 11, lineHeight: '18px', flexShrink: 0 }}>
+      {PORTAL.toolDisabled}
+    </span>
+  )
+}
+
+function ToolCard({ tool }: { tool: ToolSummary }) {
+  const off = tool.enabled === false
+  return (
+    <Link to={`/tools/${tool.id}`} style={{ opacity: off ? 0.55 : 1 }}>
       <PanelCard>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Typography.Text strong>{tool.name}</Typography.Text>
+          {off && <DisabledBadge />}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             v{tool.version}
           </Typography.Text>
@@ -105,10 +115,12 @@ function ToolCard({ tool }: { tool: ToolSummary }) {
 }
 
 function ToolRow({ tool }: { tool: ToolSummary }) {
+  const off = tool.enabled === false
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px', opacity: off ? 0.55 : 1 }}>
       <div style={{ width: 200, flexShrink: 0 }}>
         <Typography.Text strong>{tool.name}</Typography.Text>
+        {off && <DisabledBadge />}
         <ProviderBadge pid={tool.providerId ?? 'default'} />
         <div>
           <Typography.Text code type="secondary" style={{ fontSize: 12 }}>

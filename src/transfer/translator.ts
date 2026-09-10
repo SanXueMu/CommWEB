@@ -14,7 +14,13 @@ function asObject<T extends object>(value: unknown): T {
 /** 工具摘要：tags 补默认、能力字段容错。 */
 export function normalizeToolSummary(raw: unknown, pid: string): ToolSummary {
   const tool = asObject<ToolSummary & Record<string, unknown>>(raw)
-  return { ...tool, tags: asArray<string>(tool.tags), providerId: pid }
+  return {
+    ...tool,
+    tags: asArray<string>(tool.tags),
+    enabled: tool.enabled === undefined ? undefined : Boolean(tool.enabled),
+    hidden: tool.hidden === undefined ? undefined : Boolean(tool.hidden),
+    providerId: pid,
+  }
 }
 
 /** 工具详情：manifest 三段容错（io/runtime/resources/ui/doc_md）。 */
@@ -39,7 +45,14 @@ export function normalizeToolDetail(raw: unknown, pid: string): ToolDetail {
 /** 任务：错误对象容错。 */
 export function normalizeTask(raw: unknown, pid: string): Task {
   const task = asObject<Task & Record<string, unknown>>(raw)
-  return { ...task, providerId: pid, error: (task.error ?? null) as Task['error'] }
+  return {
+    ...task,
+    providerId: pid,
+    error: (task.error ?? null) as Task['error'],
+    task_kind: (task.task_kind as Task['task_kind']) ?? undefined,
+    root_run_id: (task.root_run_id as string | null) ?? null,
+    root_pipeline_id: (task.root_pipeline_id as string | null) ?? null,
+  }
 }
 
 /** 状态目录：完整形状保底。 */
@@ -54,5 +67,12 @@ export function normalizeStatuses(raw: unknown): StatusInfo[] {
 /** 流摘要：steps 数组容错。 */
 export function normalizePipeline(raw: unknown, pid: string): PipelineSummary {
   const flow = asObject<PipelineSummary & Record<string, unknown>>(raw)
-  return { ...flow, steps: asArray<PipelineSummary['steps'][number]>(flow.steps), doc_md: flow.doc_md ?? null, providerId: pid }
+  return {
+    ...flow,
+    steps: asArray<PipelineSummary['steps'][number]>(flow.steps),
+    doc_md: flow.doc_md ?? null,
+    type: (flow.type as PipelineSummary['type']) ?? undefined,
+    input_schema: (flow.input_schema as PipelineSummary['input_schema']) ?? null,
+    providerId: pid,
+  }
 }

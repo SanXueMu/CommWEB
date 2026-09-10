@@ -13,6 +13,7 @@ import type {
   StatusInfo,
   Task,
   TaskCreated,
+  TaskKind,
   TaskEvent,
   ToolDetail,
   ToolSummary,
@@ -75,8 +76,18 @@ function createApi(pid?: string) {
   getTask: async (handle: string): Promise<Task> => normalizeTask(await request<unknown>(`/tasks/${handle}`), pid ?? registry.activeId() ?? 'default'),
   cancelTask: (handle: string) =>
     request<{ handle: string; status: string }>(`/tasks/${handle}/cancel`, { method: 'POST' }),
-  listTasks: (status?: string) =>
-    request<{ tasks: Task[] }>(`/tasks${status ? `?status=${status}` : ''}`),
+  listTasks: (status?: string, kind?: TaskKind) => {
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    if (kind) params.set('kind', kind)
+    const qs = params.toString()
+    return request<{ tasks: Task[] }>(`/tasks${qs ? `?${qs}` : ''}`)
+  },
+  rerunRun: (runId: string, inputOverride?: Record<string, unknown>) =>
+    request<{ run_id: string; rerun_of: string; status: string; first_handle: string | null }>(
+      `/pipeline-runs/${runId}/rerun`,
+      { method: 'POST', body: JSON.stringify({ input: inputOverride ?? {} }) },
+    ),
   listPipelines: async (): Promise<{ pipelines: PipelineSummary[] }> => {
     const providerId = pid ?? registry.activeId() ?? 'default'
     const { pipelines } = await request<{ pipelines: unknown[] }>('/pipelines')

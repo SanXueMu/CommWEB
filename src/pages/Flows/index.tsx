@@ -4,6 +4,7 @@ import { Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ProviderBadge } from '@/components/ProviderBadge'
+import { FlowTypeBadge } from '@/components/ui/FlowTypeBadge'
 import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
@@ -24,7 +25,7 @@ export function Flows() {
   const flows = useMemo(() => {
     if (!keyword) return pipelines
     return pipelines.filter(
-      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => s.tool.includes(keyword)),
+      (f) => f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => (s.tool || s.pipeline || '').includes(keyword)),
     )
   }, [pipelines, keyword])
 
@@ -52,7 +53,7 @@ export function Flows() {
 function StepChain({ flow }: { flow: PipelineSummary }) {
   return (
     <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
-      {flow.steps.map((s) => s.tool).join(' → ')}
+      {flow.steps.map((s) => s.tool || s.pipeline).join(' → ')}
     </Typography.Text>
   )
 }
@@ -63,6 +64,7 @@ function FlowCard({ flow, providerName }: { flow: PipelineSummary; providerName:
       <PanelCard>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Typography.Text strong>{flow.name}</Typography.Text>
+          <FlowTypeBadge flow={flow} />
           <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {flow.steps.length} 步
@@ -82,6 +84,7 @@ function FlowRow({ flow, providerName }: { flow: PipelineSummary; providerName: 
       <div style={{ width: 260, flexShrink: 0 }}>
         <Space size={6}>
           <Typography.Text strong>{flow.name}</Typography.Text>
+          <FlowTypeBadge flow={flow} />
           <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
         </Space>
         <div>

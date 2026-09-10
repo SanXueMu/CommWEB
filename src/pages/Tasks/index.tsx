@@ -2,25 +2,26 @@ import { useQuery } from '@tanstack/react-query'
 import { Typography } from 'antd'
 import { useState } from 'react'
 import { api } from '@/api/client'
-import type { Task } from '@/api/types'
+import type { Task, TaskKind } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TaskDrawer } from '@/components/TaskDrawer'
 import { PanelCard } from '@/components/ui/PanelCard'
-import { PORTAL, STATUS_GROUP_LABELS } from '@/config/portal'
+import { PORTAL, STATUS_GROUP_LABELS, TASK_KIND_LABELS } from '@/config/portal'
 import { useStatusCatalog } from '@/config/useStatusCatalog'
 import { useActivePid } from '@/transfer/context'
 
-/** 柜台（与工具库同构）：左侧状态分组筛选（目录驱动）+ 右侧通用列表面板。 */
+/** 柜台（与工具库同构）：左侧任务分类 + 状态分组筛选（目录驱动）+ 右侧通用列表面板。 */
 export function Tasks() {
   const pid = useActivePid()
+  const [kind, setKind] = useState<TaskKind | ''>('')
   const [group, setGroup] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const { byGroup } = useStatusCatalog()
   const { data, isLoading } = useQuery({
-    queryKey: ['provider', pid, 'tasks'],
-    queryFn: () => api.listTasks(),
+    queryKey: ['provider', pid, 'tasks', kind],
+    queryFn: () => api.listTasks(undefined, kind || undefined),
     refetchInterval: 3000,
   })
 
@@ -49,6 +50,26 @@ export function Tasks() {
         }}
       >
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {PORTAL.sidebar.kind}
+        </Typography.Text>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, marginBottom: 16 }}>
+          {(['', 'tool', 'flow', 'workflow'] as const).map((k) => (
+            <Typography.Link
+              key={k || 'all'}
+              strong={kind === k}
+              onClick={() => setKind(k)}
+              style={{ color: kind === k ? '#202753' : '#8c8c8c' }}
+            >
+              {k ? TASK_KIND_LABELS[k] : PORTAL.sidebar.all}（
+                {k
+                  ? (data?.tasks ?? []).filter((t) => t.task_kind === k).length
+                  : (data?.tasks ?? []).length}
+              ）
+            </Typography.Link>
+          ))}
+        </div>
+
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {PORTAL.sidebar.status}
         </Typography.Text>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
@@ -57,7 +78,7 @@ export function Tasks() {
             onClick={() => setGroup('')}
             style={{ color: group === '' ? '#202753' : '#8c8c8c' }}
           >
-            全部（{(data?.tasks ?? []).length}）
+            {PORTAL.sidebar.all}（{(data?.tasks ?? []).length}）
           </Typography.Link>
           {Object.entries(byGroup).map(([key]) => (
             <Typography.Link
@@ -113,11 +134,22 @@ function TaskCard({ task: t }: { task: Task }) {
   )
 }
 
+function TaskKindBadge({ kind }: { kind?: TaskKind }) {
+  if (!kind || kind === 'tool') return null
+  const palette = kind === 'flow' ? { bg: '#e6f4f1', fg: '#0F6E56' } : { bg: '#f1ecfb', fg: '#6b3fc4' }
+  return (
+    <span style={{ background: palette.bg, color: palette.fg, borderRadius: 4, padding: '0 6px', fontSize: 11, lineHeight: '18px' }}>
+      {TASK_KIND_LABELS[kind]}
+    </span>
+  )
+}
+
 function TaskRow({ task: t }: { task: Task }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px' }}>
       <div style={{ width: 220, flexShrink: 0 }}>
         <Typography.Text strong>{t.tool_id}</Typography.Text>
+        <TaskKindBadge kind={t.task_kind} />
         <div>
           <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
             {t.handle.slice(0, 14)}…

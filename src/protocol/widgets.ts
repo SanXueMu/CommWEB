@@ -38,6 +38,7 @@ export function inferWidget(schema: SchemaLike): WidgetKind {
   if (schema.type === 'string') {
     if (schema.enum) return 'select'
     if (schema.format === 'date') return 'date'
+    if (schema.format === 'file') return 'file'
     if ((schema.maxLength ?? 0) > 200) return 'textarea'
     return 'input'
   }

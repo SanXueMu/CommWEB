@@ -1,8 +1,8 @@
 /** 会员上下文：当前活跃会员（T1 切换制）+ 登记管理 + 探测状态。 */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { registry } from './registry'
+import { REGISTRY_STORAGE_KEY, registry } from './registry'
 import { DEFAULT_PROVIDER } from './protocol'
 import type { ProviderDescriptor } from './protocol'
 
@@ -27,7 +27,11 @@ export function TransferProvider({ children }: { children: ReactNode }) {
     registry.setActiveId(activeId)
   }, [activeId])
 
+  const lastProbeRef = useRef(0)
   const probeAll = useCallback(() => {
+    const now = Date.now()
+    if (now - lastProbeRef.current < 10_000) return  // 探测节流（蓝图05 §七.3）
+    lastProbeRef.current = now
     providers.forEach(async (p) => {
       try {
         await registry.probe(p.id)
@@ -45,6 +49,23 @@ export function TransferProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 跨页同步（蓝图05 §七.1）：storage 事件仅他页触发——A 登记/删除，B 即时刷新；
+  // 被删会员恰为本页激活 → 清激活守卫自动回首页 + 提示。
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== REGISTRY_STORAGE_KEY) return
+      const next = registry.list()
+      setProviders(next)
+      const current = registry.activeId()
+      if (current && !next.some((p) => p.id === current)) {
+        setActive(null)
+        window.dispatchEvent(new CustomEvent('commweb:member-removed', { detail: { id: current } }))
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   const api = useMemo<ProviderContextApi>(
     () => ({
       providers,
@@ -58,7 +79,10 @@ export function TransferProvider({ children }: { children: ReactNode }) {
       remove: (id) => {
         registry.remove(id)
         setProviders(registry.list())
-        if (activeId === id) setActive(null)
+        if (activeId === id) {
+          setActive(null)
+          window.dispatchEvent(new CustomEvent('commweb:member-removed', { detail: { id } }))
+        }
       },
       probe: async (id) => {
         const next = await registry.probe(id)

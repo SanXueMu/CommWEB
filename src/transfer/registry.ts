@@ -4,7 +4,8 @@ import { DEFAULT_PROVIDER, FULL_CAPABILITIES } from './protocol'
 import type { ProviderCapabilities, ProviderDescriptor } from './protocol'
 
 /** registry 全局共享（localStorage）；激活会话标签页隔离（sessionStorage，蓝图05 §二）。 */
-const STORAGE_KEY = 'commweb.providers.v1'
+export const REGISTRY_STORAGE_KEY = 'commweb.providers.v1'
+const STORAGE_KEY = REGISTRY_STORAGE_KEY
 const SESSION_KEY = 'commweb.session.active'
 
 /** sessionStorage 不可用时的内存降级（隐私模式，R1）。 */

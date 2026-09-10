@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { App as AntApp, ConfigProvider, Typography } from 'antd'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppHeader } from '@/components/AppHeader'
@@ -10,10 +10,21 @@ import { Home } from '@/pages/Home'
 import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { viewComponent, viewDetailRoutes } from '@/protocol/views'
 
-/** 会话壳：未激活守卫（蓝图05 §五.3）——业务路由全部包在 RequireActive 内。 */
+/** 会话壳：未激活守卫（蓝图05 §五.3）；被删会员回退提示（§七.2）。 */
 function AppShell({ children }: { children: React.ReactNode }) {
   const { activeId } = useProviders()
   const location = useLocation()
+  const { message } = AntApp.useApp()
+
+  useEffect(() => {
+    const onRemoved = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id
+      message.warning(`所选会员已被移除${id ? `（${id}）` : ''}，请重新选择`)
+    }
+    window.addEventListener('commweb:member-removed', onRemoved)
+    return () => window.removeEventListener('commweb:member-removed', onRemoved)
+  }, [message])
+
   if (!activeId && location.pathname !== '/home') return <Navigate to="/home" replace />
   return <>{children}</>
 }

@@ -37,6 +37,7 @@ export const PORTAL = {
     submit: '提交任务',
     formTitle: '运行（表单由 input_schema 自动生成）',
   },
+  flowFailedPrefix: '流运行失败：',
   workspace: {
     pause: '暂停',
     resume: '恢复',

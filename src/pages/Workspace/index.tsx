@@ -1,18 +1,15 @@
 /** 工作区：浏览器式多标签工作台——工具/流会话多开互不干扰，流的全控制操作面板。 */
 
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, Card, Dropdown, Empty, Form, Input, Select, Space, Spin, Tabs, Typography, message } from 'antd'
-import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button, Card, Dropdown, Empty, Space, Spin, Tabs, Typography } from 'antd'
+import { useMemo } from 'react'
 import { api } from '@/api/client'
-import { AuditTimeline } from '@/components/AuditTimeline'
 import { EventStream } from '@/components/EventStream'
 import { ResultRenderer } from '@/components/ResultRenderer'
-import { RunControlBar } from '@/components/RunControlBar'
 import { StatusBadge } from '@/components/StatusBadge'
-import { StepTrack } from '@/components/StepTrack'
+import { FlowRunner } from '@/components/FlowRunner'
 import { ToolForm } from '@/components/ToolForm'
 import { PORTAL } from '@/config/portal'
-import { extractFlowFields } from '@/protocol/flow'
 import { useWorkspace } from '@/workspace/store'
 
 export function Workspace() {
@@ -131,7 +128,7 @@ function ToolSession({ tab, update }: { tab: { refId: string; handle?: string };
                   try {
                     await api.cancelTask(tab.handle!)
                   } catch (err) {
-                    message.error(String((err as Error).message ?? err))
+                    console.error('取消失败', err)
                   }
                 }}
               >
@@ -153,110 +150,15 @@ function ToolSession({ tab, update }: { tab: { refId: string; handle?: string };
   )
 }
 
-/** 流会话：输入表单 → run 提交 → snapshot 轮询 + 控制条 + 步骤轨道 + 审计。 */
+/** 流会话：FlowRunner 唯一实现，本组件只绑定工作区标签页状态。 */
 function FlowSession({ tab, update }: { tab: { refId: string; title: string; runId?: string }; update: (patch: { runId?: string }) => void }) {
   const { data: flow, isLoading } = useQuery({
     queryKey: ['pipeline', tab.refId],
     queryFn: () => api.getPipeline(tab.refId),
   })
-  const { data: snap } = useQuery({
-    queryKey: ['runSnapshot', tab.runId],
-    queryFn: () => api.getRunSnapshot(tab.runId!),
-    enabled: Boolean(tab.runId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.run.status
-      return status && ['running', 'paused'].includes(status) ? 2000 : false
-    },
-  })
 
   if (isLoading) return <Spin />
   if (!flow) return <Typography.Text type="secondary">流不存在或已下架</Typography.Text>
 
-  if (!tab.runId) {
-    return <FlowRunForm flow={flow} onRun={(runId) => update({ runId })} />
-  }
-
-  return (
-    <div style={{ maxWidth: 960 }}>
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        <RunControlBar
-          runId={tab.runId}
-          status={snap?.run.status ?? 'running'}
-          onNewRound={() => update({ runId: undefined })}
-        />
-        {snap?.run.status === 'paused' && (
-          <Typography.Text type="warning" style={{ fontSize: 12 }}>
-            {PORTAL.workspace.pausedHint}
-          </Typography.Text>
-        )}
-        {snap && <StepTrack runId={tab.runId} steps={snap.steps} runStatus={snap.run.status} />}
-        {snap?.run.status === 'succeeded' &&
-          snap.steps.at(-1)?.latest?.output != null && (
-            <Card size="small" title="最终输出">
-              <ResultRenderer output={snap.steps.at(-1)!.latest!.output!} />
-            </Card>
-          )}
-        <AuditTimeline runId={tab.runId} />
-      </Space>
-    </div>
-  )
-}
-
-function FlowRunForm({ flow, onRun }: { flow: { id: string; name: string; steps: { tool: string; input: Record<string, unknown> }[] }; onRun: (runId: string) => void }) {
-  const [form] = Form.useForm()
-  const { message } = AntApp.useApp()
-  const [runSubmitting, setRunSubmitting] = useState(false)
-  const queryClient = useQueryClient()
-
-  const toolIds = useMemo(() => [...new Set(flow.steps.map((s) => s.tool))], [flow.steps])
-  const toolQueries = useQueries({
-    queries: toolIds.map((id) => ({ queryKey: ['tool', id], queryFn: () => api.getTool(id), staleTime: 60_000 })),
-  })
-  const schemaMap = useMemo(() => {
-    const map: Record<string, Record<string, unknown>> = {}
-    toolQueries.forEach((q) => {
-      if (q.data) map[q.data.id] = (q.data as { manifest: { io: { input_schema: Record<string, unknown> } } }).manifest.io.input_schema
-    })
-    return map
-  }, [toolQueries])
-  const fields = useMemo(() => extractFlowFields(flow.steps, schemaMap as never), [flow.steps, schemaMap])
-
-  const submit = async (values: Record<string, unknown>) => {
-    setRunSubmitting(true)
-    try {
-      const created = await api.runPipeline(flow.id, values)
-      queryClient.invalidateQueries({ queryKey: ['runSnapshot', created.run_id] })
-      onRun(created.run_id)
-    } catch (err) {
-      message.error(`提交失败：${(err as Error).message ?? err}`)
-    } finally {
-      setRunSubmitting(false)
-    }
-  }
-
-  return (
-    <Card size="small" title={`运行 ${flow.name}（${flow.steps.length} 步）`}>
-      <Form form={form} layout="vertical" onFinish={submit} style={{ maxWidth: 560 }}>
-        {fields.map((field) => (
-          <Form.Item
-            key={field.key}
-            name={field.key}
-            label={field.key}
-            rules={field.widget === 'file' ? [] : [{ required: true, message: `请填写 ${field.key}` }]}
-          >
-            {field.widget === 'tags' ? (
-              <Select mode="tags" open={false} placeholder={PORTAL.form.tagsPlaceholder} />
-            ) : field.widget === 'file' ? (
-              <Input placeholder={PORTAL.form.filePathPlaceholder} />
-            ) : (
-              <Input.TextArea rows={2} />
-            )}
-          </Form.Item>
-        ))}
-        <Button type="primary" htmlType="submit" loading={runSubmitting}>
-          {PORTAL.run.submit}
-        </Button>
-      </Form>
-    </Card>
-  )
+  return <FlowRunner flow={flow} runId={tab.runId ?? null} onRunIdChange={(id) => update({ runId: id ?? undefined })} />
 }

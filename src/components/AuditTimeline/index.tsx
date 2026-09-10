@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, Spin, Timeline, Typography } from 'antd'
 import { api } from '@/api/client'
 import { RUN_EVENT_LABELS } from '@/config/portal'
+import { useActivePid } from '@/transfer/context'
 
 function detailSummary(detail: Record<string, unknown>): string {
   const parts: string[] = []
@@ -15,8 +16,9 @@ function detailSummary(detail: Record<string, unknown>): string {
 }
 
 export function AuditTimeline({ runId }: { runId: string }) {
+  const pid = useActivePid()
   const { data, isLoading } = useQuery({
-    queryKey: ['runEvents', runId],
+    queryKey: ['provider', pid, 'runEvents', runId],
     queryFn: () => api.listRunEvents(runId, 100),
   })
 

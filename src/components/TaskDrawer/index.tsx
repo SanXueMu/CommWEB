@@ -4,12 +4,14 @@ import { api } from '@/api/client'
 import { EventStream } from '@/components/EventStream'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { StatusBadge } from '@/components/StatusBadge'
+import { useActivePid } from '@/transfer/context'
 
 /** 任务详情抽屉：状态徽章 + SSE 事件流 + 输出渲染 + 取消。 */
 export function TaskDrawer({ handle, onClose }: { handle: string | null; onClose: () => void }) {
+  const pid = useActivePid()
   const { message } = AntApp.useApp()
   const { data: task, refetch } = useQuery({
-    queryKey: ['task', handle],
+    queryKey: ['provider', pid, 'task', handle],
     queryFn: () => api.getTask(handle!),
     enabled: handle !== null,
     refetchInterval: (query) =>

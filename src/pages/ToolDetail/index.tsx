@@ -9,17 +9,19 @@ import { DocPanel } from '@/components/DocPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
+import { useActivePid } from '@/transfer/context'
 
 /** 工作台：manifest 信息 + 自动表单 + 该工具近期任务。 */
 export function ToolDetail() {
+  const pid = useActivePid()
   const { id = '' } = useParams()
   const [drawerHandle, setDrawerHandle] = useState<string | null>(null)
   const { data: tool, isLoading, error } = useQuery({
-    queryKey: ['tool', id],
+    queryKey: ['provider', pid, 'tool', id],
     queryFn: () => api.getTool(id),
   })
   const { data: recent } = useQuery({
-    queryKey: ['tasks', ''],
+    queryKey: ['provider', pid, 'tasks', ''],
     queryFn: () => api.listTasks(),
     refetchInterval: 5000,
   })

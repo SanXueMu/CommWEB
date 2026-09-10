@@ -9,6 +9,7 @@ export interface WorkspaceTab {
   kind: 'tool' | 'flow'
   refId: string
   title: string
+  providerId?: string
   handle?: string
   runId?: string
 }

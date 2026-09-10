@@ -4,6 +4,7 @@ import { AppstoreOutlined, DesktopOutlined } from '@ant-design/icons'
 import { Popover, Space, Typography } from 'antd'
 import { Link, useLocation } from 'react-router-dom'
 import { PORTAL } from '@/config/portal'
+import { ProviderMenu } from '@/components/ProviderMenu'
 import { useTheme } from '@/theme/store'
 import type { ThemeName } from '@/theme/tokens'
 
@@ -83,6 +84,7 @@ export function AppHeader() {
       <Popover trigger="hover" placement="bottomRight" content={themePanel}>
         <DesktopOutlined style={{ fontSize: 18, color: '#595959', cursor: 'pointer' }} />
       </Popover>
+      <ProviderMenu />
     </header>
   )
 }

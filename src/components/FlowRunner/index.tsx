@@ -12,6 +12,7 @@ import { RunControlBar } from '@/components/RunControlBar'
 import { StepTrack } from '@/components/StepTrack'
 import { PORTAL } from '@/config/portal'
 import { extractFlowFields } from '@/protocol/flow'
+import { useActivePid } from '@/transfer/context'
 
 interface FlowLike {
   id: string
@@ -24,9 +25,10 @@ export function FlowRunner({ flow, runId, onRunIdChange }: {
   runId: string | null | undefined
   onRunIdChange: (runId: string | null) => void
 }) {
+  const pid = useActivePid()
   const toolIds = useMemo(() => [...new Set(flow.steps.map((s) => s.tool))], [flow.steps])
   const toolQueries = useQueries({
-    queries: toolIds.map((id) => ({ queryKey: ['tool', id], queryFn: () => api.getTool(id), staleTime: 60_000 })),
+    queries: toolIds.map((id) => ({ queryKey: ['provider', pid, 'tool', id], queryFn: () => api.getTool(id), staleTime: 60_000 })),
   })
   const schemaMap = useMemo(() => {
     const map: Record<string, Record<string, unknown>> = {}
@@ -38,7 +40,7 @@ export function FlowRunner({ flow, runId, onRunIdChange }: {
   const fields = useMemo(() => extractFlowFields(flow.steps, schemaMap as never), [flow.steps, schemaMap])
 
   const { data: snap } = useQuery({
-    queryKey: ['runSnapshot', runId],
+    queryKey: ['provider', pid, 'runSnapshot', runId],
     queryFn: () => api.getRunSnapshot(runId!),
     enabled: Boolean(runId),
     refetchInterval: (query) => {
@@ -79,6 +81,7 @@ function FlowRunForm({ flow, fields, onRun }: {
   fields: { key: string; widget: 'text' | 'tags' | 'file' }[]
   onRun: (runId: string) => void
 }) {
+  const pid = useActivePid()
   const [form] = Form.useForm()
   const { message } = AntApp.useApp()
   const [runSubmitting, setRunSubmitting] = useState(false)
@@ -88,7 +91,7 @@ function FlowRunForm({ flow, fields, onRun }: {
     setRunSubmitting(true)
     try {
       const created = await api.runPipeline(flow.id, values)
-      queryClient.invalidateQueries({ queryKey: ['runSnapshot', created.run_id] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', created.run_id] })
       onRun(created.run_id)
     } catch (err) {
       message.error(`提交失败：${(err as Error).message ?? err}`)

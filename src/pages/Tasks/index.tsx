@@ -9,15 +9,17 @@ import { TaskDrawer } from '@/components/TaskDrawer'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL, STATUS_GROUP_LABELS } from '@/config/portal'
 import { useStatusCatalog } from '@/config/useStatusCatalog'
+import { useActivePid } from '@/transfer/context'
 
 /** 柜台（与工具库同构）：左侧状态分组筛选（目录驱动）+ 右侧通用列表面板。 */
 export function Tasks() {
+  const pid = useActivePid()
   const [group, setGroup] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const { byGroup } = useStatusCatalog()
   const { data, isLoading } = useQuery({
-    queryKey: ['tasks'],
+    queryKey: ['provider', pid, 'tasks'],
     queryFn: () => api.listTasks(),
     refetchInterval: 3000,
   })

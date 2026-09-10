@@ -5,6 +5,7 @@ import { App as AntApp, Button, Popconfirm, Space } from 'antd'
 import { api } from '@/api/client'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
+import { useActivePid } from '@/transfer/context'
 
 export interface RunControlBarProps {
   runId: string
@@ -13,14 +14,15 @@ export interface RunControlBarProps {
 }
 
 export function RunControlBar({ runId, status, onNewRound }: RunControlBarProps) {
+  const pid = useActivePid()
   const { message } = AntApp.useApp()
   const queryClient = useQueryClient()
 
   const act = async (fn: () => Promise<unknown>) => {
     try {
       await fn()
-      queryClient.invalidateQueries({ queryKey: ['runSnapshot', runId] })
-      queryClient.invalidateQueries({ queryKey: ['runEvents', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runEvents', runId] })
     } catch (err) {
       message.error(String((err as Error).message ?? err))
     }

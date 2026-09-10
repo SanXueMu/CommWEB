@@ -9,13 +9,15 @@ import { HelpCardModal } from '@/components/HelpCardModal'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
 import { HELP_CARDS } from '@/config/helpCards'
+import { useActivePid } from '@/transfer/context'
 
 /** 货架（packy 风格）：左侧标签筛选 + 右侧通用列表面板（卡片/列表双形态）。 */
 export function ToolsHub() {
+  const pid = useActivePid()
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const { data, isLoading } = useQuery({ queryKey: ['tools'], queryFn: api.listTools })
+  const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: api.listTools })
 
   const tools = data?.tools ?? []
   const allTags = useMemo(

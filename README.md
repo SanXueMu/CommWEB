@@ -47,3 +47,4 @@ queued 蓝 / running 橙 / succeeded 青绿 / failed_review 紫 / 其余终态�
 | 2026-09-10 | doc/md 渲染（DocPanel + react-markdown）+ S5 工作区：浏览器式多标签（workspace store 持久化）/ ToolSession（表单→内联事件流+结果）/ FlowSession（snapshot 轮询）/ RunControlBar（暂停/恢复/中止）/ StepTrack（断点重跑+字段覆盖）/ AuditTimeline（审计轨迹）/ 三处「在工作区打开」入口 | 否（最大 Workspace ~230 行） | 是（store 只存会话指针，数据全走 react-query） | 否 | 是（流控制按钮显隐由 run.status 驱动） | 通过 |
 
 五列体检项：① 单组件 >300 行？② 数据流单向？③ 反模式（巨型 page/复制粘贴组件/绕过 protocol/绕过 api/内联魔法色值）？④ 新工具零代码入前端（回归测试）？⑤ UI 声明是否仍最简？
+| 2026-09-10 | T1 Transfer 会员制：transfer/ 内核三件（protocol 契约/registry 登记+探测/context 上下文）+ 出站三通道 apiBase 路由（api 签名零变）+ queryKey 全量 provider 维度 + ProviderMenu 下拉与登记抽屉 + vite loadEnv 会员代理矩阵 | 否 | 是（渲染中心只认标准模型，会员路由全在 transfer/） | 否（新增会员=登记一行，零代码） | 是（默认会员零配置兼容现状） | 通过 |

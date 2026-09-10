@@ -15,7 +15,12 @@ import type {
   ToolSummary,
 } from './types'
 
-const API_BASE = '/api'
+import { registry } from '@/transfer/registry'
+
+/** 出站基址：当前活跃会员（Transfer T1 切换制，api 方法签名保持不变）。 */
+function apiBase(): string {
+  return registry.baseUrlOf(registry.activeId())
+}
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -39,7 +44,7 @@ function formatDetail(detail: unknown): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${apiBase()}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
@@ -86,7 +91,7 @@ export const api = {
   uploadFile: (file: File): Promise<FileUploaded> => {
     const body = new FormData()
     body.append('file', file)
-    return fetch(`${API_BASE}/files`, { method: 'POST', body }).then(async (response) => {
+    return fetch(`${apiBase()}/files`, { method: 'POST', body }).then(async (response) => {
       if (!response.ok) {
         const detail = await response.json().catch(() => ({ detail: response.statusText }))
         throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
@@ -105,7 +110,7 @@ export function streamTaskEvents(
     onError?: (error: Event) => void
   },
 ): () => void {
-  const source = new EventSource(`${API_BASE}/tasks/${handle}/events`)
+  const source = new EventSource(`${apiBase()}/tasks/${handle}/events`)
   const parse = (e: MessageEvent): TaskEvent => {
     const raw = JSON.parse(e.data as string) as { data: Record<string, unknown>; created_at: string }
     return { id: Number(e.lastEventId), type: e.type as TaskEvent['type'], data: raw.data, created_at: raw.created_at }

@@ -4,6 +4,7 @@ import { FolderOpenOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { useWorkspaceSelector } from '@/workspace/store'
+import { useActivePid } from '@/transfer/context'
 
 export function OpenInWorkspace({ kind, refId, title, size = 'small' }: {
   kind: 'tool' | 'flow'
@@ -12,6 +13,7 @@ export function OpenInWorkspace({ kind, refId, title, size = 'small' }: {
   size?: 'small' | 'middle'
 }) {
   const openTab = useWorkspaceSelector((s) => s.openTab)
+  const pid = useActivePid()
   const navigate = useNavigate()
   return (
     <Tooltip title="在工作区打开（可多开互不干扰）">
@@ -20,7 +22,7 @@ export function OpenInWorkspace({ kind, refId, title, size = 'small' }: {
         icon={<FolderOpenOutlined />}
         onClick={(e) => {
           e.stopPropagation()
-          openTab({ kind, refId, title })
+          openTab({ kind, refId, title, providerId: pid })
           navigate('/workspace')
         }}
       />

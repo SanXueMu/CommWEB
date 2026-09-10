@@ -7,6 +7,7 @@ import { api } from '@/api/client'
 import type { RunSnapshot } from '@/api/types'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL } from '@/config/portal'
+import { useActivePid } from '@/transfer/context'
 
 type Step = RunSnapshot['steps'][number]
 
@@ -61,6 +62,7 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
 }
 
 function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClose: () => void }) {
+  const pid = useActivePid()
   const queryClient = useQueryClient()
   const [form] = Form.useForm()
 
@@ -76,8 +78,8 @@ function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClo
     }
     try {
       await api.rerunStep(runId, step.step_index, override)
-      queryClient.invalidateQueries({ queryKey: ['runSnapshot', runId] })
-      queryClient.invalidateQueries({ queryKey: ['runEvents', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runSnapshot', runId] })
+      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'provider', pid, 'runEvents', runId] })
       onClose()
     } catch (err) {
       message.error(String((err as Error).message ?? err))

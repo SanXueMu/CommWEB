@@ -11,6 +11,7 @@ import { FlowRunner } from '@/components/FlowRunner'
 import { ToolForm } from '@/components/ToolForm'
 import { PORTAL } from '@/config/portal'
 import { useWorkspace } from '@/workspace/store'
+import { useActivePid } from '@/transfer/context'
 
 export function Workspace() {
   const { tabs, activeKey, closeTab, updateTab, openTab, setActive } = useWorkspace()
@@ -23,6 +24,9 @@ export function Workspace() {
           <span>
             {tab.kind === 'flow' ? '⛓ ' : '🔧 '}
             {tab.title}
+            {tab.providerId && tab.providerId !== 'default' && (
+              <Typography.Text code style={{ fontSize: 10, marginLeft: 6 }}>{tab.providerId}</Typography.Text>
+            )}
           </span>
         ),
         closable: true,
@@ -56,9 +60,10 @@ export function Workspace() {
   )
 }
 
-function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: string; title: string }) => void }) {
-  const { data: tools } = useQuery({ queryKey: ['tools'], queryFn: api.listTools })
-  const { data: flows } = useQuery({ queryKey: ['pipelines'], queryFn: api.listPipelines })
+function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: string; title: string; providerId: string }) => void }) {
+  const pid = useActivePid()
+  const { data: tools } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: api.listTools })
+  const { data: flows } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: api.listPipelines })
   return (
     <Dropdown
       menu={{
@@ -69,7 +74,7 @@ function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: 
             children: (tools?.tools ?? []).map((t) => ({
               key: t.id,
               label: `${t.name}（${t.id}）`,
-              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name }),
+              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name, providerId: pid }),
             })),
           },
           {
@@ -78,7 +83,7 @@ function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: 
             children: (flows?.pipelines ?? []).map((p) => ({
               key: p.id,
               label: `${p.name}（${p.id}）`,
-              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name }),
+              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name, providerId: pid }),
             })),
           },
         ],
@@ -91,12 +96,13 @@ function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: 
 
 /** 工具会话：表单提交 → tab 内联事件流 + 结果渲染。 */
 function ToolSession({ tab, update }: { tab: { refId: string; handle?: string }; update: (patch: { handle?: string }) => void }) {
+  const pid = useActivePid()
   const { data: tool, isLoading } = useQuery({
-    queryKey: ['tool', tab.refId],
+    queryKey: ['provider', pid, 'tool', tab.refId],
     queryFn: () => api.getTool(tab.refId),
   })
   const { data: task } = useQuery({
-    queryKey: ['task', tab.handle],
+    queryKey: ['provider', pid, 'task', tab.handle],
     queryFn: () => api.getTask(tab.handle!),
     enabled: Boolean(tab.handle),
     refetchInterval: (query) => {
@@ -152,8 +158,9 @@ function ToolSession({ tab, update }: { tab: { refId: string; handle?: string };
 
 /** 流会话：FlowRunner 唯一实现，本组件只绑定工作区标签页状态。 */
 function FlowSession({ tab, update }: { tab: { refId: string; title: string; runId?: string }; update: (patch: { runId?: string }) => void }) {
+  const pid = useActivePid()
   const { data: flow, isLoading } = useQuery({
-    queryKey: ['pipeline', tab.refId],
+    queryKey: ['provider', pid, 'pipeline', tab.refId],
     queryFn: () => api.getPipeline(tab.refId),
   })
 

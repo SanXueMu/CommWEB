@@ -8,12 +8,14 @@ import { api } from '@/api/client'
 import { DocPanel } from '@/components/DocPanel'
 import { FlowRunner } from '@/components/FlowRunner'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
+import { useActivePid } from '@/transfer/context'
 
 export function FlowDetail() {
+  const pid = useActivePid()
   const { id = '' } = useParams()
   const [runId, setRunId] = useState<string | null>(null)
   const { data: flow, isLoading, error } = useQuery({
-    queryKey: ['pipeline', id],
+    queryKey: ['provider', pid, 'pipeline', id],
     queryFn: () => api.getPipeline(id),
   })
 

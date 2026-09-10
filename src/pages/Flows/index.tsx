@@ -10,11 +10,13 @@ import { DataListPanel } from '@/components/DataListPanel'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
+import { useActivePid } from '@/transfer/context'
 
 export function Flows() {
+  const pid = useActivePid()
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
-  const { data, isLoading } = useQuery({ queryKey: ['pipelines'], queryFn: api.listPipelines })
+  const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: api.listPipelines })
 
   const flows = useMemo(() => {
     const list = data?.pipelines ?? []

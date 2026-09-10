@@ -10,6 +10,7 @@ import { Workspace } from '@/pages/Workspace'
 import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
 import { WorkspaceProvider } from '@/workspace/store'
+import { TransferProvider } from '@/transfer/context'
 
 export function App() {
   const { config } = useTheme()
@@ -20,6 +21,7 @@ export function App() {
   return (
     <ConfigProvider theme={config}>
       <AntApp>
+      <TransferProvider>
       <WorkspaceProvider>
       <div style={{ minHeight: '100vh', background: '#fff' }}>
         <AppHeader />
@@ -46,6 +48,7 @@ export function App() {
         </main>
       </div>
       </WorkspaceProvider>
+      </TransferProvider>
       </AntApp>
     </ConfigProvider>
   )

@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import type { StatusInfo } from '@/api/types'
+import { useActivePid } from '@/transfer/context'
 
 export const FALLBACK_STATUSES: StatusInfo[] = [
   { value: 'queued', label: '排队中', group: 'active', terminal: false },
@@ -18,8 +19,9 @@ export const FALLBACK_STATUSES: StatusInfo[] = [
 ]
 
 export function useStatusCatalog() {
+  const pid = useActivePid()
   const { data } = useQuery({
-    queryKey: ['meta', 'statuses'],
+    queryKey: ['provider', pid, 'meta', 'statuses'],
     queryFn: api.getStatuses,
     staleTime: Infinity,
     retry: 1,

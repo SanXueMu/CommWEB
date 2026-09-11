@@ -38,6 +38,18 @@ function errMsg(e: unknown): string {
 
 const RUNNING = new Set(['running', 'pending', 'queued'])
 
+/** 记录行键名归一：优先后端英文键，中文键兜底（组件不对字段名做业务假设）。
+ *  source_file 是后端按 source_path 反查出的真实路径，缺失即原文件已不在盘上。 */
+function rowSourceFile(row: Record<string, unknown>, fallback?: string): string {
+  return String(row.source_file ?? row['原文件路径'] ?? row.source_path ?? fallback ?? '')
+}
+function rowPage(row: Record<string, unknown>): number {
+  // 页码可能为 0（库里未落页码），而 /files/page 从 1 起算，故抬到最小 1
+  return Math.max(1, Number(row.page_number ?? row['页码'] ?? 1))
+}
+/** 不进列表展示的技术键（原页按钮已单独成列）。 */
+const HIDDEN_ROW_KEYS = new Set(['source_file', '原文件路径', '页码'])
+
 /** 轮询管线 run 至终态并取产物路径（节奏同 DataBrowser.runTool：500ms × 300 ≈ 150s）。
  *  导出必须是「提交→等待→下载」闭环，否则产物生成了用户也取不到。 */
 async function waitRunFile(api: ReturnType<typeof apiFor>, runId: string): Promise<string> {
@@ -339,19 +351,23 @@ export function OcrStudio() {
                         onChange: setPageNum, showTotal: (n) => `${n} 条`,
                       }}
                       columns={[
-                        ...(records.data?.rows?.[0]?.页码 != null ? [{
+                        ...((records.data?.rows?.length ?? 0) > 0 ? [{
                           title: t.originPage, key: '_page', width: 84,
-                          render: (_: unknown, row: Record<string, unknown>) => (
-                            <Button
-                              size="small" type="link" icon={<EyeOutlined />}
-                              onClick={() => setPageView({ path: String(row.原文件路径 ?? scope ?? ''), page: Number(row.页码 ?? 1) })}
-                            >
-                              {t.originPage}
-                            </Button>
-                          ),
+                          render: (_: unknown, row: Record<string, unknown>) => {
+                            const src = rowSourceFile(row, scope)
+                            return (
+                              <Button
+                                size="small" type="link" icon={<EyeOutlined />}
+                                disabled={!src}
+                                onClick={() => setPageView({ path: src, page: rowPage(row) })}
+                              >
+                                {t.originPage}
+                              </Button>
+                            )
+                          },
                         }] : []),
                         ...Object.keys(records.data?.rows?.[0] ?? {})
-                          .filter((k) => k !== '原文件路径')
+                          .filter((k) => !HIDDEN_ROW_KEYS.has(k))
                           .map((col) => ({
                             title: col, dataIndex: col, key: col, ellipsis: true,
                             render: (value: unknown) => (typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')),

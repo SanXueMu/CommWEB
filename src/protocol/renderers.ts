@@ -10,12 +10,17 @@ function isArrayOfObjects(value: unknown): value is Record<string, unknown>[] {
   return Array.isArray(value) && value.length > 0 && value.every(isPlainObject)
 }
 
-/** 深度探测提取表格：顶层对象数组，或对象内首个对象数组（一深度）。 */
-export function extractTable(output: unknown): { columns: string[]; rows: Record<string, unknown>[] } | null {
+/** 深度探测提取表格：顶层对象数组，或对象内首个对象数组（一深度）。
+ *  excludeKeys：显式跳过的键（如 splits——子表集合不得被当主表吞掉）。 */
+export function extractTable(
+  output: unknown,
+  excludeKeys: readonly string[] = [],
+): { columns: string[]; rows: Record<string, unknown>[] } | null {
   let rows: Record<string, unknown>[] | null = null
   if (isArrayOfObjects(output)) rows = output
   else if (isPlainObject(output)) {
-    for (const value of Object.values(output)) {
+    for (const [key, value] of Object.entries(output)) {
+      if (excludeKeys.includes(key)) continue
       if (isArrayOfObjects(value)) {
         rows = value
         break
@@ -25,6 +30,27 @@ export function extractTable(output: unknown): { columns: string[]; rows: Record
   if (!rows) return null
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))]
   return { columns, rows }
+}
+
+/** 拆分表（视图引擎 split 段）：output.splits → [{title, columns, rows}]。
+ *  引擎产出用 `key` 作分组名，故 title 缺省时回落到 key。 */
+export function extractSplits(output: unknown): {
+  title?: string
+  columns?: string[]
+  rows: Record<string, unknown>[]
+}[] {
+  const raw = isPlainObject(output) ? output.splits : undefined
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter(
+      (s): s is Record<string, unknown> =>
+        isPlainObject(s) && Array.isArray((s as Record<string, unknown>).rows),
+    )
+    .map((s) => ({
+      title: typeof s.title === 'string' ? s.title : typeof s.key === 'string' ? s.key : undefined,
+      columns: Array.isArray(s.columns) ? (s.columns as string[]) : undefined,
+      rows: s.rows as Record<string, unknown>[],
+    }))
 }
 
 export function detectRenderer(output: unknown): RendererKind {

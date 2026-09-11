@@ -1,23 +1,8 @@
-import { Badge, Collapse, Empty, Table, Typography } from 'antd'
+import { Badge, Empty, Table, Tabs, Typography } from 'antd'
 import { PORTAL } from '@/config/portal'
-import { detectRenderer, extractTable, extractText, rowNeedsReview } from '@/protocol/renderers'
+import { detectRenderer, extractSplits, extractTable, extractText, rowNeedsReview } from '@/protocol/renderers'
 
-/** 声明式拆分结果（视图引擎 split 段）：{title?, columns?, rows}[]，来自 output.splits。 */
-function extractSplits(output: unknown): { title?: string; columns?: string[]; rows: Record<string, unknown>[] }[] {
-  if (output && typeof output === 'object' && Array.isArray((output as Record<string, unknown>).splits)) {
-    const arr = (output as Record<string, unknown>).splits as Record<string, unknown>[]
-    return arr
-      .filter((s) => Array.isArray(s.rows))
-      .map((s) => ({
-        title: typeof s.title === 'string' ? s.title : undefined,
-        columns: Array.isArray(s.columns) ? (s.columns as string[]) : undefined,
-        rows: s.rows as Record<string, unknown>[],
-      }))
-  }
-  return []
-}
-
-/** 输出渲染：table（待审行高亮）/ text / json 三形态自动分派。highlight 来自 manifest [ui.render]。 */
+/** 输出渲染：table（主表 + 可选 splits 页签）/ text / json 三形态自动分派。highlight 来自 manifest [ui.render]。 */
 export function ResultRenderer({ output, highlight }: { output: unknown; highlight?: string[] }) {
   const kind = detectRenderer(output)
 
@@ -32,28 +17,33 @@ export function ResultRenderer({ output, highlight }: { output: unknown; highlig
   }
 
   if (kind === 'table') {
-    const table = extractTable(output)!
+    // splits 是子表集合：主表提取必须排除，否则空主表会被子表顶替成一张错表
+    // （detectRenderer 仍按不排除来判定形态，故空主表 + 有 splits 会走进这里）
+    const table = extractTable(output, ['splits'])
     const splits = extractSplits(output)
     return (
       <div>
-        <Table
-          size="small"
-          rowKey={(_, i) => String(i)}
-          pagination={false}
-          scroll={{ x: 'max-content', y: 360 }}
-          rowClassName={(row) => (rowNeedsReview(row as Record<string, unknown>, highlight) ? 'commweb-review-row' : '')}
-          columns={table.columns.map((col) => ({
-            title: PORTAL.META_COLUMN_LABELS[col] ?? col,
-            dataIndex: col,
-            key: col,
-            ellipsis: true,
-            render: (value: unknown) => (typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')),
-          }))}
-          dataSource={table.rows}
-        />
+        {table ? (
+          <Table
+            size="small"
+            rowKey={(_, i) => String(i)}
+            pagination={false}
+            scroll={{ x: 'max-content', y: 360 }}
+            rowClassName={(row) => (rowNeedsReview(row as Record<string, unknown>, highlight) ? 'commweb-review-row' : '')}
+            columns={table.columns.map((col) => ({
+              title: PORTAL.META_COLUMN_LABELS[col] ?? col,
+              dataIndex: col,
+              key: col,
+              ellipsis: true,
+              render: (value: unknown) => (typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')),
+            }))}
+            dataSource={table.rows}
+          />
+        ) : (
+          <Empty description="主表无数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        )}
         {splits.length > 0 && (
-          <Collapse
-            ghost
+          <Tabs
             size="small"
             style={{ marginTop: 8 }}
             items={splits.map((s, i) => ({

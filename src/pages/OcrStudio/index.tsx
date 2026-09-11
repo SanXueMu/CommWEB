@@ -73,6 +73,23 @@ async function waitRunFile(api: ReturnType<typeof apiFor>, runId: string): Promi
   throw new Error('导出运行超时（150s）')
 }
 
+/** 轮询工具任务至终态取 output（节奏同 DataBrowser.runTool）。
+ *  此前直接把 createTask 的 TaskCreated{handle,status} 当输出渲染，界面只显示句柄 JSON。 */
+async function waitTaskOutput(api: ReturnType<typeof apiFor>, handle: string): Promise<Record<string, unknown>> {
+  for (let i = 0; i < 300; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const detail = await api.getTask(handle)
+    if (detail.status === 'succeeded') return detail.output ?? {}
+    if (['failed', 'failed_review', 'cancelled'].includes(detail.status)) {
+      const err = detail.error as { message?: string } | null
+      throw new Error(err?.message ?? `视图任务失败（${detail.status}）`)
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  throw new Error('视图任务超时（150s）')
+}
+
 interface TplSummary { id: string; name?: string; category?: string }
 interface OcrRecordsResp {
   rows: Record<string, unknown>[]
@@ -91,6 +108,7 @@ interface OcrStudioProps {
   recognizeFlow?: string
   exportFlow?: string
   genFlow?: string
+  viewTool?: string          // 视图计算工具（声明下发，组件不写死工具名）
   description?: string
   builtinViews?: BuiltinView[]
 }
@@ -170,14 +188,14 @@ export function OcrStudio() {
     runMutation.mutate({ template_id: templateId, file, ...extra })
   }
 
-  // 视图预览：跑 records.view.query 工具任务（纯预览不落盘），splits 由 ResultRenderer 渲染
+  // 视图预览：跑视图计算工具（纯预览不落盘），splits 由 ResultRenderer 渲染
   const previewMutation = useMutation({
     mutationFn: async () => {
-      const rows = records.data?.rows ?? []
-      return api.createTask('records.view.query', {
-        records: rows,
+      const created = await api.createTask(props.viewTool!, {
+        records: records.data?.rows ?? [],
         view_spec: viewSpec!,
       })
+      return waitTaskOutput(api, created.handle)
     },
     onError: (err) => message.error(`视图预览失败：${errMsg(err)}`),
   })
@@ -386,7 +404,7 @@ export function OcrStudio() {
                   <Card size="small" title={t.viewDefTitle}>
                     <SpecEditor value={viewSpec ?? ''} onChange={setViewSpec} builtinViews={props.builtinViews ?? []} />
                     <Flex gap={8} style={{ marginTop: 8 }} wrap="wrap">
-                      <Button size="small" loading={previewMutation.isPending} disabled={!db || !specReady} onClick={() => previewMutation.mutate()}>{t.preview}</Button>
+                      <Button size="small" loading={previewMutation.isPending} disabled={!db || !props.viewTool || !specReady} onClick={() => previewMutation.mutate()}>{t.preview}</Button>
                       <Button size="small" type="primary" loading={exportMutation.isPending} disabled={!db || !props.exportFlow || !specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>
                       {exportFile && <DownloadButton path={exportFile} label={t.download} />}
                       {templateId && detail.data && (

@@ -1,0 +1,105 @@
+/* LifeFlow 生命流程组件样式：节点行 + 连接细线 + 箭头；running 段为流动虚线。 */
+
+.life-flow {
+  display: flex;
+  align-items: center;
+}
+
+.life-flow-cell {
+  display: flex;
+  align-items: center;
+}
+
+.life-flow-node {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.life-flow-label {
+  color: #595959;
+}
+
+.life-flow-dot {
+  flex: none;
+  display: inline-block;
+}
+
+.life-flow-dot-active {
+  box-shadow: 0 0 0 3px rgba(32, 39, 83, 0.15);
+}
+
+/* 横向连接：细线 + 右端箭头（CSS 三角） */
+.life-flow-connector.h {
+  position: relative;
+  flex: 1;
+  min-width: 16px;
+  height: var(--life-flow-line);
+  background: var(--life-flow-color);
+  opacity: 0.45;
+  margin: 0 var(--life-flow-gap);
+}
+
+.life-flow-connector.h::before {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 5px solid var(--life-flow-color);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+/* running 流动虚线（前一步 done → 当前步 running 的连线） */
+.life-flow-connector.h[data-flowing] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--life-flow-color) 0 6px,
+    transparent 6px 12px
+  );
+  opacity: 1;
+  animation: life-flow-march 0.9s linear infinite;
+}
+
+@keyframes life-flow-march {
+  to {
+    background-position: 12px 0;
+  }
+}
+
+/* 纵向：节点列 + 行间竖线 */
+.life-flow.life-flow-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.life-flow-vertical .life-flow-cell {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.life-flow-vertical .life-flow-connector.v {
+  width: var(--life-flow-line);
+  min-height: var(--life-flow-gap);
+  background: var(--life-flow-color);
+  opacity: 0.45;
+  margin-left: calc(var(--life-flow-dot, 8px) / 2);
+  align-self: flex-start;
+}
+
+.life-flow-vertical .life-flow-connector.v[data-flowing] {
+  background: repeating-linear-gradient(
+    180deg,
+    var(--life-flow-color) 0 6px,
+    transparent 6px 12px
+  );
+  opacity: 1;
+  animation: life-flow-march-v 0.9s linear infinite;
+}
+
+@keyframes life-flow-march-v {
+  to {
+    background-position: 0 12px;
+  }
+}

@@ -8,7 +8,7 @@ import { DataListPanel } from '@/components/DataListPanel'
 import { FilterSidebar, type FilterGroup } from '@/components/FilterSidebar'
 import { LifeFlow, type LifeFlowNode } from '@/components/LifeFlow'
 import type { DataDecl, SlotDecl } from '@/protocol/slots'
-import { resolveSlot, useDeclaredQuery } from '@/protocol/slots'
+import { resolveSlot, siblingRenderers, useDeclaredQuery } from '@/protocol/slots'
 
 /** 行/卡渲染器注册表：声明式列表的 renderCard/renderRow 以名引用（JSON 表达不了函数）。 */
 export type ItemRenderer = (item: Record<string, unknown>, ctx: RendererContext) => ReactNode
@@ -52,7 +52,11 @@ const listPanel: SlotTemplate = {
       density?: 'compact'
       bordered?: boolean
     }
-    const renderer = p.renderer ? RENDERERS[p.renderer] : undefined
+    const names = siblingRenderers(p.renderer)
+    const cardRenderer = names.card ? RENDERERS[names.card] : undefined
+    const rowRenderer = names.row ? RENDERERS[names.row] : undefined
+    const bind = (renderer?: ItemRenderer) =>
+      renderer ? (item: Record<string, unknown>) => renderer(item, { pid: context.pid, onItemClick: context.onItemClick }) : undefined
     return (
       <DataListPanel<Record<string, unknown>>
         panelKey={`slot-${p.renderer ?? 'list'}`}
@@ -64,8 +68,9 @@ const listPanel: SlotTemplate = {
         onSearch={context.onSearch}
         searchPlaceholder={p.searchPlaceholder}
         emptyText={p.emptyText}
-        renderCard={p.layout !== 'row' && renderer ? (item) => renderer(item, { pid: context.pid, onItemClick: context.onItemClick }) : undefined}
-        renderRow={p.layout === 'row' && renderer ? (item) => renderer(item, { pid: context.pid, onItemClick: context.onItemClick }) : undefined}
+        defaultView={p.layout === 'row' ? 'list' : 'card'}
+        renderCard={bind(cardRenderer)}
+        renderRow={bind(rowRenderer)}
         pagination={p.pagination}
         density={p.density}
         bordered={p.bordered}

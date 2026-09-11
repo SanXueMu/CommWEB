@@ -43,6 +43,15 @@ const FORBIDDEN_PROPS = new Set(['function', 'object-with-call'])
 /** v3 已注册模板名（渲染实现在 slotTemplates.tsx；名单在此供纯函数校验与测试）。 */
 export const SLOT_TEMPLATE_NAMES = new Set(['list.panel', 'sidebar.filter', 'flow.lifeflow'])
 
+/** 由声明 renderer 名推导成对的卡片/列表渲染器名（-card ↔ -row）。
+ *  列表组件支持运行时切换形态，两种形态都必须有渲染器，否则切到未声明形态会空白。 */
+export function siblingRenderers(name?: string): { card?: string; row?: string } {
+  if (!name) return {}
+  if (name.endsWith('-card')) return { card: name, row: `${name.slice(0, -'-card'.length)}-row` }
+  if (name.endsWith('-row')) return { card: `${name.slice(0, -'-row'.length)}-card`, row: name }
+  return { card: name, row: name }
+}
+
 export type SlotResolve =
   | { status: 'ok'; decl: SlotDecl }
   | { status: 'unknown'; reason: string }

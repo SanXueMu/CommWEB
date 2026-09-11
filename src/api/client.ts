@@ -146,6 +146,8 @@ function createApi(pid?: string) {
   deletePipeline: (id: string) =>
     request<{ id: string; status: string }>(`/pipelines/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   downloadUrl: (path: string) => `${apiBaseOf(pid)}/files/download?path=${encodeURIComponent(path)}`,
+  pageUrl: (path: string, page: number) =>
+    `${apiBaseOf(pid)}/files/page?path=${encodeURIComponent(path)}&page=${page}`,
   }
 }
 

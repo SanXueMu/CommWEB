@@ -5,7 +5,7 @@
  *  {
  *    source: { kind: 'dbs' } | { kind: 'records_json' },      // 库清点选择 或 粘贴 records
  *    extract?: { tool, input },                               // records_json 源可省略（records 即数据）
- *    view?: { tool, input, records_key?, builtin_views? },    // 可选：视图计算（ViewSpec）
+ *    view?: { tool, input, records_key? },                     // 可选：视图计算（ViewSpec）
  *    export?: { tool, input, view_key? },                     // 可选：产物导出 + 下载
  *    records_hint?: string
  *  }
@@ -27,7 +27,7 @@ import { DownloadButton } from '../DownloadButton'
 export interface DataBrowserProps {
   source: { kind: 'dbs' } | { kind: 'records_json' }
   extract?: { tool: string; input: Record<string, unknown> }
-  view?: { tool: string; input: Record<string, unknown>; records_key?: string; builtin_views?: string[] }
+  view?: { tool: string; input: Record<string, unknown>; records_key?: string }
   export?: { tool: string; input: Record<string, unknown> }
   records_hint?: string
 }
@@ -198,7 +198,6 @@ export function DataBrowser() {
               value={viewSpec}
               onChange={setViewSpec}
               rows={6}
-              builtinViews={view.builtin_views ?? []}
               specLabel="内置视图"
             />
             <Button type="primary" loading={busy === 'view'} disabled={!records} onClick={handleView}>

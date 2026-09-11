@@ -8,7 +8,7 @@
  *  exportFlow?: string         // 视图导出管线（input 含 db/view_spec/name）
  *  genFlow?: string            // 模板生成流（「新建模版」跳转）
  *  description?: string
- *  builtinViews?: string[]     // 内置视图名快选（声明下发）
+ *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -27,7 +27,7 @@ import type { PipelineRunCreated } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { TemplateManager } from '@/components/TemplateManager'
-import { SpecEditor } from '@/components/SpecEditor'
+import { SpecEditor, type BuiltinView } from '@/components/SpecEditor'
 import { StepTrack } from '@/components/StepTrack'
 
 /** 通用错误描述（与 PipelineStudio 同式）。 */
@@ -51,8 +51,16 @@ interface TplDetail {
   view_spec?: unknown; hooks?: { name: string }[]
 }
 
+interface OcrStudioProps {
+  recognizeFlow?: string
+  exportFlow?: string
+  genFlow?: string
+  description?: string
+  builtinViews?: BuiltinView[]
+}
+
 export function OcrStudio() {
-  const props = useViewProps() as { recognizeFlow?: string; exportFlow?: string; genFlow?: string; description?: string; builtinViews?: string[] }
+  const props = useViewProps() as OcrStudioProps
   const pid = useActivePid()
   const api = apiFor(pid)
   const { site } = useSiteCatalog()
@@ -132,7 +140,7 @@ export function OcrStudio() {
       const rows = records.data?.rows ?? []
       return api.createTask('records.view.query', {
         records: rows,
-        view_spec: viewSpec ?? '合同关键词视图',
+        view_spec: viewSpec!,
       })
     },
     onError: (err) => message.error(`视图预览失败：${errMsg(err)}`),
@@ -140,7 +148,7 @@ export function OcrStudio() {
   const exportMutation = useMutation({
     mutationFn: () => api.runPipeline(props.exportFlow!, {
       db: dbs.data?.dbs.find((x) => x.name === db)?.path ?? db,
-      view_spec: viewSpec ?? '合同关键词视图',
+      view_spec: viewSpec!,
       name: `${db?.replace(/\.db$/, '') ?? '视图导出'}.xlsx`,
     } as Record<string, unknown>),
     onSuccess: (created) => message.success(`已提交导出 ${(created as PipelineRunCreated).run_id.slice(0, 14)}…`),
@@ -162,6 +170,8 @@ export function OcrStudio() {
     [records.data],
   )
   const canRecognize = Boolean(templateId && file) && !busy && !runMutation.isPending
+  // 视图定义未就绪时按钮置灰（此前空 spec 会悄悄提交一个必然失败的任务）
+  const specReady = Boolean(viewSpec?.trim())
   const selectedTemplate = (templates.data?.templates ?? []).find((x: TplSummary) => x.id === templateId)
   const flowListPath = viewPathByType(site, 'flows.list')
 
@@ -328,12 +338,13 @@ export function OcrStudio() {
                   <Card size="small" title={t.viewDefTitle}>
                     <SpecEditor value={viewSpec ?? ''} onChange={setViewSpec} builtinViews={props.builtinViews ?? []} />
                     <Flex gap={8} style={{ marginTop: 8 }} wrap="wrap">
-                      <Button size="small" loading={previewMutation.isPending} disabled={!db} onClick={() => previewMutation.mutate()}>{t.preview}</Button>
-                      <Button size="small" type="primary" loading={exportMutation.isPending} disabled={!db || !props.exportFlow} onClick={() => exportMutation.mutate()}>{t.export}</Button>
+                      <Button size="small" loading={previewMutation.isPending} disabled={!db || !specReady} onClick={() => previewMutation.mutate()}>{t.preview}</Button>
+                      <Button size="small" type="primary" loading={exportMutation.isPending} disabled={!db || !props.exportFlow || !specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>
                       {templateId && detail.data && (
                         <Button
                           size="small"
                           loading={saveViewMutation.isPending}
+                          disabled={!specReady}
                           onClick={() => {
                             try { saveViewMutation.mutate({ tplId: templateId, spec: JSON.parse(viewSpec ?? '{}') }) }
                             catch { message.error('视图定义不是合法 JSON，无法另存') }
@@ -343,7 +354,9 @@ export function OcrStudio() {
                         </Button>
                       )}
                     </Flex>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.previewHint}</Typography.Text>
+                    {!specReady
+                      ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.specRequired}</Typography.Text>
+                      : <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.previewHint}</Typography.Text>}
                   </Card>
                   {previewMutation.data && (
                     <Card size="small" title={t.previewResult}>
@@ -466,6 +479,7 @@ function useOcrText() {
     export: '导出',
     preview: '预览视图',
     previewHint: '预览按当前页 50 条记录计算；导出对全库执行。',
+    specRequired: '先点击上方内置视图快选，或粘贴视图定义 JSON',
     viewDefTitle: '视图定义',
     previewResult: '预览结果',
     saveViewToTpl: '另存到当前模版',

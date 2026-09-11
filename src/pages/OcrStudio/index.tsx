@@ -25,6 +25,7 @@ import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import type { PipelineRunCreated } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
+import { DownloadButton } from '@/components/DownloadButton'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { TemplateManager } from '@/components/TemplateManager'
 import { SpecEditor, type BuiltinView } from '@/components/SpecEditor'
@@ -36,6 +37,29 @@ function errMsg(e: unknown): string {
 }
 
 const RUNNING = new Set(['running', 'pending', 'queued'])
+
+/** 轮询管线 run 至终态并取产物路径（节奏同 DataBrowser.runTool：500ms × 300 ≈ 150s）。
+ *  导出必须是「提交→等待→下载」闭环，否则产物生成了用户也取不到。 */
+async function waitRunFile(api: ReturnType<typeof apiFor>, runId: string): Promise<string> {
+  for (let i = 0; i < 300; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const detail = await api.getPipelineRun(runId)
+    const status = detail.run.status
+    if (status === 'succeeded') {
+      const last = [...(detail.tasks ?? [])].sort((a, b) => a.step_index - b.step_index).pop()
+      const file = (last?.output as { file?: unknown } | null)?.file
+      if (typeof file === 'string' && file) return file
+      throw new Error('导出已成功，但未返回产物路径')
+    }
+    if (!RUNNING.has(status)) {
+      const err = detail.run.error as { message?: string } | null
+      throw new Error(err?.message ?? `导出运行失败（${status}）`)
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  throw new Error('导出运行超时（150s）')
+}
 
 interface TplSummary { id: string; name?: string; category?: string }
 interface OcrRecordsResp {
@@ -145,14 +169,21 @@ export function OcrStudio() {
     },
     onError: (err) => message.error(`视图预览失败：${errMsg(err)}`),
   })
+  const [exportFile, setExportFile] = useState<string>()
   const exportMutation = useMutation({
-    mutationFn: () => api.runPipeline(props.exportFlow!, {
-      db: dbs.data?.dbs.find((x) => x.name === db)?.path ?? db,
-      view_spec: viewSpec!,
-      name: `${db?.replace(/\.db$/, '') ?? '视图导出'}.xlsx`,
-    } as Record<string, unknown>),
-    onSuccess: (created) => message.success(`已提交导出 ${(created as PipelineRunCreated).run_id.slice(0, 14)}…`),
-    onError: (err) => message.error(`导出失败：${errMsg(err)}`),
+    mutationFn: async () => {
+      const created = await api.runPipeline(props.exportFlow!, {
+        db: dbs.data?.dbs.find((x) => x.name === db)?.path ?? db,
+        view_spec: viewSpec!,
+        name: `${db?.replace(/\.db$/, '') ?? '视图导出'}.xlsx`,
+      } as Record<string, unknown>)
+      return waitRunFile(api, created.run_id)
+    },
+    onSuccess: (file) => {
+      setExportFile(file)
+      message.success(`${t.exportOkPrefix}${file.split('/').pop()}`)
+    },
+    onError: (err) => message.error(`${t.exportFailedPrefix}${errMsg(err)}`),
   })
   const saveViewMutation = useMutation({
     mutationFn: ({ tplId, spec }: { tplId: string; spec: unknown }) =>
@@ -285,8 +316,9 @@ export function OcrStudio() {
                         onChange={(v) => { setScope(v); setPageNum(1) }}
                       />
                       {db && props.exportFlow && (
-                        <Button size="small" loading={exportMutation.isPending} onClick={() => exportMutation.mutate()}>{t.export}</Button>
+                        <Button size="small" loading={exportMutation.isPending} disabled={!specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>
                       )}
+                      {exportFile && <DownloadButton path={exportFile} label={t.download} />}
                     </Flex>
                   }
                 >
@@ -340,6 +372,7 @@ export function OcrStudio() {
                     <Flex gap={8} style={{ marginTop: 8 }} wrap="wrap">
                       <Button size="small" loading={previewMutation.isPending} disabled={!db || !specReady} onClick={() => previewMutation.mutate()}>{t.preview}</Button>
                       <Button size="small" type="primary" loading={exportMutation.isPending} disabled={!db || !props.exportFlow || !specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>
+                      {exportFile && <DownloadButton path={exportFile} label={t.download} />}
                       {templateId && detail.data && (
                         <Button
                           size="small"
@@ -491,7 +524,8 @@ function useOcrText() {
     prevPage: '上一页',
     nextPage: '下一页',
     recognizeFailedPrefix: '识别提交失败：',
-    exportOkPrefix: '导出已提交 ',
+    download: '下载导出文件',
+    exportOkPrefix: '导出完成：',
     exportFailedPrefix: '导出失败：',
   }
 }

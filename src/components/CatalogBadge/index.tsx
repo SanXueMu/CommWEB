@@ -12,6 +12,15 @@ const SIZE_STYLES = {
   lg: { fontSize: 14, padding: '2px 12px', lineHeight: '24px' },
 } as const
 
+/** fallback='auto' 时按 value hash 稳定取色的轻色板（纯文本标签的默认配色策略）。 */
+const AUTO_PALETTE = ['#3bb093', '#202753', '#1677ff', '#722ed1', '#d46b08', '#0958d9', '#5b8c00', '#c41d7f']
+
+function autoColor(value: string): string {
+  let h = 0
+  for (let i = 0; i < value.length; i += 1) h = (h * 31 + value.charCodeAt(i)) >>> 0
+  return AUTO_PALETTE[h % AUTO_PALETTE.length]
+}
+
 export function CatalogBadge<V extends string, E extends { label?: string }>({
   value,
   catalog,
@@ -32,7 +41,7 @@ export function CatalogBadge<V extends string, E extends { label?: string }>({
   plain?: boolean
 }) {
   const entry = catalog.get(value)
-  const color = resolveColor ? resolveColor(value, entry) : fallback
+  const color = resolveColor ? resolveColor(value, entry) : fallback === 'auto' ? autoColor(value) : fallback
   return (
     <Tag
       color={plain ? undefined : color}

@@ -19,8 +19,8 @@ export interface DataListPanelProps<T> {
   onSearch?: (keyword: string) => void
   searchPlaceholder?: string
   extraActions?: ReactNode
-  renderCard: (item: T) => ReactNode
-  renderRow: (item: T) => ReactNode
+  renderCard?: (item: T) => ReactNode
+  renderRow?: (item: T) => ReactNode
   onItemClick?: (item: T) => void
   defaultView?: 'card' | 'list'
   emptyText?: string
@@ -148,7 +148,7 @@ export function DataListPanel<T>({
         <Row gutter={cardGutter}>
           {items.map((item) => (
             <Col key={rowKey(item)} xs={24} sm={12} lg={8} xl={6}>
-              {renderCard(item)}
+              {renderCard?.(item)}
             </Col>
           ))}
         </Row>
@@ -181,7 +181,7 @@ export function DataListPanel<T>({
                       onChange={() => toggle(key)}
                     />
                   )}
-                  <div style={{ flex: 1, minWidth: 0 }}>{renderRow(item)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>{renderRow?.(item)}</div>
                   {rowActions && (
                     <div onClick={(e) => e.stopPropagation()}>{rowActions(item)}</div>
                   )}

@@ -16,6 +16,7 @@ import type {
   TaskKind,
   TaskEvent,
   ToolDetail,
+  ToolStats,
   ToolSummary,
 } from './types'
 
@@ -67,6 +68,10 @@ function createApi(pid?: string) {
   /** 通用出站（管理面同步端点如 /ocr/templates 的 PATCH/POST/DELETE）。 */
   send: <T>(path: string, init: RequestInit) => request<T>(path, init, pid),
   getStatuses: async (): Promise<{ statuses: StatusInfo[] }> => ({ statuses: normalizeStatuses((await request<{ statuses: unknown[] }>('/meta/statuses')).statuses) }),
+  getToolCategories: async (): Promise<{ categories: { name: string; subs: string[] }[] }> =>
+    request<{ categories: { name: string; subs: string[] }[] }>('/meta/tool-categories'),
+  getToolStats: async (toolId: string): Promise<ToolStats> =>
+    request<ToolStats>(`/tools/${encodeURIComponent(toolId)}/stats`),
   listTools: async (): Promise<{ tools: ToolSummary[] }> => {
     const providerId = pid ?? registry.activeId() ?? 'default'
     const { tools } = await request<{ tools: unknown[] }>('/tools')
@@ -78,12 +83,15 @@ function createApi(pid?: string) {
   getTask: async (handle: string): Promise<Task> => normalizeTask(await request<unknown>(`/tasks/${handle}`), pid ?? registry.activeId() ?? 'default'),
   cancelTask: (handle: string) =>
     request<{ handle: string; status: string }>(`/tasks/${handle}/cancel`, { method: 'POST' }),
-  listTasks: (status?: string, kind?: TaskKind) => {
+  listTasks: (status?: string, kind?: TaskKind, offset?: number, q?: string, limit?: number) => {
     const params = new URLSearchParams()
     if (status) params.set('status', status)
     if (kind) params.set('kind', kind)
+    if (offset) params.set('offset', String(offset))
+    if (q) params.set('q', q)
+    if (limit) params.set('limit', String(limit))
     const qs = params.toString()
-    return request<{ tasks: Task[] }>(`/tasks${qs ? `?${qs}` : ''}`)
+    return request<{ tasks: Task[]; total?: number }>(`/tasks${qs ? `?${qs}` : ''}`)
   },
   rerunRun: (runId: string, inputOverride?: Record<string, unknown>) =>
     request<{ run_id: string; rerun_of: string; status: string; first_handle: string | null }>(

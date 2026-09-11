@@ -13,6 +13,19 @@ export interface ToolSummary {
   tags?: string[]
   enabled?: boolean
   hidden?: boolean
+  category?: string
+  subcategory?: string
+}
+
+export interface ToolCategoryInfo {
+  name: string
+  subs: string[]
+}
+
+export interface ToolStats {
+  executions: number
+  success_rate: number | null
+  avg_seconds: number | null
 }
 
 export interface ToolManifest {

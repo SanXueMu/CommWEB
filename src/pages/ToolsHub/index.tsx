@@ -1,21 +1,19 @@
 import { Typography } from 'antd'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import type { ToolSummary } from '@/api/types'
-import { ProviderBadge } from '@/components/ProviderBadge'
-import { CatalogBadge } from '@/components/CatalogBadge'
 import { DataListPanel } from '@/components/DataListPanel'
-import { DisabledBadge } from '@/components/DisabledBadge'
 import { FilterSidebar } from '@/components/FilterSidebar'
 import { HelpCardModal } from '@/components/HelpCardModal'
-import { LifeFlow } from '@/components/LifeFlow'
-import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
 import { HELP_CARDS } from '@/config/helpCards'
 import { useToolCategoryCatalog } from '@/config/useToolCategoryCatalog'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import { ToolDetailModal } from '@/pages/ToolsHub/ToolDetailModal'
+import { ToolCard, ToolRow } from '@/pages/ToolsHub/renderers'
+import { slotsOf } from '@/protocol/slots'
+import { SlotRenderer } from '@/protocol/slotTemplates'
+import { useViewProps } from '@/protocol/ViewPropsContext'
 import { useQuery } from '@tanstack/react-query'
 
 /** 货架（packy 风格，T3 聚合模式）：多会员工具混排 + 左侧总类/子类两级标签筛选。 */
@@ -53,6 +51,42 @@ export function ToolsHub() {
   const [detailToolId, setDetailToolId] = useState<string | null>(null)
   const detailTool = (data?.tools ?? []).find((t) => t.id === detailToolId)
 
+  const viewProps = useViewProps()
+  const slots = slotsOf(viewProps)
+
+  /** v3 槽位分支：会员声明 slots 则按声明渲染；detail 为弹窗语义动作（渲染器 onItemClick）。 */
+  if (slots.list || slots.sidebar) {
+    const groups = [
+      { title: PORTAL.sidebar.categories, items: categories.map((c) => c.name), selected: selectedCat ? [selectedCat] : [], onToggle: pickCat },
+      { title: PORTAL.sidebar.subcategories, items: subItems, selected: selectedSubs, onToggle: toggleSub },
+    ]
+    return (
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+        {slots.sidebar && (
+          <SlotRenderer decl={slots.sidebar} pid={pid} context={{ pid, groups, onClearFilters: () => { setSelectedCat(null); setSelectedSubs([]) } }} />
+        )}
+        <main style={{ flex: 1, minWidth: 0 }}>
+          {slots.list && (
+            <SlotRenderer
+              decl={slots.list}
+              pid={pid}
+              context={{
+                pid,
+                items: filtered as unknown as Record<string, unknown>[],
+                onItemClick: (t2) => setDetailToolId((t2 as unknown as ToolSummary).id),
+                onSearch: setKeyword,
+              }}
+            />
+          )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            共 {filtered.length} 个工具 · {PORTAL.footNote.tools}
+          </Typography.Text>
+        </main>
+        {detailTool && <ToolDetailModal tool={detailTool} open onClose={() => setDetailToolId(null)} />}
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
       <FilterSidebar
@@ -88,56 +122,6 @@ export function ToolsHub() {
       {detailTool && (
         <ToolDetailModal tool={detailTool} open onClose={() => setDetailToolId(null)} />
       )}
-    </div>
-  )
-}
-
-/** 数据转化生命周期：输入类型 → 输出类型的横向流线。 */
-export function ToolLifeFlow({ tool, size = 'sm' }: { tool: ToolSummary; size?: 'sm' | 'md' | 'lg' }) {
-  const nodes = [...tool.input_types, ...tool.output_types].map((label) => ({ key: label, label }))
-  return <LifeFlow nodes={nodes} size={size} direction="horizontal" />
-}
-
-function ToolCard({ tool }: { tool: ToolSummary }) {
-  const off = tool.enabled === false
-  return (
-    <Link to={`/tools/${tool.id}`} style={{ opacity: off ? 0.55 : 1 }}>
-      <PanelCard radius="round">
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <Typography.Text strong>{tool.name}</Typography.Text>
-          {off && <DisabledBadge />}
-          <ProviderBadge pid={tool.providerId ?? 'default'} />
-        </div>
-        <div style={{ margin: '10px 0' }}>
-          <ToolLifeFlow tool={tool} />
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {(tool.tags ?? []).map((t) => (
-            <CatalogBadge key={t} value={t} catalog={new Map()} fallback="auto" size="sm" plain radius="round" />
-          ))}
-        </div>
-      </PanelCard>
-    </Link>
-  )
-}
-
-function ToolRow({ tool }: { tool: ToolSummary }) {
-  const off = tool.enabled === false
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 4px', opacity: off ? 0.55 : 1 }}>
-      <div style={{ width: 170, flexShrink: 0 }}>
-        <Typography.Text strong>{tool.name}</Typography.Text>
-        {off && <DisabledBadge />}
-        <ProviderBadge pid={tool.providerId ?? 'default'} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <ToolLifeFlow tool={tool} />
-      </div>
-      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-        {(tool.tags ?? []).map((t) => (
-          <CatalogBadge key={t} value={t} catalog={new Map()} fallback="auto" size="sm" plain radius="round" />
-        ))}
-      </div>
     </div>
   )
 }

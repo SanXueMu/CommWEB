@@ -2,9 +2,7 @@
 import { useState } from 'react'
 import { CatalogBadge } from '@/components/CatalogBadge'
 import { DataListPanel } from '@/components/DataListPanel'
-import { PanelCard } from '@/components/ui/PanelCard'
 import { TaskDetailModal } from '@/components/TaskDetailModal'
-import { StatusBadge } from '@/components/StatusBadge'
 import { PORTAL, STATUS_GROUP_LABELS, TASK_KIND_COLORS, TASK_KIND_LABELS } from '@/config/portal'
 import type { Task, TaskKind } from '@/api/types'
 import { api } from '@/api/client'
@@ -12,6 +10,10 @@ import { useActivePid } from '@/transfer/context'
 import { useStatusCatalog } from '@/config/useStatusCatalog'
 import { useQuery } from '@tanstack/react-query'
 import { Typography } from 'antd'
+import { slotsOf } from '@/protocol/slots'
+import { SlotRenderer } from '@/protocol/slotTemplates'
+import { useViewProps } from '@/protocol/ViewPropsContext'
+import { TaskCard, TaskRow } from '@/pages/Tasks/renderers'
 
 const KIND_ORDER = ['', 'tool', 'flow', 'workflow'] as const
 
@@ -40,6 +42,57 @@ export function Tasks() {
       t.status.includes(keyword)
     return hitStatus && hitKeyword
   })
+
+  const viewProps = useViewProps()
+  const slots = slotsOf(viewProps)
+
+  /** v3 槽位分支：会员声明 slots 则按声明渲染（sidebar/list），detail 弹窗为内置语义动作。 */
+  if (slots.list || slots.sidebar) {
+    const kindGroups = [
+      {
+        title: PORTAL.sidebar.kind,
+        items: KIND_ORDER.map((k) => (k ? TASK_KIND_LABELS[k] : PORTAL.sidebar.all)),
+        selected: [kind ? TASK_KIND_LABELS[kind] : PORTAL.sidebar.all],
+        onToggle: (label: string) => {
+          const key = KIND_ORDER.find((k) => (k ? TASK_KIND_LABELS[k] : PORTAL.sidebar.all) === label)
+          if (key === undefined) return
+          setKind(key === kind ? '' : (key as TaskKind | ''))
+        },
+      },
+      {
+        title: PORTAL.sidebar.status,
+        items: Object.keys(STATUS_GROUP_LABELS).map((g) => STATUS_GROUP_LABELS[g]),
+        selected: group ? [STATUS_GROUP_LABELS[group]] : [],
+        onToggle: (label: string) => {
+          const g = Object.keys(STATUS_GROUP_LABELS).find((k) => STATUS_GROUP_LABELS[k] === label)
+          if (!g) return
+          setGroup(g === group ? '' : g)
+        },
+      },
+    ]
+    return (
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+        {slots.sidebar && (
+          <SlotRenderer decl={slots.sidebar} pid={pid} context={{ pid, groups: kindGroups, onClearFilters: () => { setKind(''); setGroup('') } }} />
+        )}
+        {slots.list && (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SlotRenderer
+              decl={slots.list}
+              pid={pid}
+              context={{
+                pid,
+                items: tasks as unknown as Record<string, unknown>[],
+                onItemClick: (f) => setDetailHandle((f as unknown as Task).handle),
+                onSearch: setKeyword,
+              }}
+            />
+          </div>
+        )}
+        <TaskDetailModal handle={detailHandle} onClose={() => setDetailHandle(null)} />
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
@@ -120,55 +173,5 @@ function KindChip({ label, kind, active }: { label: string; kind: '' | TaskKind;
     >
       {label}
     </span>
-  )
-}
-
-function TaskKindBadge({ kind }: { kind?: TaskKind }) {
-  if (!kind || kind === 'tool') return null
-  const color = TASK_KIND_COLORS[kind] ?? '#8c8c8c'
-  return (
-    <span
-      style={{
-        background: `${color}1a`,
-        color,
-        borderRadius: 4,
-        padding: '0 6px',
-        fontSize: 11,
-        lineHeight: '18px',
-        marginLeft: 6,
-      }}
-    >
-      {TASK_KIND_LABELS[kind]}
-    </span>
-  )
-}
-
-function TaskRow({ task: t, onOpen }: { task: Task; onOpen: () => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', cursor: 'pointer' }} onClick={onOpen}>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
-        <Typography.Text strong ellipsis style={{ maxWidth: 260 }}>
-          {t.tool_name ?? t.tool_id}
-        </Typography.Text>
-        <TaskKindBadge kind={t.task_kind} />
-      </div>
-      <StatusBadge value={t.status} />
-    </div>
-  )
-}
-
-function TaskCard({ task: t, onOpen }: { task: Task; onOpen: () => void }) {
-  return (
-    <PanelCard onClick={onOpen} style={{ height: '100%', cursor: 'pointer' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Typography.Text strong ellipsis style={{ flex: 1 }}>
-          {t.tool_name ?? t.tool_id}
-        </Typography.Text>
-        <TaskKindBadge kind={t.task_kind} />
-      </div>
-      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <StatusBadge value={t.status} />
-      </div>
-    </PanelCard>
   )
 }

@@ -46,7 +46,7 @@ export function LifeFlow({ nodes, direction = 'horizontal', size = 'md', activeK
       {nodes.map((n, i) => {
         const color = nodeColor(n)
         const connector = i < nodes.length - 1
-        const nextColor = nodeColor(nodes[i + 1])
+        const nextColor = connector ? nodeColor(nodes[i + 1]) : undefined
         const flowing = nodes[i].status === 'done' && (nodes[i + 1].status === 'running' || activeKey === nodes[i + 1]?.key)
         return (
           <div className="life-flow-cell" key={n.key}>

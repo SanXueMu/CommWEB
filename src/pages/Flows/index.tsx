@@ -1,31 +1,34 @@
-/** 流工具货架：管线 = 串联通用小工具的全自动流，零前端代码自动上架。 */
+/** 流工具货架：管线 = 串联通用小工具的全自动流，零前端代码自动上架。
+ * v3 起支持视图 props.slots 槽位声明（sidebar/list），缺省回落内置双形态。 */
 
-import { Space, Typography } from 'antd'
+import { Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { CatalogBadge } from '@/components/CatalogBadge'
-import { ProviderBadge } from '@/components/ProviderBadge'
-import { FlowTypeBadge } from '@/components/ui/FlowTypeBadge'
-import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
-import { LifeFlow } from '@/components/LifeFlow'
-import { OpenInWorkspace } from '@/components/OpenInWorkspace'
-import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
+import type { PipelineSummary } from '@/api/types'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import { useQuery } from '@tanstack/react-query'
 import { FlowDetailModal } from '@/pages/Flows/FlowDetailModal'
+import { FlowCard, FlowRow } from '@/pages/Flows/renderers'
+import { slotsOf } from '@/protocol/slots'
+import { SlotRenderer } from '@/protocol/slotTemplates'
+import { useViewProps } from '@/protocol/ViewPropsContext'
 
 const TYPE_LABELS = { flow: '普通流', workflow: '工作流' } as const
+const TYPE_KEYS = ['', 'flow', 'workflow'] as const
+const LABEL_OF: Record<string, string> = { '': PORTAL.sidebar.all, flow: TYPE_LABELS.flow, workflow: TYPE_LABELS.workflow }
 
 export function Flows() {
   const [keyword, setKeyword] = useState('')
   const [flowType, setFlowType] = useState<'' | keyof typeof TYPE_LABELS>('')
   const [detailFlow, setDetailFlow] = useState<PipelineSummary | null>(null)
   const pid = useActivePid()
+  const viewProps = useViewProps()
+  const slots = slotsOf(viewProps)
   const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: () => apiFor(pid).listPipelines() })
   const pipelines = data?.pipelines ?? []
-  const providerName: Record<string, string> = {}
 
   const flows = useMemo(() => {
     return pipelines.filter(
@@ -34,6 +37,47 @@ export function Flows() {
         (!keyword || f.id.includes(keyword) || f.name.includes(keyword) || f.steps.some((s) => (s.tool || s.pipeline || '').includes(keyword))),
     )
   }, [pipelines, keyword, flowType])
+
+  /** v3 槽位分支：会员声明 slots 则按声明渲染（sidebar/list），detail 弹窗仍为内置语义动作。 */
+  if (slots.list || slots.sidebar) {
+    const typeGroups = [
+      {
+        title: '类型',
+        items: TYPE_KEYS.map((k) => LABEL_OF[k]),
+        selected: [LABEL_OF[flowType]],
+        onToggle: (label: string) => {
+          const key = TYPE_KEYS.find((k) => LABEL_OF[k] === label)
+          if (key === undefined) return
+          setFlowType(key === flowType ? '' : (key as '' | keyof typeof TYPE_LABELS))
+        },
+      },
+    ]
+    return (
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+        {slots.sidebar && (
+          <SlotRenderer decl={slots.sidebar} pid={pid} context={{ pid, groups: typeGroups, onClearFilters: () => setFlowType('') }} />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {slots.list && (
+            <SlotRenderer
+              decl={slots.list}
+              pid={pid}
+              context={{
+                pid,
+                items: flows as unknown as Record<string, unknown>[],
+                onItemClick: (f) => setDetailFlow(f as unknown as PipelineSummary),
+                onSearch: setKeyword,
+              }}
+            />
+          )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            共 {flows.length} 条流 · {PORTAL.footNote.flows}
+          </Typography.Text>
+        </div>
+        {detailFlow && <FlowDetailModal flow={detailFlow} open onClose={() => setDetailFlow(null)} />}
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
@@ -51,88 +95,42 @@ export function Flows() {
           类型
         </Typography.Text>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, alignItems: 'flex-start' }}>
-          {(['', 'flow', 'workflow'] as const).map((k) => (
+          {TYPE_KEYS.map((k) => (
             <span
               key={k || 'all'}
               onClick={() => setFlowType(k)}
               style={{ cursor: 'pointer', display: 'inline-flex' }}
             >
-              {k ? (
-                <FlowTypeBadge flow={{ type: k }} plain={flowType !== k} strong={flowType === k} />
-              ) : (
-                <CatalogBadge
-                  value={PORTAL.sidebar.all}
-                  catalog={new Map()}
-                  fallback={flowType === '' ? '#202753' : 'auto'}
-                  size="sm"
-                  radius="round"
-                  plain={flowType !== ''}
-                />
-              )}
+              <CatalogBadge
+                value={LABEL_OF[k]}
+                catalog={new Map()}
+                fallback={flowType === k ? '#202753' : 'auto'}
+                size="sm"
+                radius="round"
+                plain={flowType !== k}
+              />
             </span>
           ))}
         </div>
       </aside>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-      <DataListPanel
-        panelKey="flows"
-        items={flows}
-        loading={isLoading}
-        rowKey={(f) => `${f.providerId ?? 'default'}:${f.id}`}
-        onSearch={setKeyword}
-        searchPlaceholder={PORTAL.search.flows}
-        emptyText={PORTAL.empty.flows}
-        renderCard={(flow) => <FlowCard flow={flow} providerName={providerName} onOpen={() => setDetailFlow(flow)} />}
-        renderRow={(flow) => <FlowRow flow={flow} providerName={providerName} onOpen={() => setDetailFlow(flow)} />}
-      />
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        共 {flows.length} 条流 · {PORTAL.footNote.flows}
-      </Typography.Text>
-      </div>
-      {detailFlow && (
-        <FlowDetailModal flow={detailFlow} open onClose={() => setDetailFlow(null)} />
-      )}
-    </div>
-  )
-}
-
-/** 卡片式：不渲染生命周期（D2.2），标题短名 + 类型标签。 */
-function FlowCard({ flow, providerName, onOpen }: { flow: PipelineSummary; providerName: Record<string, string>; onOpen: () => void }) {
-  return (
-    <PanelCard radius="round" onClick={onOpen} style={{ cursor: 'pointer' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <Typography.Text strong>{flow.name}</Typography.Text>
-        <FlowTypeBadge flow={flow} />
-        <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
+        <DataListPanel
+          panelKey="flows"
+          items={flows}
+          loading={isLoading}
+          rowKey={(f) => `${f.providerId ?? 'default'}:${f.id}`}
+          onSearch={setKeyword}
+          searchPlaceholder={PORTAL.search.flows}
+          emptyText={PORTAL.empty.flows}
+          renderCard={(flow) => <FlowCard flow={flow} onOpen={() => setDetailFlow(flow)} />}
+          renderRow={(flow) => <FlowRow flow={flow} onOpen={() => setDetailFlow(flow)} />}
+        />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {flow.steps.length} 步
+          共 {flows.length} 条流 · {PORTAL.footNote.flows}
         </Typography.Text>
       </div>
-    </PanelCard>
-  )
-}
-
-/** 列表式：渲染横向生命周期（D2.2），不渲染英文名 id。 */
-function FlowRow({ flow, providerName, onOpen }: { flow: PipelineSummary; providerName: Record<string, string>; onOpen: () => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px', cursor: 'pointer' }} onClick={onOpen}>
-      <div style={{ width: 200, flexShrink: 0 }}>
-        <Typography.Text strong style={{ display: 'block' }}>{flow.name}</Typography.Text>
-        <Space size={6} style={{ marginTop: 2 }}>
-          <FlowTypeBadge flow={flow} />
-          <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
-        </Space>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <LifeFlow
-          size="sm"
-          nodes={flow.steps.map((s, i) => ({ key: `${s.tool ?? s.pipeline ?? 'step'}-${i}`, label: s.tool ?? s.pipeline ?? '步骤' }))}
-        />
-      </div>
-      <span onClick={(e) => e.stopPropagation()}>
-        <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} providerId={flow.providerId} />
-      </span>
+      {detailFlow && <FlowDetailModal flow={detailFlow} open onClose={() => setDetailFlow(null)} />}
     </div>
   )
 }

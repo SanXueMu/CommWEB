@@ -68,6 +68,37 @@ export const PORTAL = {
     noTasks: '暂无任务',
   },
   flowFailedPrefix: '流运行失败：',
+  /** 输出表格已知 meta 列的中文表头映射（未命中显示原始列名）。 */
+  META_COLUMN_LABELS: {
+    file: '文件',
+    source_path: '来源文件',
+    page: '页码',
+    page_number: '页码',
+    record: '记录内容',
+    template_id: '识别模版',
+    db: '结果库',
+    records: '记录数',
+    name: '名称',
+    type: '类型',
+    status: '状态',
+    error: '错误',
+    path: '路径',
+    created_at: '创建时间',
+    finished_at: '完成时间',
+    duration: '耗时（秒）',
+  } as Record<string, string>,
+  taskDetail: {
+    titlePrefix: '任务 · ',
+    tool: '工具',
+    status: '状态',
+    attempt: '执行次数',
+    attemptHint: '第 1 个数字为当前执行轮次，第 2 个为失败自动重试的上限；1/2 表示最多会尝试 2 次',
+    createdAt: '创建时间',
+    cancel: '取消任务',
+    cancelConfirm: '确认取消该任务？',
+    cancelled: '已请求取消',
+    cancelFailed: '取消失败',
+  },
   workspace: {
     pause: '暂停',
     resume: '恢复',
@@ -118,6 +149,13 @@ export const TASK_KIND_LABELS: Record<string, string> = {
   tool: '工具任务',
   flow: '普通流任务',
   workflow: '工作流任务',
+}
+
+/** 任务三层归类颜色（筛选标签与任务徽章共用）。 */
+export const TASK_KIND_COLORS: Record<string, string> = {
+  tool: '#8c8c8c',
+  flow: '#3bb093',
+  workflow: '#722ed1',
 }
 
 /** run_events 审计事件展示标签（kind 语义由 CommAND 定义，标签属门户文案）。 */

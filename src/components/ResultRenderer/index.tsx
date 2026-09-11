@@ -1,4 +1,5 @@
 import { Empty, Table, Typography } from 'antd'
+import { PORTAL } from '@/config/portal'
 import { detectRenderer, extractTable, extractText, rowNeedsReview } from '@/protocol/renderers'
 
 /** 输出渲染：table（待审行高亮）/ text / json 三形态自动分派。highlight 来自 manifest [ui.render]。 */
@@ -25,7 +26,7 @@ export function ResultRenderer({ output, highlight }: { output: unknown; highlig
         scroll={{ x: 'max-content', y: 360 }}
         rowClassName={(row) => (rowNeedsReview(row as Record<string, unknown>, highlight) ? 'commweb-review-row' : '')}
         columns={table.columns.map((col) => ({
-          title: col,
+          title: PORTAL.META_COLUMN_LABELS[col] ?? col,
           dataIndex: col,
           key: col,
           ellipsis: true,

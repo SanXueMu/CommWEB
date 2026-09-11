@@ -1,23 +1,27 @@
+/** 任务中心：三层归类筛选（颜色标签）+ 中文工具名列表（分页/检索）+ 详情弹窗。 */
+import { useState } from 'react'
+import { CatalogBadge } from '@/components/CatalogBadge'
+import { DataListPanel } from '@/components/DataListPanel'
+import { PanelCard } from '@/components/ui/PanelCard'
+import { TaskDetailModal } from '@/components/TaskDetailModal'
+import { StatusBadge } from '@/components/StatusBadge'
+import { PORTAL, STATUS_GROUP_LABELS, TASK_KIND_COLORS, TASK_KIND_LABELS } from '@/config/portal'
+import type { Task, TaskKind } from '@/api/types'
+import { api } from '@/api/client'
+import { useActivePid } from '@/transfer/context'
+import { useStatusCatalog } from '@/config/useStatusCatalog'
 import { useQuery } from '@tanstack/react-query'
 import { Typography } from 'antd'
-import { useState } from 'react'
-import { api } from '@/api/client'
-import type { Task, TaskKind } from '@/api/types'
-import { DataListPanel } from '@/components/DataListPanel'
-import { StatusBadge } from '@/components/StatusBadge'
-import { TaskDrawer } from '@/components/TaskDrawer'
-import { PanelCard } from '@/components/ui/PanelCard'
-import { PORTAL, STATUS_GROUP_LABELS, TASK_KIND_LABELS } from '@/config/portal'
-import { useStatusCatalog } from '@/config/useStatusCatalog'
-import { useActivePid } from '@/transfer/context'
 
-/** 柜台（与工具库同构）：左侧任务分类 + 状态分组筛选（目录驱动）+ 右侧通用列表面板。 */
+const KIND_ORDER = ['', 'tool', 'flow', 'workflow'] as const
+
+/** 任务中心：三层归类颜色标签筛选 + 中文工具名分页列表 + 详情弹窗。 */
 export function Tasks() {
   const pid = useActivePid()
   const [kind, setKind] = useState<TaskKind | ''>('')
   const [group, setGroup] = useState('')
-  const [selected, setSelected] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
+  const [detailHandle, setDetailHandle] = useState<string | null>(null)
   const { byGroup } = useStatusCatalog()
   const { data, isLoading } = useQuery({
     queryKey: ['provider', pid, 'tasks', kind],
@@ -27,15 +31,15 @@ export function Tasks() {
 
   const tasks = (data?.tasks ?? []).filter((t) => {
     const hitStatus = !group || (byGroup[group] ?? []).some((s) => s.value === t.status)
+    const label = t.tool_name ?? t.tool_id
     const hitKeyword =
       !keyword ||
+      label.includes(keyword) ||
       t.tool_id.includes(keyword) ||
       t.handle.includes(keyword) ||
       t.status.includes(keyword)
     return hitStatus && hitKeyword
   })
-  const count = (key: string) =>
-    (data?.tasks ?? []).filter((t) => (byGroup[key] ?? []).some((s) => s.value === t.status)).length
 
   return (
     <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
@@ -52,117 +56,119 @@ export function Tasks() {
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {PORTAL.sidebar.kind}
         </Typography.Text>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, marginBottom: 16 }}>
-          {(['', 'tool', 'flow', 'workflow'] as const).map((k) => (
-            <Typography.Link
-              key={k || 'all'}
-              strong={kind === k}
-              onClick={() => setKind(k)}
-              style={{ color: kind === k ? '#202753' : '#8c8c8c' }}
-            >
-              {k ? TASK_KIND_LABELS[k] : PORTAL.sidebar.all}（
-                {k
-                  ? (data?.tasks ?? []).filter((t) => t.task_kind === k).length
-                  : (data?.tasks ?? []).length}
-              ）
-            </Typography.Link>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, marginBottom: 16, alignItems: 'flex-start' }}>
+          {KIND_ORDER.map((k) => (
+            <span key={k || 'all'} onClick={() => setKind(k)} style={{ cursor: 'pointer', display: 'inline-flex' }}>
+              <KindChip label={k ? TASK_KIND_LABELS[k] : PORTAL.sidebar.all} kind={k} active={kind === k} />
+            </span>
           ))}
         </div>
-
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {PORTAL.sidebar.status}
         </Typography.Text>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-          <Typography.Link
-            strong={group === ''}
-            onClick={() => setGroup('')}
-            style={{ color: group === '' ? '#202753' : '#8c8c8c' }}
-          >
-            {PORTAL.sidebar.all}（{(data?.tasks ?? []).length}）
-          </Typography.Link>
-          {Object.entries(byGroup).map(([key]) => (
-            <Typography.Link
-              key={key}
-              strong={group === key}
-              onClick={() => setGroup(key)}
-              style={{ color: group === key ? '#202753' : '#8c8c8c' }}
-            >
-              {STATUS_GROUP_LABELS[key] ?? key}（{count(key)}）
-            </Typography.Link>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, alignItems: 'flex-start' }}>
+          {Object.keys(STATUS_GROUP_LABELS).map((g) => (
+            <span key={g} onClick={() => setGroup(g === group ? '' : g)} style={{ cursor: 'pointer', display: 'inline-flex' }}>
+              <CatalogBadge
+                value={STATUS_GROUP_LABELS[g]}
+                catalog={new Map()}
+                fallback={group === g ? '#202753' : 'auto'}
+                size="sm"
+                radius="round"
+                plain={group !== g}
+              />
+            </span>
           ))}
         </div>
       </aside>
 
-      <main style={{ flex: 1, minWidth: 0 }}>
-        <DataListPanel
-          providerId={pid}
-          panelKey="tasks"
-          items={tasks}
-          loading={isLoading}
-          rowKey={(t) => t.handle}
-          onSearch={setKeyword}
-          searchPlaceholder={PORTAL.search.tasks}
-          defaultView="list"
-          onItemClick={(t) => setSelected(t.handle)}
-          emptyText={PORTAL.empty.tasks}
-          renderCard={(t) => <TaskCard task={t} />}
-          renderRow={(t) => <TaskRow task={t} />}
-        />
-      </main>
+      <DataListPanel
+        panelKey="tasks"
+        providerId={pid}
+        items={tasks}
+        loading={isLoading}
+        rowKey={(t) => t.handle}
+        searchPlaceholder={PORTAL.search.tasks}
+        onSearch={setKeyword}
+        pagination={{ pageSize: 20 }}
+        renderCard={(t) => <TaskCard task={t} onOpen={() => setDetailHandle(t.handle)} />}
+        renderRow={(t) => <TaskRow task={t} onOpen={() => setDetailHandle(t.handle)} />}
+      />
 
-      <TaskDrawer handle={selected} onClose={() => setSelected(null)} />
+      <TaskDetailModal handle={detailHandle} onClose={() => setDetailHandle(null)} />
     </div>
   )
 }
 
-function TaskCard({ task: t }: { task: Task }) {
+/** kind 分类标签（全部=auto 色板；选中实底、未选中描边）。 */
+function KindChip({ label, kind, active }: { label: string; kind: '' | TaskKind; active: boolean }) {
+  if (!kind) {
+    return <CatalogBadge value={label} catalog={new Map()} fallback={active ? '#202753' : 'auto'} size="sm" radius="round" plain={!active} />
+  }
+  const color = TASK_KIND_COLORS[kind] ?? '#8c8c8c'
   return (
-    <PanelCard>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Typography.Text strong>{t.tool_id}</Typography.Text>
-        <StatusBadge value={t.status} />
-      </div>
-      <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
-        {t.handle.slice(0, 18)}…
-      </Typography.Text>
-      <div style={{ marginTop: 8 }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {t.created_at?.slice(0, 19)} · 尝试 {t.attempt}/{t.max_attempts}
-        </Typography.Text>
-      </div>
-    </PanelCard>
+    <span
+      style={{
+        background: active ? color : 'transparent',
+        color: active ? '#fff' : color,
+        border: `1px solid ${color}`,
+        borderRadius: 999,
+        padding: '0 10px',
+        fontSize: 12,
+        lineHeight: '22px',
+      }}
+    >
+      {label}
+    </span>
   )
 }
 
 function TaskKindBadge({ kind }: { kind?: TaskKind }) {
   if (!kind || kind === 'tool') return null
-  const palette = kind === 'flow' ? { bg: '#e6f4f1', fg: '#0F6E56' } : { bg: '#f1ecfb', fg: '#6b3fc4' }
+  const color = TASK_KIND_COLORS[kind] ?? '#8c8c8c'
   return (
-    <span style={{ background: palette.bg, color: palette.fg, borderRadius: 4, padding: '0 6px', fontSize: 11, lineHeight: '18px' }}>
+    <span
+      style={{
+        background: `${color}1a`,
+        color,
+        borderRadius: 4,
+        padding: '0 6px',
+        fontSize: 11,
+        lineHeight: '18px',
+        marginLeft: 6,
+      }}
+    >
       {TASK_KIND_LABELS[kind]}
     </span>
   )
 }
 
-function TaskRow({ task: t }: { task: Task }) {
+function TaskRow({ task: t, onOpen }: { task: Task; onOpen: () => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px' }}>
-      <div style={{ width: 220, flexShrink: 0 }}>
-        <Typography.Text strong>{t.tool_id}</Typography.Text>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', cursor: 'pointer' }} onClick={onOpen}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
+        <Typography.Text strong ellipsis style={{ maxWidth: 260 }}>
+          {t.tool_name ?? t.tool_id}
+        </Typography.Text>
         <TaskKindBadge kind={t.task_kind} />
-        <div>
-          <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
-            {t.handle.slice(0, 14)}…
-          </Typography.Text>
-        </div>
       </div>
-      <Typography.Text type="secondary" style={{ flex: 1, fontSize: 12 }}>
-        {t.created_at?.slice(0, 19)}
-      </Typography.Text>
-      <Typography.Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
-        {t.attempt}/{t.max_attempts}
-      </Typography.Text>
       <StatusBadge value={t.status} />
     </div>
+  )
+}
+
+function TaskCard({ task: t, onOpen }: { task: Task; onOpen: () => void }) {
+  return (
+    <PanelCard onClick={onOpen} style={{ height: '100%', cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Typography.Text strong ellipsis style={{ flex: 1 }}>
+          {t.tool_name ?? t.tool_id}
+        </Typography.Text>
+        <TaskKindBadge kind={t.task_kind} />
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <StatusBadge value={t.status} />
+      </div>
+    </PanelCard>
   )
 }

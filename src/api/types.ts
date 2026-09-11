@@ -58,6 +58,8 @@ export interface Task {
   providerId?: string
   handle: string
   tool_id: string
+  tool_name?: string
+  pipeline_name?: string
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'failed_review' | 'cancelled' | 'interrupted'
   input: Record<string, unknown>
   output: Record<string, unknown> | null

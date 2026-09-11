@@ -29,8 +29,10 @@ export function EventStream({
       onEvent: (event) => {
         if (event.type === 'log') setLogs((prev) => [...prev, event])
         if (event.type === 'progress') {
-          const data = event.data as { done: number; total: number }
-          setProgress({ done: Number(data.done), total: Number(data.total) })
+          const data = (event.data ?? {}) as { done?: number; total?: number }
+          const done = Number(data.done)
+          const total = Number(data.total)
+          setProgress(Number.isFinite(done) && Number.isFinite(total) && total > 0 ? { done, total } : null)
         }
         if (event.type === 'artifact') setArtifacts((prev) => [...prev, event.data as ArtifactInfo])
       },

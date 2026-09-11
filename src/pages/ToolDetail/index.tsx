@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { apiFor } from '@/api/client'
 import { DocPanel } from '@/components/DocPanel'
 import { EntityDetailLayout } from '@/components/EntityDetailLayout'
-import { TaskDrawer } from '@/components/TaskDrawer'
+import { TaskDetailModal } from '@/components/TaskDetailModal'
 import { ToolForm } from '@/components/ToolForm'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -73,7 +73,7 @@ export function ToolDetail() {
         />
       </Card>
 
-      <TaskDrawer handle={drawerHandle} onClose={() => setDrawerHandle(null)} />
+      <TaskDetailModal handle={drawerHandle} onClose={() => setDrawerHandle(null)} />
     </EntityDetailLayout>
   )
 }

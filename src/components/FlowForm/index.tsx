@@ -31,10 +31,12 @@ export function cascadeOf(schema?: Record<string, unknown> | null): FormCascade 
 }
 
 /** 级联表单体（发起/重跑共用）：公共字段 + 键字段下拉（选模版）→ 详情端点增量字段。 */
-export function FormBody({ fields, cascade, providerId }: {
+export function FormBody({ fields, cascade, providerId, refKeys }: {
   fields: FormField[]
   cascade: FormCascade | null
   providerId: string
+  /** 被 steps args 模板引用的 input 键集合；命中的字段显示自动注入提示。 */
+  refKeys?: Set<string>
 }) {
   const form = Form.useFormInstance()
   const templateId = Form.useWatch(cascade?.keyField ?? '__none__', form) as string | undefined
@@ -67,6 +69,7 @@ export function FormBody({ fields, cascade, providerId }: {
       initialValue={f.defaultValue}
       rules={f.required ? [{ required: true, message: `请填写 ${f.label}` }] : undefined}
       valuePropName={fieldPropName(f.widget)}
+      extra={refKeys?.has(f.name) ? PORTAL.workspace.refHint.replace('{key}', f.name) : undefined}
     >
       <FieldControl field={f} />
     </Form.Item>
@@ -98,12 +101,13 @@ export function FormBody({ fields, cascade, providerId }: {
   )
 }
 
-export function FlowForm({ flow, fields, providerId, form: externalForm, showSubmit = true, onRun, onSubmittingChange }: {
+export function FlowForm({ flow, fields, providerId, form: externalForm, showSubmit = true, refKeys, onRun, onSubmittingChange }: {
   flow: { id: string; name: string; steps: unknown[] }
   fields: FormField[]
   providerId: string
   form?: FormInstance<Record<string, unknown>>
   showSubmit?: boolean
+  refKeys?: Set<string>
   onRun: (runId: string) => void
   onSubmittingChange?: (v: boolean) => void
 }) {
@@ -130,7 +134,7 @@ export function FlowForm({ flow, fields, providerId, form: externalForm, showSub
 
   return (
     <Form form={form} layout="vertical" onFinish={submit} style={{ maxWidth: 560 }}>
-      <FormBody fields={fields} cascade={cascadeOf((flow as { input_schema?: Record<string, unknown> | null }).input_schema)} providerId={providerId} />
+      <FormBody fields={fields} cascade={cascadeOf((flow as { input_schema?: Record<string, unknown> | null }).input_schema)} providerId={providerId} refKeys={refKeys} />
       {showSubmit && (
         <Button type="primary" htmlType="submit" loading={submitting}>
           {PORTAL.run.submit}

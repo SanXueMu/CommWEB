@@ -19,6 +19,16 @@ import { PORTAL } from '@/config/portal'
 import { resolveForm } from '@/protocol/resolver'
 import { useActivePid } from '@/transfer/context'
 
+
+/** 被 steps 模板引用的 input 键集合（与 FlowRunner 同规则）。 */
+const refKeysOf = (steps: { input?: Record<string, unknown> }[]) => {
+  const keys = new Set<string>()
+  for (const step of steps) {
+    for (const m of JSON.stringify(step.input ?? {}).matchAll(/\{\{\s*input\.(\w+)\s*\}\}/g)) keys.add(m[1])
+  }
+  return keys
+}
+
 export function FlowDetailModal({ flow, open, onClose }: {
   flow: PipelineSummary
   open: boolean
@@ -126,6 +136,7 @@ export function FlowDetailModal({ flow, open, onClose }: {
           <Typography.Text type="secondary" strong>{PORTAL.run.panelTitle}</Typography.Text>
           <div style={{ marginTop: 8 }}>
             <FlowForm
+              refKeys={refKeysOf(flow.steps)}
               flow={{ id: flow.id, name: flow.name, steps: flow.steps }}
               fields={fields}
               providerId={pid}

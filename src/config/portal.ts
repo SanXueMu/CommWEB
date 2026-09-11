@@ -112,6 +112,8 @@ export const PORTAL = {
     skipped: '已跳过（when 条件未满足）',
     subrun: '子流',
     rerunFlowFull: '重跑流（原运行留档，另起新运行）',
+    flowOutline: '流程',
+    refHint: '该字段被下游步骤引用：{{input.{key}}}——运行时自动注入步骤参数',
     rerunFlowTitle: '重跑流',
     rerunFlowHint: '已按上一轮数据预填；仅修改过的字段作为覆盖提交，原运行留档不受影响。',
     rerunFlowOk: '重跑',

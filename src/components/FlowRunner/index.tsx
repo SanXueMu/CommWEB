@@ -10,6 +10,8 @@ import { FlowForm, FormBody, cascadeOf } from '@/components/FlowForm'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { RunControlBar } from '@/components/RunControlBar'
 import { StepTrack } from '@/components/StepTrack'
+import { LifeFlow } from '@/components/LifeFlow'
+import type { LifeFlowNode } from '@/components/LifeFlow'
 import { PORTAL } from '@/config/portal'
 import { extractFlowFields } from '@/protocol/flow'
 import type { FlowField } from '@/protocol/flow'
@@ -75,48 +77,88 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
       return status && ['running', 'paused'].includes(status) ? 2000 : false
     },
   })
+  const [rerunOpen, setRerunOpen] = useState(false)
+
+  /** 右侧流程栏节点：步骤工具中文名 + 运行态状态联动（无 run 时全 pending）。 */
+  const flowNodes = useMemo(() => {
+    const nameMap: Record<string, string> = {}
+    toolQueries.forEach((q) => {
+      const d = q.data as { id?: string; name?: string } | undefined
+      if (d?.id) nameMap[d.id] = d.name ?? d.id
+    })
+    const stepStatus = (i: number): LifeFlowNode['status'] => {
+      const s = snap?.steps[i]?.latest?.status
+      if (s === 'succeeded') return 'done'
+      if (s === 'running') return 'running'
+      if (s === 'failed') return 'error'
+      return 'pending'
+    }
+    return flow.steps.map((s, i) => ({
+      key: `${i}`,
+      label: (s.tool && nameMap[s.tool]) || s.tool || s.pipeline || `步骤 ${i + 1}`,
+      status: stepStatus(i),
+    }))
+  }, [flow.steps, toolQueries, snap])
+
+  /** 被 steps 模板引用的 input 键集合（{{input.xxx}}），用于表单字段提示。 */
+  const refKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const step of flow.steps) {
+      for (const m of JSON.stringify(step.input ?? {}).matchAll(/\{\{\s*input\.(\w+)\s*\}\}/g)) keys.add(m[1])
+    }
+    return keys
+  }, [flow.steps])
 
   if (!runId) {
-    return <FlowForm flow={flow} fields={formFields} providerId={pid} onRun={(id) => onRunIdChange(id)} />
+    return <FlowForm flow={flow} fields={formFields} providerId={pid} refKeys={refKeys} onRun={(id) => onRunIdChange(id)} />
   }
 
   const status = snap?.run.status ?? 'running'
-  const [rerunOpen, setRerunOpen] = useState(false)
   const rerunnable = status !== 'running' && status !== 'paused'
   return (
-    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-      <RunControlBar runId={runId} status={status} onNewRound={() => onRunIdChange(null)} />
-      <div>
-        <Button size="small" disabled={!rerunnable} onClick={() => setRerunOpen(true)}>
-          {PORTAL.workspace.rerunFlowFull}
-        </Button>
-      </div>
-      <RerunFlowModal
-        open={rerunOpen}
-        fields={formFields}
-        inputSchema={flow.input_schema}
-        lastInput={snap?.run.input ?? {}}
-        providerId={pid}
-        runId={runId}
-        onClose={() => setRerunOpen(false)}
-        onRerun={(newRunId) => { setRerunOpen(false); onRunIdChange(newRunId) }}
-      />
-      {status === 'paused' && (
-        <Typography.Text type="warning" style={{ fontSize: 12 }}>
-          {PORTAL.workspace.pausedHint}
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <Space direction="vertical" size={12} style={{ flex: 1, minWidth: 0 }}>
+        <RunControlBar runId={runId} status={status} onNewRound={() => onRunIdChange(null)} />
+        <div>
+          <Button size="small" disabled={!rerunnable} onClick={() => setRerunOpen(true)}>
+            {PORTAL.workspace.rerunFlowFull}
+          </Button>
+        </div>
+        <RerunFlowModal
+          open={rerunOpen}
+          fields={formFields}
+          inputSchema={flow.input_schema}
+          lastInput={snap?.run.input ?? {}}
+          providerId={pid}
+          runId={runId}
+          onClose={() => setRerunOpen(false)}
+          onRerun={(newRunId) => { setRerunOpen(false); onRunIdChange(newRunId) }}
+        />
+        {status === 'paused' && (
+          <Typography.Text type="warning" style={{ fontSize: 12 }}>
+            {PORTAL.workspace.pausedHint}
+          </Typography.Text>
+        )}
+        {snap?.run.status === 'failed' && snap.run.error != null ? (
+          <Alert type="error" showIcon message={`${PORTAL.flowFailedPrefix}${String((snap.run.error as { message?: unknown })?.message ?? '')}`} />
+        ) : null}
+        {snap && <StepTrack runId={runId} steps={snap.steps} runStatus={status} />}
+        {snap?.run.status === 'succeeded' && snap.steps.at(-1)?.latest?.output != null && (
+          <Card size="small" title="最终输出">
+            <ResultRenderer output={snap.steps.at(-1)!.latest!.output!} />
+          </Card>
+        )}
+        <AuditTimeline runId={runId} />
+      </Space>
+      <aside style={{ width: 220, flexShrink: 0, position: 'sticky', top: 76, borderLeft: '1px solid #f0f0f0', paddingLeft: 16 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {PORTAL.workspace.flowOutline}
         </Typography.Text>
-      )}
-      {snap?.run.status === 'failed' && snap.run.error != null ? (
-        <Alert type="error" showIcon message={`${PORTAL.flowFailedPrefix}${String((snap.run.error as { message?: unknown })?.message ?? '')}`} />
-      ) : null}
-      {snap && <StepTrack runId={runId} steps={snap.steps} runStatus={status} />}
-      {snap?.run.status === 'succeeded' && snap.steps.at(-1)?.latest?.output != null && (
-        <Card size="small" title="最终输出">
-          <ResultRenderer output={snap.steps.at(-1)!.latest!.output!} />
-        </Card>
-      )}
-      <AuditTimeline runId={runId} />
-    </Space>
+        <div style={{ marginTop: 12 }}>
+          <LifeFlow nodes={flowNodes} direction="vertical" size="md" />
+        </div>
+      </aside>
+    </div>
   )
 }
 

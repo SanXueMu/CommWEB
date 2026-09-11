@@ -10,6 +10,7 @@ import type {
   PipelineSummary,
   RunEvent,
   RunSnapshot,
+  RunSummary,
   StatusInfo,
   Task,
   TaskCreated,
@@ -112,6 +113,15 @@ function createApi(pid?: string) {
       body: JSON.stringify({ input }),
     }),
   getPipelineRun: (runId: string) => request<PipelineRun>(`/pipeline-runs/${runId}`),
+  listRuns: (pipelineId?: string, limit = 50, offset = 0) => {
+    const params = new URLSearchParams()
+    if (pipelineId) params.set('pipeline_id', pipelineId)
+    params.set('limit', String(limit))
+    params.set('offset', String(offset))
+    return request<{ runs: RunSummary[]; total: number }>(`/pipeline-runs?${params.toString()}`)
+  },
+  deleteRun: (runId: string) =>
+    request<{ id: string; status: string }>(`/pipeline-runs/${runId}`, { method: 'DELETE' }),
   getRunSnapshot: (runId: string) => request<RunSnapshot>(`/pipeline-runs/${runId}/snapshot`),
   listRunEvents: (runId: string, limit = 200) =>
     request<{ events: RunEvent[] }>(`/pipeline-runs/${runId}/events?limit=${limit}`),

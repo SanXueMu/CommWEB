@@ -183,6 +183,48 @@ export interface OcrKey {
   is_default: boolean
 }
 
+export interface RunSummary {
+  id: string
+  pipeline_id: string | null
+  input: Record<string, unknown>
+  status: string
+  error: { kind: string; message: string } | null
+  progress?: number | null
+  created_at: string
+  finished_at: string | null
+  summary?: {
+    artifacts?: { name?: string; path?: string }[]
+    steps_total?: number | null
+    steps_done?: number
+    usage?: { prompt_tokens: number; completion_tokens: number } | null
+    usage_by_model?: Record<string, { calls: number; prompt_tokens: number; completion_tokens: number }> | null
+    calls?: number | null
+    cache_hits?: number | null
+    review_count?: number | null
+    ok_count?: number | null
+  }
+}
+
+export interface TranslateTemplate {
+  id: string
+  name: string
+  desc?: string | null
+  source_lang?: string | null
+  target_lang?: string | null
+  model?: string | null
+  terms?: [string, string][]
+  terms_count?: number
+  builtin?: boolean
+  enabled?: boolean
+}
+
+export interface TranslateDictEntry {
+  source: string
+  translated: string
+  model: string | null
+  status: string
+}
+
 export interface OcrDbFile {
   path: string
   name: string

@@ -9,7 +9,13 @@ const PALETTE: Record<string, { bg: string; fg: string }> = {
   workflow: { bg: '#f1ecfb', fg: '#6b3fc4' },
 }
 
-export function FlowTypeBadge({ flow }: { flow: Pick<PipelineSummary, 'type'> }) {
+export function FlowTypeBadge({ flow, plain = false, strong = false }: {
+  flow: Pick<PipelineSummary, 'type'>
+  /** plain：无背景色（仅描边文字），侧栏筛选未选中态用。 */
+  plain?: boolean
+  /** strong：选中加粗，侧栏筛选选中态用。 */
+  strong?: boolean
+}) {
   if (!flow.type) return null
   const p = PALETTE[flow.type]
   const label = FLOW_TYPE_LABELS[flow.type]
@@ -17,13 +23,15 @@ export function FlowTypeBadge({ flow }: { flow: Pick<PipelineSummary, 'type'> })
   return (
     <span
       style={{
-        background: p.bg,
+        background: plain ? 'transparent' : p.bg,
         color: p.fg,
+        border: plain ? `1px solid ${p.fg}` : '1px solid transparent',
         borderRadius: 4,
         padding: '0 6px',
         fontSize: 11,
         lineHeight: '18px',
         flexShrink: 0,
+        fontWeight: strong ? 600 : undefined,
       }}
     >
       {label}

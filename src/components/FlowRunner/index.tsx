@@ -2,11 +2,11 @@
  *  页面（FlowDetail）与工作区（FlowSession）共用，禁止再自绘流运行 UI。 */
 
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Alert, Button, Card, Form, Modal, Select, Space, Typography } from 'antd'
+import { App as AntApp, Alert, Button, Card, Form, Modal, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
-import { FieldControl, fieldPropName } from '@/components/FieldControl'
+import { FlowForm, FormBody, cascadeOf } from '@/components/FlowForm'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { RunControlBar } from '@/components/RunControlBar'
 import { StepTrack } from '@/components/StepTrack'
@@ -77,7 +77,7 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
   })
 
   if (!runId) {
-    return <FlowRunForm flow={flow} fields={formFields} providerId={pid} onRun={(id) => onRunIdChange(id)} />
+    return <FlowForm flow={flow} fields={formFields} providerId={pid} onRun={(id) => onRunIdChange(id)} />
   }
 
   const status = snap?.run.status ?? 'running'
@@ -169,130 +169,7 @@ function RerunFlowModal({ open, fields, inputSchema, lastInput, providerId, runI
   )
 }
 
-function FlowRunForm({ flow, fields, providerId, onRun }: {
-  flow: FlowLike
-  fields: FormField[]
-  providerId: string
-  onRun: (runId: string) => void
-}) {
-  const pid = providerId
-  const cascade = cascadeOf(flow.input_schema)
-  const [form] = Form.useForm()
-  const { message } = AntApp.useApp()
-  const [runSubmitting, setRunSubmitting] = useState(false)
-  const queryClient = useQueryClient()
 
-  const submit = async (values: Record<string, unknown>) => {
-    setRunSubmitting(true)
-    try {
-      const created = await apiFor(pid).runPipeline(flow.id, values)
-      queryClient.invalidateQueries({ queryKey: ['provider', pid, 'runSnapshot', created.run_id] })
-      onRun(created.run_id)
-    } catch (err) {
-      message.error(`提交失败：${(err as Error).message ?? err}`)
-    } finally {
-      setRunSubmitting(false)
-    }
-  }
 
-  return (
-    <Card size="small" title={`运行 ${flow.name}（${flow.steps.length} 步）`}>
-      <Form form={form} layout="vertical" onFinish={submit} style={{ maxWidth: 560 }}>
-        <FormBody fields={fields} cascade={cascade} providerId={pid} />
-        <Button type="primary" htmlType="submit" loading={runSubmitting}>
-          {PORTAL.run.submit}
-        </Button>
-      </Form>
-    </Card>
-  )
-}
 
-/** I2 级联表单协议：流 input_schema 顶层 x-form-cascade 声明（键字段 → 列表/详情端点 → 增量 schema）。 */
-interface FormCascade {
-  keyField: string
-  listPath: string
-  detailPath: string
-  schemaFrom: string
-}
 
-interface TemplateBrief {
-  id: string
-  name?: string
-  enabled?: boolean
-}
-
-function cascadeOf(schema?: Record<string, unknown> | null): FormCascade | null {
-  const c = schema?.['x-form-cascade'] as FormCascade | undefined
-  return c && c.keyField && c.listPath && c.detailPath && c.schemaFrom ? c : null
-}
-
-/** 级联表单体（发起/重跑共用）：公共字段 + 键字段下拉（选模版）→ 详情端点增量字段。 */
-function FormBody({ fields, cascade, providerId }: {
-  fields: FormField[]
-  cascade: FormCascade | null
-  providerId: string
-}) {
-  const form = Form.useFormInstance()
-  const templateId = Form.useWatch(cascade?.keyField ?? '__none__', form) as string | undefined
-  const listQuery = useQuery({
-    queryKey: ['provider', providerId, 'cascadeList', cascade?.listPath],
-    queryFn: () => apiFor(providerId).get<{ templates: TemplateBrief[] }>(cascade!.listPath),
-    enabled: Boolean(cascade),
-  })
-  const detailQuery = useQuery({
-    queryKey: ['provider', providerId, 'cascadeDetail', cascade?.detailPath, templateId],
-    queryFn: () =>
-      apiFor(providerId).get<Record<string, unknown>>(
-        cascade!.detailPath.replace('{id}', encodeURIComponent(templateId!)),
-      ),
-    enabled: Boolean(cascade && templateId),
-  })
-  const extraFields = useMemo<FormField[]>(() => {
-    if (!cascade || !detailQuery.data) return []
-    const schema = detailQuery.data[cascade.schemaFrom] as Record<string, unknown> | null | undefined
-    return schema?.properties ? resolveForm(schema as never) : []
-  }, [cascade, detailQuery.data])
-
-  const base = cascade ? fields.filter((f) => f.name !== cascade.keyField) : fields
-  const keyField = cascade ? fields.find((f) => f.name === cascade.keyField) : undefined
-  const renderItem = (f: FormField) => (
-    <Form.Item
-      key={f.name}
-      name={f.name}
-      label={f.label}
-      initialValue={f.defaultValue}
-      rules={f.required ? [{ required: true, message: `请填写 ${f.label}` }] : undefined}
-      valuePropName={fieldPropName(f.widget)}
-    >
-      <FieldControl field={f} />
-    </Form.Item>
-  )
-  return (
-    <>
-      {keyField && (
-        <Form.Item
-          name={keyField.name}
-          label={keyField.label}
-          rules={keyField.required ? [{ required: true, message: `请选择 ${keyField.label}` }] : undefined}
-        >
-          <Select
-            loading={listQuery.isLoading}
-            showSearch
-            optionFilterProp="label"
-            placeholder="选择后表单自动适配（提示词/字段/钩子随模版）"
-            options={(listQuery.data?.templates ?? []).map((tpl) => ({
-              value: tpl.id,
-              label: `${tpl.name ?? tpl.id}（${tpl.id}）`,
-              disabled: tpl.enabled === false,
-            }))}
-          />
-        </Form.Item>
-      )}
-      {base.map(renderItem)}
-      {extraFields.map(renderItem)}
-      {fields.length === 0 && (
-        <Typography.Text type="secondary">该管线不引用任何 input 参数。</Typography.Text>
-      )}
-    </>
-  )
-}

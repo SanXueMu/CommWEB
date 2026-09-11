@@ -50,6 +50,7 @@ export const PORTAL = {
   run: {
     submit: '提交任务',
     formTitle: '运行（表单由 input_schema 自动生成）',
+    panelTitle: '运行参数',
     startFlow: '发起运行',
     startFlowHint: '点击展开运行会话（表单、控制条、步骤轨道与审计轨迹）',
     queued: '已入队：',

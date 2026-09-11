@@ -72,6 +72,8 @@ function createApi(pid?: string) {
     request<{ categories: { name: string; subs: string[] }[] }>('/meta/tool-categories'),
   getToolStats: async (toolId: string): Promise<ToolStats> =>
     request<ToolStats>(`/tools/${encodeURIComponent(toolId)}/stats`),
+  getPipelineStats: async (pipelineId: string): Promise<ToolStats> =>
+    request<ToolStats>(`/pipelines/${encodeURIComponent(pipelineId)}/stats`),
   listTools: async (): Promise<{ tools: ToolSummary[] }> => {
     const providerId = pid ?? registry.activeId() ?? 'default'
     const { tools } = await request<{ tools: unknown[] }>('/tools')

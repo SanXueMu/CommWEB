@@ -2,24 +2,26 @@
 
 import { Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { CatalogBadge } from '@/components/CatalogBadge'
 import { ProviderBadge } from '@/components/ProviderBadge'
 import { FlowTypeBadge } from '@/components/ui/FlowTypeBadge'
 import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
+import { LifeFlow } from '@/components/LifeFlow'
 import { OpenInWorkspace } from '@/components/OpenInWorkspace'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { PORTAL } from '@/config/portal'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import { useQuery } from '@tanstack/react-query'
+import { FlowDetailModal } from '@/pages/Flows/FlowDetailModal'
 
 const TYPE_LABELS = { flow: '普通流', workflow: '工作流' } as const
 
 export function Flows() {
-  const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
   const [flowType, setFlowType] = useState<'' | keyof typeof TYPE_LABELS>('')
+  const [detailFlow, setDetailFlow] = useState<PipelineSummary | null>(null)
   const pid = useActivePid()
   const { data, isLoading } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: () => apiFor(pid).listPipelines() })
   const pipelines = data?.pipelines ?? []
@@ -48,17 +50,26 @@ export function Flows() {
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           类型
         </Typography.Text>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, alignItems: 'flex-start' }}>
           {(['', 'flow', 'workflow'] as const).map((k) => (
-            <Typography.Link
+            <span
               key={k || 'all'}
-              strong={flowType === k}
               onClick={() => setFlowType(k)}
-              style={{ color: flowType === k ? '#202753' : '#8c8c8c' }}
+              style={{ cursor: 'pointer', display: 'inline-flex' }}
             >
-              {k ? TYPE_LABELS[k] : '全部'}（
-                {k ? pipelines.filter((f) => f.type === k).length : pipelines.length}）
-            </Typography.Link>
+              {k ? (
+                <FlowTypeBadge flow={{ type: k }} plain={flowType !== k} strong={flowType === k} />
+              ) : (
+                <CatalogBadge
+                  value={PORTAL.sidebar.all}
+                  catalog={new Map()}
+                  fallback={flowType === '' ? '#202753' : 'auto'}
+                  size="sm"
+                  radius="round"
+                  plain={flowType !== ''}
+                />
+              )}
+            </span>
           ))}
         </div>
       </aside>
@@ -71,66 +82,57 @@ export function Flows() {
         rowKey={(f) => `${f.providerId ?? 'default'}:${f.id}`}
         onSearch={setKeyword}
         searchPlaceholder={PORTAL.search.flows}
-        onItemClick={(f) => navigate(`/flows/${encodeURIComponent(f.id)}?provider=${f.providerId ?? 'default'}`)}
         emptyText={PORTAL.empty.flows}
-        renderCard={(flow) => <FlowCard flow={flow} providerName={providerName} />}
-        renderRow={(flow) => <FlowRow flow={flow} providerName={providerName} />}
+        renderCard={(flow) => <FlowCard flow={flow} providerName={providerName} onOpen={() => setDetailFlow(flow)} />}
+        renderRow={(flow) => <FlowRow flow={flow} providerName={providerName} onOpen={() => setDetailFlow(flow)} />}
       />
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         共 {flows.length} 条流 · {PORTAL.footNote.flows}
       </Typography.Text>
       </div>
+      {detailFlow && (
+        <FlowDetailModal flow={detailFlow} open onClose={() => setDetailFlow(null)} />
+      )}
     </div>
   )
 }
 
-function StepChain({ flow }: { flow: PipelineSummary }) {
+/** 卡片式：不渲染生命周期（D2.2），标题短名 + 类型标签。 */
+function FlowCard({ flow, providerName, onOpen }: { flow: PipelineSummary; providerName: Record<string, string>; onOpen: () => void }) {
   return (
-    <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
-      {flow.steps.map((s) => s.tool || s.pipeline).join(' → ')}
-    </Typography.Text>
+    <PanelCard radius="round" onClick={onOpen} style={{ cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <Typography.Text strong>{flow.name}</Typography.Text>
+        <FlowTypeBadge flow={flow} />
+        <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {flow.steps.length} 步
+        </Typography.Text>
+      </div>
+    </PanelCard>
   )
 }
 
-function FlowCard({ flow, providerName }: { flow: PipelineSummary; providerName: Record<string, string> }) {
+/** 列表式：渲染横向生命周期（D2.2），不渲染英文名 id。 */
+function FlowRow({ flow, providerName, onOpen }: { flow: PipelineSummary; providerName: Record<string, string>; onOpen: () => void }) {
   return (
-    <Link to={`/flows/${encodeURIComponent(flow.id)}?provider=${flow.providerId ?? 'default'}`}>
-      <PanelCard>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <Typography.Text strong>{flow.name}</Typography.Text>
-          <FlowTypeBadge flow={flow} />
-          <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {flow.steps.length} 步
-          </Typography.Text>
-        </div>
-        <div style={{ margin: '10px 0 6px' }}>
-          <StepChain flow={flow} />
-        </div>
-      </PanelCard>
-    </Link>
-  )
-}
-
-function FlowRow({ flow, providerName }: { flow: PipelineSummary; providerName: Record<string, string> }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px' }}>
-      <div style={{ width: 260, flexShrink: 0 }}>
-        <Space size={6}>
-          <Typography.Text strong>{flow.name}</Typography.Text>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px', cursor: 'pointer' }} onClick={onOpen}>
+      <div style={{ width: 200, flexShrink: 0 }}>
+        <Typography.Text strong style={{ display: 'block' }}>{flow.name}</Typography.Text>
+        <Space size={6} style={{ marginTop: 2 }}>
           <FlowTypeBadge flow={flow} />
           <ProviderBadge pid={flow.providerId ?? 'default'} name={providerName[flow.providerId ?? 'default']} />
         </Space>
-        <div>
-          <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
-            {flow.id}
-          </Typography.Text>
-        </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <StepChain flow={flow} />
+        <LifeFlow
+          size="sm"
+          nodes={flow.steps.map((s, i) => ({ key: `${s.tool ?? s.pipeline ?? 'step'}-${i}`, label: s.tool ?? s.pipeline ?? '步骤' }))}
+        />
       </div>
-      <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} providerId={flow.providerId} />
+      <span onClick={(e) => e.stopPropagation()}>
+        <OpenInWorkspace kind="flow" refId={flow.id} title={flow.name} providerId={flow.providerId} />
+      </span>
     </div>
   )
 }

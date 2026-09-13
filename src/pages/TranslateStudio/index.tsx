@@ -6,7 +6,8 @@
  *
  * 声明 props：
  *  flow_prefix?: string
- *  routes?: { ext: string[]; flow: string }[]   // 后缀 → 流
+ *  routes?: { ext: string[]; flow: string; label?: string }[]  // 后缀 → 流（同后缀多条=可选）
+ *  params?: ParamField[]                         // 通用附加参数（声明驱动，可按流过滤）
  *  templatesPath?: string                        // 翻译模板端点（默认 /translate/templates）
  *  dictPath?: string                             // 字典浏览端点（默认 /translate/dict）
  *  languages?: { value: string; label: string }[]
@@ -24,6 +25,7 @@ import { apiFor } from '@/api/client'
 import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { viewPathByType } from '@/transfer/siteManifest'
 import { useViewProps } from '@/protocol/ViewPropsContext'
+import { matchRoutes, visibleParams, type ParamField, type Route } from '@/protocol/routeSelect'
 import type {
   PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
 } from '@/api/types'
@@ -39,22 +41,15 @@ function errMsg(e: unknown): string {
 
 const RUNNING = new Set(['running', 'pending', 'queued', 'paused'])
 
-interface Route { ext: string[]; flow: string }
 interface Language { value: string; label: string }
 interface TranslateStudioProps {
   flow_prefix?: string
   routes?: Route[]
+  params?: ParamField[]
   templatesPath?: string
   dictPath?: string
   languages?: Language[]
   description?: string
-}
-
-/** 按文件扩展名路由到流（声明驱动，不写死流 ID）。 */
-function pickFlow(file: string | undefined, routes: Route[]): string | undefined {
-  if (!file) return undefined
-  const lower = file.toLowerCase()
-  return routes.find((r) => r.ext.some((e) => lower.endsWith(e.toLowerCase())))?.flow
 }
 
 function baseName(p?: unknown): string {
@@ -65,7 +60,7 @@ function baseName(p?: unknown): string {
 /** 聚合一次运行的翻译产物统计（步骤 output 的 usage/totals）。 */
 function aggregate(run?: PipelineRun) {
   const byModel: Record<string, { calls: number; prompt_tokens: number; completion_tokens: number }> = {}
-  let calls = 0, cache = 0, review = 0, ok = 0
+  let calls = 0, cache = 0, review = 0, ok = 0, overflow = 0
   const artifacts: { name: string; path: string }[] = []
   for (const task of run?.tasks ?? []) {
     const out = (task.output ?? {}) as Record<string, unknown>
@@ -81,12 +76,13 @@ function aggregate(run?: PipelineRun) {
     calls += Number(out.calls ?? 0)
     cache += Number(out.cache_hits ?? 0)
     review += Number(out.review_count ?? 0)
+    overflow += Number(out.overflow ?? 0)
     const st = out.statuses as string[] | undefined
     if (Array.isArray(st)) ok += st.filter((s) => s === 'ok').length
     if (typeof out.file === 'string' && out.file) artifacts.push({ name: baseName(out.file), path: out.file })
     if (typeof out.path === 'string' && out.path) artifacts.push({ name: String(out.name ?? baseName(out.path)), path: out.path })
   }
-  return { byModel, calls, cache, review, ok, artifacts }
+  return { byModel, calls, cache, review, ok, overflow, artifacts }
 }
 
 /** 任务浮窗：右下角常驻，显示进行中的翻译作业。 */
@@ -123,6 +119,7 @@ export function TranslateStudio() {
   const t = useTranslateText()
 
   const routes = props.routes ?? []
+  const paramFields = props.params ?? []
   const templatesPath = props.templatesPath ?? '/translate/templates'
   const dictPath = props.dictPath ?? '/translate/dict'
   const languages = props.languages ?? []
@@ -134,6 +131,8 @@ export function TranslateStudio() {
   const [model, setModel] = useState<string>('')
   const [sourceLang, setSourceLang] = useState<string>('')
   const [targetLang, setTargetLang] = useState<string>('Chinese')
+  const [routeFlow, setRouteFlow] = useState<string>()
+  const [paramVals, setParamVals] = useState<Record<string, string>>({})
   const [activeRun, setActiveRun] = useState<string | null>(null)
   const [detailRun, setDetailRun] = useState<string | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -208,7 +207,13 @@ export function TranslateStudio() {
     queryFn: () => api.get<TranslateTemplate>(`${templatesPath}/${encodeURIComponent(templateId!)}`),
   })
   const selectedTemplate = tplDetailQuery.data ?? tplList.find((x) => x.id === templateId)
-  const flow = pickFlow(file, routes)
+  const matchedRoutes = useMemo(() => matchRoutes(file, routes), [file, routes])
+  const flow = useMemo(
+    () => (matchedRoutes.some((r) => r.flow === routeFlow) ? routeFlow : matchedRoutes[0]?.flow),
+    [matchedRoutes, routeFlow],
+  )
+  const activeParams = visibleParams(paramFields, flow)
+  const paramValue = (p: ParamField) => paramVals[p.name] ?? p.default ?? ''
   const busy = Boolean(activeRun && RUNNING.has(activeDetail.data?.run.status ?? ''))
 
   // ── 变更 ──
@@ -226,6 +231,7 @@ export function TranslateStudio() {
       source_lang: sourceLang || null,
       target_lang: targetLang || null,
       terms: selectedTemplate?.terms ?? [],
+      ...Object.fromEntries(activeParams.map((p) => [p.name, paramValue(p) || null])),
     })
   }
   const rerunMutation = useMutation({
@@ -383,6 +389,22 @@ export function TranslateStudio() {
                         <Form.Item label={t.targetLabel} style={{ minWidth: 160 }}>
                           <Select value={targetLang} options={languages.map((l) => ({ value: l.value, label: l.label }))} onChange={setTargetLang} />
                         </Form.Item>
+                        {matchedRoutes.length > 1 && (
+                          <Form.Item label={t.routeLabel} style={{ minWidth: 240 }}>
+                            <Select value={flow} onChange={setRouteFlow}
+                              options={matchedRoutes.map((r) => ({ value: r.flow, label: r.label ?? r.flow }))} />
+                          </Form.Item>
+                        )}
+                        {activeParams.map((p) => (
+                          <Form.Item key={p.name} label={p.label} style={{ minWidth: 200 }}>
+                            {p.type === 'select'
+                              ? <Select value={paramValue(p) || undefined} placeholder={p.placeholder}
+                                  options={(p.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
+                                  onChange={(v) => setParamVals((s) => ({ ...s, [p.name]: v ?? '' }))} />
+                              : <Input value={paramValue(p)} placeholder={p.placeholder}
+                                  onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />}
+                          </Form.Item>
+                        ))}
                       </Flex>
                     </Form>
                     {selectedTemplate && (selectedTemplate.terms?.length ?? 0) > 0 && (
@@ -637,6 +659,7 @@ function UsagePanel({ usage, t }: { usage: ReturnType<typeof aggregate>; t: Retu
         <Tag color="green">✓ {t.statOk} {usage.ok}</Tag>
         <Tag color="blue">⚡ {t.statCache} {usage.cache}</Tag>
         <Tag color="orange">⚠ {t.statReview} {usage.review}</Tag>
+        {usage.overflow > 0 && <Tag color="red">{t.statOverflow} {usage.overflow}</Tag>}
         {usage.calls > 0 && <Typography.Text type="secondary">{t.calls} {usage.calls}</Typography.Text>}
       </Space>
       {models.length > 0 && (
@@ -664,6 +687,7 @@ function useTranslateText() {
     tabTranslate: '翻译', tabTasks: '任务', tabLibrary: '资料库',
     runConfig: '翻译配置', keyLabel: '密钥', keyPlaceholder: '选择密钥', defaultTag: '（默认）',
     modelLabel: '模型', modelPlaceholder: '留空用密钥默认模型', sourceLabel: '源语言', targetLabel: '目标语言',
+    routeLabel: '处理方式',
     autoLang: '自动判定', termsFromTpl: '术语表来自模版', start: '开始翻译', noRoute: '未匹配到该文件类型的翻译流',
     runStatus: '翻译运行', runFailed: '翻译运行失败', startFailed: '提交失败：', rerunFailed: '再运行失败：',
     abortFailed: '取消失败：', deleteFailed: '删除失败：', saveFailed: '保存失败：',
@@ -672,6 +696,7 @@ function useTranslateText() {
     detail: '详情', rerun: '再运行', abort: '取消', remove: '删除', confirmDeleteRun: '确认删除该任务？',
     detailTitle: '任务详情', errorLabel: '错误', artifacts: '产物', logs: '运行日志', noLogs: '暂无日志',
     usage: 'Token 用量', statOk: '新译', statCache: '缓存', statReview: '待审', calls: '调用',
+    statOverflow: '溢出',
     colModel: '模型', colCalls: '调用', colPrompt: '输入 tok', colCompletion: '输出 tok',
     libGlossary: '术语表', libDict: '已译字典', libTemplates: '模板管理', noTerms: '该模版无术语',
     selectTemplateHint: '先在顶部选择翻译模版', dictSearch: '搜索原文/译文', dictEmpty: '暂无字典记录',

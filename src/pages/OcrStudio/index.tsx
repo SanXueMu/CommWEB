@@ -221,7 +221,8 @@ export function OcrStudio() {
   const [searchableFile, setSearchableFile] = useState<string>()
   const searchableMutation = useMutation({
     mutationFn: async () => {
-      const created = await api.runPipeline(props.searchableFlow!, { file } as Record<string, unknown>)
+      const created = await api.runPipeline(props.searchableFlow!,
+        { file, languages: null, force: null } as Record<string, unknown>)
       return waitRunFile(api, created.run_id, 'path')
     },
     onSuccess: (f) => { setSearchableFile(f); message.success(`${t.searchableOkPrefix}${f.split('/').pop()}`) },

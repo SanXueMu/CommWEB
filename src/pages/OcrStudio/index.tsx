@@ -7,6 +7,7 @@
  *  recognizeFlow?: string      // 识别管线（第一步应为 spec.template.resolve）
  *  exportFlow?: string         // 视图导出管线（input 含 db/view_spec/name）
  *  genFlow?: string            // 模板生成流（「新建模版」跳转）
+ *  searchableFlow?: string     // 可搜索 PDF 导出流（扫描件补隐形文字层）
  *  description?: string
  *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
@@ -52,14 +53,14 @@ const HIDDEN_ROW_KEYS = new Set(['source_file', '原文件路径', '页码'])
 
 /** 轮询管线 run 至终态并取产物路径（节奏同 DataBrowser.runTool：500ms × 300 ≈ 150s）。
  *  导出必须是「提交→等待→下载」闭环，否则产物生成了用户也取不到。 */
-async function waitRunFile(api: ReturnType<typeof apiFor>, runId: string): Promise<string> {
+async function waitRunFile(api: ReturnType<typeof apiFor>, runId: string, key: 'file' | 'path' = 'file'): Promise<string> {
   for (let i = 0; i < 300; i += 1) {
     // eslint-disable-next-line no-await-in-loop
     const detail = await api.getPipelineRun(runId)
     const status = detail.run.status
     if (status === 'succeeded') {
       const last = [...(detail.tasks ?? [])].sort((a, b) => a.step_index - b.step_index).pop()
-      const file = (last?.output as { file?: unknown } | null)?.file
+      const file = (last?.output as Record<string, unknown> | null)?.[key]
       if (typeof file === 'string' && file) return file
       throw new Error('导出已成功，但未返回产物路径')
     }
@@ -108,6 +109,7 @@ interface OcrStudioProps {
   recognizeFlow?: string
   exportFlow?: string
   genFlow?: string
+  searchableFlow?: string     // 可搜索 PDF 导出流（扫描件补隐形文字层）
   viewTool?: string          // 视图计算工具（声明下发，组件不写死工具名）
   description?: string
   builtinViews?: BuiltinView[]
@@ -215,6 +217,16 @@ export function OcrStudio() {
     },
     onError: (err) => message.error(`${t.exportFailedPrefix}${errMsg(err)}`),
   })
+  // 可搜索 PDF：扫描/图片版补隐形文字层（声明流，产物键为 path）
+  const [searchableFile, setSearchableFile] = useState<string>()
+  const searchableMutation = useMutation({
+    mutationFn: async () => {
+      const created = await api.runPipeline(props.searchableFlow!, { file } as Record<string, unknown>)
+      return waitRunFile(api, created.run_id, 'path')
+    },
+    onSuccess: (f) => { setSearchableFile(f); message.success(`${t.searchableOkPrefix}${f.split('/').pop()}`) },
+    onError: (err) => message.error(`${t.searchableFailedPrefix}${errMsg(err)}`),
+  })
   const saveViewMutation = useMutation({
     mutationFn: ({ tplId, spec }: { tplId: string; spec: unknown }) =>
       api.send('/ocr/templates', {
@@ -320,6 +332,12 @@ export function OcrStudio() {
                         <Button type="primary" loading={busy || runMutation.isPending} disabled={!canRecognize && !busy && !runMutation.isPending} onClick={startRecognize}>
                           {t.recognize}
                         </Button>
+                        {props.searchableFlow && (
+                          <Button loading={searchableMutation.isPending} disabled={!file || busy || searchableMutation.isPending} onClick={() => searchableMutation.mutate()}>
+                            {t.searchable}
+                          </Button>
+                        )}
+                        {searchableFile && <DownloadButton path={searchableFile} label={t.download} />}
                         {!templateId && <Typography.Text type="secondary">{t.recognizeNoTemplate}</Typography.Text>}
                         {templateId && !file && <Typography.Text type="secondary">{t.recognizeNoFile}</Typography.Text>}
                       </Space>
@@ -535,6 +553,9 @@ function useOcrText() {
     uploadTitle: '识别',
     tplExtraForm: '模版增量输入',
     recognize: '开始识别',
+    searchable: '导出可搜索 PDF',
+    searchableOkPrefix: '已生成可搜索 PDF：',
+    searchableFailedPrefix: '导出可搜索 PDF 失败：',
     recognizeNoTemplate: '先选择模版',
     recognizeNoFile: '先上传文件',
     tabRecognize: '识别',

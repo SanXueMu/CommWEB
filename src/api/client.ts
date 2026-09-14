@@ -22,6 +22,7 @@ import type {
 } from './types'
 
 import { registry } from '@/transfer/registry'
+import type { FileProbe } from '@/protocol/routeSelect'
 import { normalizePipeline, normalizeStatuses, normalizeTask, normalizeToolDetail, normalizeToolSummary } from '@/transfer/translator'
 
 /** 出站基址解析：显式 pid 优先，缺省跟随活跃会员。 */
@@ -150,6 +151,9 @@ function createApi(pid?: string) {
     if (extensions) params.set('extensions', extensions)
     return request<BatchUploaded>(`/files/list?${params.toString()}`, undefined, pid)
   },
+  /** 只读探测：扩展名 / PDF 页数 / 有无文字层 → 工作台据此自动选流（扫描件走图片翻译）。 */
+  probeFile: (path: string): Promise<FileProbe> =>
+    request<FileProbe>(`/files/probe?path=${encodeURIComponent(path)}`, undefined, pid),
   /** 批量打包下载：服务端把多个任务的产物收进一个 zip（返回 zip 路径，再走 downloadUrl 下载）。 */
   packageRuns: (runIds: string[], scope: 'final' | 'all' = 'final', name?: string): Promise<RunPackage> =>
     request<RunPackage>('/files/package', {

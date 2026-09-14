@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  defaultParams, flowForFile, matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
+  defaultParams, flowForFile, imagePageLimit, matchRoutes, matchUnsupported, paramDefault, routeForProbe,
+  supportedExtensions, visibleParams,
   type ParamField, type Route, type UnsupportedRule,
 } from './routeSelect'
 
@@ -84,6 +85,38 @@ describe('paramDefault / default_by_flow', () => {
     expect(defaultParams([mode], 'flow.pdf')).toEqual({ mode: 'overlay' })
   })
 })
+
+describe('routeForProbe / imagePageLimit（系统探测选流）', () => {
+  const pdfRoutes: Route[] = [
+    { ext: ['.pdf'], flow: 'flow.translate.pdf.layout', label: '文字版（版式翻译）', for: 'text' },
+    { ext: ['.pdf'], flow: 'flow.translate.pdf.image', label: '扫描件（图片翻译）', for: 'scanned' },
+    { ext: ['.docx'], flow: 'flow.translate.docx', label: 'Word' },
+  ]
+  it('扫描件 → 图片翻译流', () => {
+    expect(routeForProbe('a.pdf', pdfRoutes, { kind: 'pdf', has_text_layer: false, pages: 3 }))
+      .toBe('flow.translate.pdf.image')
+  })
+  it('有文字层 → 文字版流', () => {
+    expect(routeForProbe('a.pdf', pdfRoutes, { kind: 'pdf', has_text_layer: true, pages: 3 }))
+      .toBe('flow.translate.pdf.layout')
+  })
+  it('显式选定（preferred）优先于探测', () => {
+    expect(routeForProbe('a.pdf', pdfRoutes, { kind: 'pdf', has_text_layer: false }, 'flow.translate.pdf.layout'))
+      .toBe('flow.translate.pdf.layout')
+  })
+  it('非 PDF / 探测为空 / 无 for 标记 一律回落按扩展名分流', () => {
+    expect(routeForProbe('a.docx', pdfRoutes, { kind: 'docx' })).toBe('flow.translate.docx')
+    expect(routeForProbe('a.pdf', pdfRoutes, undefined)).toBe('flow.translate.pdf.layout')
+    expect(routeForProbe('a.pdf', [{ ext: ['.pdf'], flow: 'only' }], { kind: 'pdf', has_text_layer: false }))
+      .toBe('only')
+  })
+  it('imagePageLimit 取探测端点回传的页数上限', () => {
+    expect(imagePageLimit({ kind: 'pdf', image_max_pages: 500 })).toBe(500)
+    expect(imagePageLimit({ kind: 'pdf', image_max_pages: null })).toBeUndefined()
+    expect(imagePageLimit(undefined)).toBeUndefined()
+  })
+})
+
 
 describe('matchUnsupported / supportedExtensions', () => {
   const rules: UnsupportedRule[] = [{ ext: ['.doc'], message: '请另存为 .docx' }]

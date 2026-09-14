@@ -15,7 +15,7 @@
  *  languages?: { value: string; label: string }[]
  *  description?: string
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, AutoComplete, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal,
@@ -29,8 +29,9 @@ import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { viewPathByType } from '@/transfer/siteManifest'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import {
-  flowForFile, matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
-  type ParamField, type Route, type UnsupportedRule,
+  flowForFile, imagePageLimit, matchRoutes, matchUnsupported, paramDefault, routeForProbe,
+  supportedExtensions, visibleParams,
+  type FileProbe, type ParamField, type Route, type UnsupportedRule,
 } from '@/protocol/routeSelect'
 import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import { runPool } from '@/protocol/pool'
@@ -152,6 +153,9 @@ export function TranslateStudio() {
   const [sourceLang, setSourceLang] = useState<string>('')
   const [targetLang, setTargetLang] = useState<string>('Chinese')
   const [routeFlow, setRouteFlow] = useState<string>()
+  const [probe, setProbe] = useState<FileProbe>()
+  const [probeNote, setProbeNote] = useState<string>()
+  const manualFlow = useRef(false)
   const [paramVals, setParamVals] = useState<Record<string, string>>({})
   const [activeRun, setActiveRun] = useState<string | null>(null)
   const [detailRun, setDetailRun] = useState<string | null>(null)
@@ -167,7 +171,7 @@ export function TranslateStudio() {
   const [batchSel, setBatchSel] = useState<string[]>([])
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
-  const [batchReport, setBatchReport] = useState<{ file: string; runId?: string; error?: string }[]>([])
+  const [batchReport, setBatchReport] = useState<{ file: string; flow?: string; runId?: string; error?: string }[]>([])
   const [pickedRuns, setPickedRuns] = useState<string[]>([])
   const [dictModel, setDictModel] = useState<string>()
   const [dictPage, setDictPage] = useState(1)
@@ -238,6 +242,34 @@ export function TranslateStudio() {
   const selectedTemplate = tplDetailQuery.data ?? tplList.find((x) => x.id === templateId)
   const matchedRoutes = useMemo(() => matchRoutes(file, routes), [file, routes])
   const flow = useMemo(() => flowForFile(file, routes, routeFlow), [file, routes, routeFlow])
+
+  /** 用户手动选定处理方式（此后不再被自动探测覆盖）。 */
+  const chooseFlow = (v?: string) => {
+    manualFlow.current = true
+    setRouteFlow(v)
+  }
+
+  // 系统探测：PDF 有无文字层 → 自动选流（扫描件→图片翻译）；换文件即重置手动选择
+  useEffect(() => {
+    manualFlow.current = false
+    setProbe(undefined)
+    setProbeNote(undefined)
+    setRouteFlow(undefined)
+    if (!file || !file.toLowerCase().endsWith('.pdf')) return
+    let alive = true
+    api.probeFile(file)
+      .then((p) => {
+        if (!alive) return
+        setProbe(p)
+        const want = routeForProbe(file, routes, p)
+        if (want) setRouteFlow(want)
+        setProbeNote(p.has_text_layer ? t.probeText : t.probeScanned)
+      })
+      .catch(() => undefined)
+    return () => { alive = false }
+    // routes/t 仅在换文件时读取一次，不进依赖避免重复探测
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, api])
   const activeParams = visibleParams(paramFields, flow)
   /** 参数默认值：声明 default_by_flow 优先于 default（如 Word 默认双语、PDF 版式默认原位） */
   const paramValue = (p: ParamField, f = flow) => paramVals[p.name] ?? paramDefault(p, f)
@@ -286,17 +318,34 @@ export function TranslateStudio() {
     setBatchRunning(true)
     setBatchReport([])
     setBatchProgress({ done: 0, total: targets.length })
-    const report: { file: string; runId?: string; error?: string }[] = []
+    const report: { file: string; flow?: string; runId?: string; error?: string }[] = []
+    // 逐文件系统探测后选流：PDF 判有无文字层（扫描件→图片翻译），超页数上限则不入队
+    const resolveFlow = async (item: BatchFileEntry) => {
+      const byExt = flowFor(item.name)
+      if (!item.name.toLowerCase().endsWith('.pdf')) return { flow: byExt }
+      try {
+        const p = await api.probeFile(item.path)
+        const limit = imagePageLimit(p)
+        if (p.has_text_layer === false && limit && (p.pages ?? 0) > limit) {
+          return { flow: byExt, error: `${t.pageOver}（${p.pages}/${limit}）` }
+        }
+        return { flow: routeForProbe(item.name, routes, p) ?? byExt }
+      } catch {
+        return { flow: byExt }
+      }
+    }
     await runPool(targets, async (item) => {
-      const target = flowFor(item.name)
-      if (!target) {
+      const { flow: target, error: probeError } = await resolveFlow(item)
+      if (probeError) {
+        report.push({ file: item.name, error: probeError })
+      } else if (!target) {
         report.push({ file: item.name, error: t.noRoute })
       } else {
         try {
           const created = await api.runPipeline(target, buildInput(item.name, item.path))
-          report.push({ file: item.name, runId: created.run_id })
+          report.push({ file: item.name, flow: target, runId: created.run_id })
         } catch (error) {
-          report.push({ file: item.name, error: errMsg(error) })
+          report.push({ file: item.name, flow: target, error: errMsg(error) })
         }
       }
       setBatchProgress((p) => ({ ...p, done: p.done + 1 }))
@@ -464,6 +513,8 @@ export function TranslateStudio() {
     setTemplateId(tpl.id)
     // 模版声明了模型才覆盖，否则保留声明层默认（如 qwen-mt-flash）
     if (tpl.model) setParamVals((s) => ({ ...s, model: tpl.model ?? '' }))
+    // 模版声明的业务领域透传给图片翻译（domainHint）
+    if (tpl.domain_hint) setParamVals((s) => ({ ...s, image_domain_hint: tpl.domain_hint ?? '' }))
     setSourceLang(tpl.source_lang ?? '')
     setTargetLang(tpl.target_lang ?? 'Chinese')
   }
@@ -620,7 +671,7 @@ export function TranslateStudio() {
                         </Form.Item>
                         {matchedRoutes.length > 1 && (
                           <Form.Item label={t.routeLabel} style={{ minWidth: 240 }}>
-                            <Select value={flow} onChange={setRouteFlow}
+                            <Select value={flow} onChange={chooseFlow}
                               options={matchedRoutes.map((r) => ({ value: r.flow, label: r.label ?? r.flow }))} />
                           </Form.Item>
                         )}
@@ -664,6 +715,12 @@ export function TranslateStudio() {
                           </Button>
                         )}
                         {!batchOn && file && flow && <Tag>{flow}</Tag>}
+                        {!batchOn && probeNote && (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            {probeNote}
+                            {probe?.pages ? ` · ${probe.pages} ${t.pagesWord}` : ''}
+                          </Typography.Text>
+                        )}
                         {!batchOn && file && !flow && (
                           <Typography.Text type={unsupportedHint ? 'danger' : 'warning'}>
                             {unsupportedHint ?? t.noRoute}
@@ -686,7 +743,9 @@ export function TranslateStudio() {
                             {batchReport.map((r) => (
                               <Typography.Text key={r.file} type={r.runId ? 'secondary' : 'danger'}
                                 style={{ fontSize: 12, display: 'block' }}>
-                                {r.runId ? '✓' : '✕'} {r.file}{r.runId ? '' : `：${r.error}`}
+                                {r.runId ? '✓' : '✕'} {r.file}
+                                {r.flow && <Typography.Text type="secondary" style={{ fontSize: 11 }}> [{r.flow.replace('flow.translate.', '')}]</Typography.Text>}
+                                {r.runId ? '' : `：${r.error}`}
                               </Typography.Text>
                             ))}
                           </div>
@@ -984,6 +1043,8 @@ function useTranslateText() {
     modeSingle: '单文件', modeBatch: '批量', batchList: '待翻译文件', selectAll: '全选', selectNone: '全不选',
     clearList: '清空清单', batchStart: '开始翻译（批量）', batchNone: '请先勾选要翻译的文件',
     batchQueued: '已入队', batchSomeFailed: '个未能入队（见下方明细）',
+    probeText: '已识别：文字版 PDF（走版式翻译）', probeScanned: '已识别：扫描件（走图片翻译，保留版式）',
+    pagesWord: '页', pageOver: '超过图片翻译单任务页数上限，请拆分',
     packNone: '请先勾选任务', packRun: '打包下载', packDone: '已打包', packRunsWord: '个任务',
     packFilesWord: '个产物', packSkipped: '部分任务未打包', packFailed: '打包失败：',
     batchDelete: '批量删除', batchDeleteHint: '将对选中的 {n} 个任务执行删除（运行中的会先自动取消）',

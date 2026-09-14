@@ -212,6 +212,8 @@ export interface TranslateTemplate {
   source_lang?: string | null
   target_lang?: string | null
   model?: string | null
+  /** 业务领域（图片翻译的 domainHint，如「审计财务」） */
+  domain_hint?: string | null
   terms?: [string, string][]
   terms_count?: number
   builtin?: boolean

@@ -7,6 +7,8 @@ export interface Route {
   ext: string[]
   flow: string
   label?: string
+  /** 供「系统探测」自动选流：text=有文字层, scanned=扫描件（图片翻译） */
+  for?: string
 }
 
 export interface ParamField {
@@ -39,6 +41,34 @@ export function matchRoutes(file: string | undefined, routes: Route[]): Route[] 
 export function flowForFile(file: string | undefined, routes: Route[], preferred?: string): string | undefined {
   const matched = matchRoutes(file, routes)
   return matched.some((r) => r.flow === preferred) ? preferred : matched[0]?.flow
+}
+
+/** 探测结论（CommAND GET /files/probe 的返回子集）。 */
+export interface FileProbe {
+  kind?: string
+  pages?: number | null
+  has_text_layer?: boolean | null
+  image_max_pages?: number | null
+}
+
+/** 探测结论 → 选流：扫描件（无文字层）选声明 for='scanned' 的路由，有文字层选 for='text'。
+ *  用户显式选过处理方式（preferred）时一律尊重；无声明标记时回落按扩展名分流。 */
+export function routeForProbe(
+  file: string | undefined, routes: Route[], probe?: FileProbe, preferred?: string,
+): string | undefined {
+  if (preferred) return preferred
+  if (probe?.kind !== 'pdf' || probe.has_text_layer === null || probe.has_text_layer === undefined) {
+    return flowForFile(file, routes)
+  }
+  const want = probe.has_text_layer ? 'text' : 'scanned'
+  const matched = matchRoutes(file, routes).find((r) => r.for === want)
+  return matched?.flow ?? flowForFile(file, routes)
+}
+
+/** 图片翻译页数上限（探测端点回传）；超出需拆分。 */
+export function imagePageLimit(probe?: FileProbe): number | undefined {
+  const limit = probe?.image_max_pages
+  return typeof limit === 'number' && limit > 0 ? limit : undefined
 }
 
 /** 附加参数按选中流过滤（无 when_flow 恒显示）。 */

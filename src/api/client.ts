@@ -152,6 +152,8 @@ function createApi(pid?: string) {
       count: number
       run_ids: string[]
       files: { file: string; name: string; run_id: string; status: string; error?: string | null }[]
+      /** 已有成功译文的文件（据此把「重跑」置灰，与是否还有失败尝试无关） */
+      done_files?: string[]
     }>(`/pipeline-runs/rerunnable?${q.toString()}`)
   },
   deleteRun: (runId: string, purgeFiles = true) =>

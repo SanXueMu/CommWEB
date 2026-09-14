@@ -142,9 +142,11 @@ export default function RunListPanel({
     [shown, picked])
   const rerunIds = pickedFailed.length > 0 ? pickedFailed : (rerunQ.data?.run_ids ?? [])
   const rerunCount = rerunIds.length
-  /** 仍「从未成功过」的文件（服务端口径）：不在其中的失败行 = 已有成功译文，重跑按钮置灰。 */
-  const pendingFiles = useMemo(
-    () => new Set((rerunQ.data?.files ?? []).map((f) => f.file)),
+  /** 已有成功译文的文件（服务端口径）：这类文件的「重跑」置灰。
+   *  注意不能用「待重跑清单」反推 —— 最新一次是 paused 的文件也不在待重跑清单里，
+   *  会被误判成「已成功」（线上 PNG：降级到 skip 后暂停，导致失败的原流无法重跑）。 */
+  const doneFiles = useMemo(
+    () => new Set(rerunQ.data?.done_files ?? []),
     [rerunQ.data])
   // 刷新后本地记不住批次根目录名 → 从服务端清单补（只读，仅在缺名时请求）
   const missingBatchIds = useMemo(
@@ -401,7 +403,7 @@ export default function RunListPanel({
           {onRerun && (() => {
             // 该文件已有成功译文（不在待重跑清单里）→ 无需重跑，置灰
             const file = String(r.input?.file ?? '')
-            const done = RERUNNABLE.has(r.status) && file !== '' && !pendingFiles.has(file)
+            const done = RERUNNABLE.has(r.status) && file !== '' && doneFiles.has(file)
             return (
               <Tooltip title={done ? '该文件已有成功译文，无需重跑' : undefined}>
                 <Button size="small" type="link" disabled={done}

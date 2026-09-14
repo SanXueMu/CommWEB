@@ -32,6 +32,7 @@ import type { BatchFileEntry } from '@/api/client'
 import { DownloadButton } from '@/components/DownloadButton'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import RunListPanel from '@/components/RunListPanel'
+import { pollIntervalFor } from '@/protocol/polling'
 import { SpecEditor, type BuiltinView } from '@/components/SpecEditor'
 import { StepTrack } from '@/components/StepTrack'
 
@@ -177,7 +178,7 @@ export function OcrStudio() {
   const ocrRuns = useQuery({
     queryKey: ['provider', pid, 'ocr-runs', (props.flows ?? []).join(',')],
     queryFn: () => api.listRuns(undefined, 200),
-    refetchInterval: 2000,
+    refetchInterval: (q) => pollIntervalFor((q.state.data?.runs ?? []).map((r) => r.status)),
     enabled: (props.flows?.length ?? 0) > 0,
   })
   const run = useQuery({

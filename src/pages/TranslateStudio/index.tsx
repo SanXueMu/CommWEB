@@ -34,6 +34,7 @@ import {
   type FileProbe, type ParamField, type Route, type UnsupportedRule,
 } from '@/protocol/routeSelect'
 import { runPool } from '@/protocol/pool'
+import { pollIntervalFor } from '@/protocol/polling'
 import type {
   PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
 } from '@/api/types'
@@ -201,7 +202,8 @@ export function TranslateStudio() {
     queryKey: ['provider', pid, 'translate-runs', flowIds.join(',')],
     queryFn: () => api.listRuns(undefined, 100),
     enabled: flowIds.length > 0,
-    refetchInterval: 3000,
+    // 有任务在跑就快刷（1.5s），全部终态退到慢刷：任务清单进度不再「半天不动」
+    refetchInterval: (q) => pollIntervalFor((q.state.data?.runs ?? []).map((r) => r.status)),
   })
   const runList = useMemo(
     () => (runs.data?.runs ?? []).filter((r) => r.pipeline_id && flowIds.includes(r.pipeline_id)),

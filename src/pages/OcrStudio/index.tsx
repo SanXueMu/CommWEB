@@ -8,14 +8,15 @@
  *  exportFlow?: string         // 视图导出管线（input 含 db/view_spec/name）
  *  genFlow?: string            // 模板生成流（「新建模版」跳转）
  *  searchableFlow?: string     // 可搜索 PDF 导出流（扫描件补隐形文字层）
+ *  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }  // 存在才显示批量入口
  *  description?: string
  *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
-  Alert, Button, Card, Descriptions, Drawer, Empty, Flex, Form, Image, Input, InputNumber,
-  List, Modal, Popover, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
+  Alert, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Image, Input, InputNumber,
+  List, Modal, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
@@ -26,6 +27,10 @@ import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import type { PipelineRunCreated } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
+import { BatchUpload } from '@/components/BatchUpload'
+import { runPool } from '@/protocol/pool'
+import { humanSize } from '@/lib/size'
+import type { BatchFileEntry } from '@/api/client'
 import { DownloadButton } from '@/components/DownloadButton'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { TemplateManager } from '@/components/TemplateManager'
@@ -38,6 +43,8 @@ function errMsg(e: unknown): string {
 }
 
 const RUNNING = new Set(['running', 'pending', 'queued'])
+// 批量入队并发 2（多模态识别模型有 RPM 限速，并发过高会 429）
+const ENQUEUE_CONCURRENCY = 2
 
 /** 记录行键名归一：优先后端英文键，中文键兜底（组件不对字段名做业务假设）。
  *  source_file 是后端按 source_path 反查出的真实路径，缺失即原文件已不在盘上。 */
@@ -111,6 +118,8 @@ interface OcrStudioProps {
   genFlow?: string
   searchableFlow?: string     // 可搜索 PDF 导出流（扫描件补隐形文字层）
   viewTool?: string          // 视图计算工具（声明下发，组件不写死工具名）
+  /** 批量入口声明：存在才显示「单文件 / 批量」切换（一次多文件 = 每文件各一条识别任务） */
+  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }
   description?: string
   builtinViews?: BuiltinView[]
 }
@@ -131,6 +140,14 @@ export function OcrStudio() {
   const [pageView, setPageView] = useState<{ path: string; page: number } | null>(null)
   const [viewSpec, setViewSpec] = useState<string>()
   const [extraForm] = Form.useForm()
+  // 批量识别：勾选清单逐文件各起一条识别任务（与单文件同模版、同级联参数）
+  const batchCfg = props.batch
+  const [batchOn, setBatchOn] = useState(false)
+  const [batchList, setBatchList] = useState<BatchFileEntry[]>([])
+  const [batchSel, setBatchSel] = useState<string[]>([])
+  const [batchRunning, setBatchRunning] = useState(false)
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
+  const [batchReport, setBatchReport] = useState<{ file: string; runId?: string; error?: string }[]>([])
 
   const templates = useQuery({
     queryKey: ['provider', pid, 'ocr-templates'],
@@ -188,6 +205,34 @@ export function OcrStudio() {
     if (!props.recognizeFlow) return
     const extra = await extraForm.validateFields().catch(() => undefined)
     runMutation.mutate({ template_id: templateId, file, ...extra })
+  }
+
+  /** 批量识别：同一模版 + 同一级联参数，逐文件各起一条任务（并发 2），逐条回报入队结果。 */
+  const startRecognizeBatch = async () => {
+    if (!props.recognizeFlow) return
+    if (!templateId) { message.warning(t.recognizeNoTemplate); return }
+    const targets = batchList.filter((f) => batchSel.includes(f.path))
+    if (!targets.length) { message.warning(t.batchNone); return }
+    const extra = await extraForm.validateFields().catch(() => undefined)
+    if (extra === undefined) return
+    setBatchRunning(true)
+    setBatchReport([])
+    setBatchProgress({ done: 0, total: targets.length })
+    const report: { file: string; runId?: string; error?: string }[] = []
+    await runPool(targets, async (item) => {
+      try {
+        const created = await api.runPipeline(props.recognizeFlow!, { template_id: templateId, file: item.path, ...extra })
+        report.push({ file: item.name, runId: created.run_id })
+      } catch (error) {
+        report.push({ file: item.name, error: errMsg(error) })
+      }
+      setBatchProgress((p) => ({ ...p, done: p.done + 1 }))
+      setBatchReport([...report])
+    }, ENQUEUE_CONCURRENCY)
+    setBatchRunning(false)
+    const failed = report.filter((r) => r.error).length
+    if (report.length - failed) message.success(`${t.batchQueued} ${report.length - failed}`)
+    if (failed) message.warning(`${failed} ${t.batchSomeFailed}`)
   }
 
   // 视图预览：跑视图计算工具（纯预览不落盘），splits 由 ResultRenderer 渲染
@@ -311,9 +356,60 @@ export function OcrStudio() {
               key: 'recognize', label: t.tabRecognize,
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <Card size="small" title={t.uploadTitle}>
+                  <Card
+                    size="small"
+                    title={t.uploadTitle}
+                    extra={batchCfg ? (
+                      <Segmented
+                        size="small"
+                        value={batchOn ? 'batch' : 'single'}
+                        onChange={(v) => setBatchOn(v === 'batch')}
+                        options={[{ value: 'single', label: t.modeSingle }, { value: 'batch', label: t.modeBatch }]}
+                      />
+                    ) : undefined}
+                  >
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      <FileUpload value={file ?? undefined} onChange={setFile} />
+                      {batchOn && batchCfg ? (
+                        <>
+                          <BatchUpload
+                            extensions={batchCfg.extensions}
+                            maxFiles={batchCfg.maxFiles}
+                            maxTotalMB={batchCfg.maxTotalMB}
+                            disabled={batchRunning}
+                            onPicked={(files) => { setBatchList(files); setBatchSel(files.map((f) => f.path)) }}
+                          />
+                          {batchList.length > 0 && (
+                            <Card
+                              type="inner" size="small"
+                              title={`${t.batchList}（${batchSel.length}/${batchList.length}）`}
+                              extra={(
+                                <Space>
+                                  <Button size="small" onClick={() => setBatchSel(batchList.map((f) => f.path))}>{t.selectAll}</Button>
+                                  <Button size="small" onClick={() => setBatchSel([])}>{t.selectNone}</Button>
+                                  <Button size="small" onClick={() => { setBatchList([]); setBatchSel([]); setBatchReport([]) }}>{t.clearList}</Button>
+                                </Space>
+                              )}
+                            >
+                              <Space direction="vertical" size={4} style={{ width: '100%', maxHeight: 220, overflow: 'auto' }}>
+                                {batchList.map((f) => (
+                                  <Checkbox
+                                    key={f.path}
+                                    checked={batchSel.includes(f.path)}
+                                    onChange={(e) => setBatchSel((sel) => (e.target.checked ? [...sel, f.path] : sel.filter((p) => p !== f.path)))}
+                                  >
+                                    <Space>
+                                      <Typography.Text style={{ fontSize: 13 }}>{f.rel || f.name}</Typography.Text>
+                                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{humanSize(f.size || 0)}</Typography.Text>
+                                    </Space>
+                                  </Checkbox>
+                                ))}
+                              </Space>
+                            </Card>
+                          )}
+                        </>
+                      ) : (
+                        <FileUpload value={file ?? undefined} onChange={setFile} />
+                      )}
                       {Object.keys(extraProperties).length > 0 && (
                         <Card type="inner" size="small" title={`${t.tplExtraForm}（${selectedTemplate?.name ?? templateId}）`}>
                           <Form form={extraForm} layout="vertical" initialValues={Object.fromEntries(
@@ -330,20 +426,47 @@ export function OcrStudio() {
                         </Card>
                       )}
                       <Space wrap>
-                        <Button type="primary" loading={busy || runMutation.isPending} disabled={!canRecognize && !busy && !runMutation.isPending} onClick={startRecognize}>
-                          {t.recognize}
-                        </Button>
-                        {props.searchableFlow && (
-                          <Button loading={searchableMutation.isPending} disabled={!file || busy || searchableMutation.isPending} onClick={() => searchableMutation.mutate()}>
-                            {t.searchable}
-                          </Button>
+                        {batchOn && batchCfg ? (
+                          <>
+                            <Button type="primary" loading={batchRunning} disabled={!templateId || !batchSel.length || batchRunning} onClick={startRecognizeBatch}>
+                              {t.batchStart}（{batchSel.length}）
+                            </Button>
+                            {!templateId && <Typography.Text type="secondary">{t.recognizeNoTemplate}</Typography.Text>}
+                            {templateId && !batchList.length && <Typography.Text type="secondary">{t.batchNoFile}</Typography.Text>}
+                          </>
+                        ) : (
+                          <>
+                            <Button type="primary" loading={busy || runMutation.isPending} disabled={!canRecognize && !busy && !runMutation.isPending} onClick={startRecognize}>
+                              {t.recognize}
+                            </Button>
+                            {props.searchableFlow && (
+                              <Button loading={searchableMutation.isPending} disabled={!file || busy || searchableMutation.isPending} onClick={() => searchableMutation.mutate()}>
+                                {t.searchable}
+                              </Button>
+                            )}
+                            {searchableFile && <DownloadButton path={searchableFile} label={t.download} />}
+                            {!templateId && <Typography.Text type="secondary">{t.recognizeNoTemplate}</Typography.Text>}
+                            {templateId && !file && <Typography.Text type="secondary">{t.recognizeNoFile}</Typography.Text>}
+                          </>
                         )}
-                        {searchableFile && <DownloadButton path={searchableFile} label={t.download} />}
-                        {!templateId && <Typography.Text type="secondary">{t.recognizeNoTemplate}</Typography.Text>}
-                        {templateId && !file && <Typography.Text type="secondary">{t.recognizeNoFile}</Typography.Text>}
                       </Space>
-                      {runId && runStatus && <StepTrack runId={runId} steps={steps} runStatus={runStatus} />}
-                      {runStatus === 'failed' && (
+                      {batchOn && batchCfg && batchProgress.total > 0 && (
+                        <>
+                          <Progress
+                            percent={Math.round((batchProgress.done / batchProgress.total) * 100)}
+                            status={batchRunning ? 'active' : 'normal'}
+                          />
+                          <Space direction="vertical" size={2} style={{ width: '100%', maxHeight: 160, overflow: 'auto' }}>
+                            {batchReport.map((r) => (
+                              <Typography.Text key={r.file} style={{ fontSize: 12 }} type={r.error ? 'danger' : 'secondary'}>
+                                {r.error ? '✕' : '✓'} {r.file}{r.error ? ` — ${r.error}` : r.runId ? ` — ${r.runId}` : ''}
+                              </Typography.Text>
+                            ))}
+                          </Space>
+                        </>
+                      )}
+                      {!batchOn && runId && runStatus && <StepTrack runId={runId} steps={steps} runStatus={runStatus} />}
+                      {!batchOn && runStatus === 'failed' && (
                         <Alert type="error" showIcon message={run.data?.run.error?.message ?? '识别运行失败'} />
                       )}
                     </Space>
@@ -559,6 +682,10 @@ function useOcrText() {
     searchableFailedPrefix: '导出可搜索 PDF 失败：',
     recognizeNoTemplate: '先选择模版',
     recognizeNoFile: '先上传文件',
+    modeSingle: '单文件', modeBatch: '批量',
+    batchList: '待识别文件', selectAll: '全选', selectNone: '全不选', clearList: '清空清单',
+    batchStart: '开始识别（批量）', batchNone: '请先勾选要识别的文件', batchNoFile: '先上传文件或目录',
+    batchQueued: '已入队', batchSomeFailed: '个未能入队（见下方明细）',
     tabRecognize: '识别',
     tabRecords: '结果',
     tabViews: '视图',

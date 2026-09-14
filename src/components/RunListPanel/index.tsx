@@ -7,6 +7,7 @@ import { DeleteOutlined, DownloadOutlined, EyeOutlined, RedoOutlined, ReloadOutl
 import { apiFor } from '@/api/client'
 import type { RunSummary } from '@/api/types'
 import { humanSize } from '@/lib/size'
+import { triggerDownload } from '@/lib/download'
 import { runPool } from '@/protocol/pool'
 import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import { useConfirm } from '@/components/ConfirmDialog'
@@ -53,6 +54,7 @@ export default function RunListPanel({
   const { confirm } = useConfirm()
   const [picked, setPicked] = useState<string[]>([])
   const [batchFilter, setBatchFilter] = useState<string>()
+  const [packing, setPacking] = useState(false)
 
   useEffect(() => {
     setPicked((keys) => keys.filter((k) => runs.some((r) => r.id === k)))
@@ -156,6 +158,7 @@ export default function RunListPanel({
   }
 
   async function packRuns(ids: string[]) {
+    setPacking(true)
     try {
       const pkg = await api.packageRuns(ids, 'final')
       if (pkg.skipped?.length) {
@@ -163,18 +166,19 @@ export default function RunListPanel({
       } else {
         message.success(`已打包 ${pkg.runs} 个任务 / ${pkg.count} 个产物（${humanSize(pkg.size)}）`)
       }
-      window.open(api.downloadUrl(pkg.path), '_blank')
-    } catch (e) { message.error((e as Error).message) }
+      triggerDownload(api.downloadUrl(pkg.path))
+    } catch (e) { message.error((e as Error).message) } finally { setPacking(false) }
   }
 
   /** 批次导出：按上传清单还原**原目录结构**（根目录加 _中文），未处理的放原文件。 */
   async function packBatch(batchId: string) {
+    setPacking(true)
     try {
       const pkg = await api.packageBatch(batchId)
       const extra = pkg.passthrough?.length ? `；未处理 ${pkg.passthrough.length} 个已放原文件` : ''
       message.success(`已按原目录结构打包 ${pkg.count} 个文件（${humanSize(pkg.size)}）${extra}`)
-      window.open(api.downloadUrl(pkg.path), '_blank')
-    } catch (e) { message.error((e as Error).message) }
+      triggerDownload(api.downloadUrl(pkg.path))
+    } catch (e) { message.error((e as Error).message) } finally { setPacking(false) }
   }
 
   const columns = [
@@ -286,12 +290,13 @@ export default function RunListPanel({
                 已选 {picked.length}
                 {usage.data ? ` · ${humanSize(usage.data.total.bytes ?? 0)}` : ''}
               </Typography.Text>
-              <Button size="small" icon={<DownloadOutlined />} onClick={() => packRuns(picked)}>打包下载</Button>
+              <Button size="small" icon={<DownloadOutlined />} loading={packing}
+                onClick={() => packRuns(picked)}>打包下载</Button>
               <Button size="small" danger icon={<DeleteOutlined />} onClick={() => askDelete(picked)}>批量删除</Button>
             </>
           )}
           {batchFilter && (
-            <Button size="small" type="primary" ghost icon={<DownloadOutlined />}
+            <Button size="small" type="primary" ghost icon={<DownloadOutlined />} loading={packing}
               onClick={() => packBatch(batchFilter)}>导出本批次（原目录结构）</Button>
           )}
           {rerunnable.length > 0 && (

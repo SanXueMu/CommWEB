@@ -13,6 +13,7 @@ import type { RunSummary } from '@/api/types'
 import { humanSize } from '@/lib/size'
 import { triggerDownload } from '@/lib/download'
 import { runPool } from '@/protocol/pool'
+import { pollIntervalFor } from '@/protocol/polling'
 import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import { useConfirm } from '@/components/ConfirmDialog'
 
@@ -25,6 +26,37 @@ const DELETE_CONCURRENCY = 4
 const STATUS_LABEL: Record<string, string> = {
   queued: '排队中', running: '进行中', paused: '已暂停（待处理）',
   succeeded: '已完成', failed: '失败', cancelled: '已取消', interrupted: '已中断',
+}
+
+/** 同一文件的多次尝试：只展示「最优」那条（成功 > 暂停 > 失败，同级最新），
+ *  排序用该文件**最后一次尝试**时间 —— 重跑后自动排到最前，不会留下「已成功还挂着失败」的混淆。 */
+const STATUS_RANK: Record<string, number> = { succeeded: 3, paused: 2 }
+
+interface FileGroup {
+  file: string
+  best: RunSummary
+  all: string[]
+  attempts: number
+  latestAt: string
+}
+
+function groupByFile(runs: RunSummary[]): FileGroup[] {
+  const groups = new Map<string, RunSummary[]>()
+  for (const r of runs) {
+    const key = String(r.input?.file ?? r.id)
+    const list = groups.get(key)
+    if (list) list.push(r)
+    else groups.set(key, [r])
+  }
+  const at = (r: RunSummary) => String(r.created_at ?? '')
+  const out: FileGroup[] = []
+  for (const [file, list] of groups) {
+    const byBest = [...list].sort((a, b) =>
+      (STATUS_RANK[b.status] ?? 1) - (STATUS_RANK[a.status] ?? 1) || at(b).localeCompare(at(a)))
+    const latestAt = list.reduce((acc, r) => (at(r) > acc ? at(r) : acc), '')
+    out.push({ file, best: byBest[0], all: list.map((r) => r.id), attempts: list.length, latestAt })
+  }
+  return out.sort((a, b) => b.latestAt.localeCompare(a.latestAt))
 }
 
 export interface RunListPanelProps {
@@ -61,6 +93,8 @@ export default function RunListPanel({
   const [picked, setPicked] = useState<string[]>([])
   const [batchFilter, setBatchFilter] = useState<string>()
   const [packing, setPacking] = useState(false)
+  /** 默认「一个文件一行」；打开后展开每个文件的历史尝试（审计记录不丢） */
+  const [showHistory, setShowHistory] = useState(false)
   // N3：替换原件（.doc→.docx 等）/ 就地修正任务参数（密钥名、模型）
   const [editRun, setEditRun] = useState<RunSummary | null>(null)
   const [editText, setEditText] = useState('')
@@ -76,11 +110,20 @@ export default function RunListPanel({
     queryKey: ['provider', pid, 'batch-runs', batchFilter],
     queryFn: () => api.listRuns(undefined, 1000, 0, batchFilter),
     enabled: Boolean(batchFilter),
+    // 有任务在跑就快刷；全终态慢刷（此前无轮询 → 重跑后列表不刷新）
+    refetchInterval: (q) => pollIntervalFor((q.state.data?.runs ?? []).map((r) => r.status)),
   })
   const shown = useMemo(
     () => (batchFilter ? (batchRuns.data?.runs ?? runs.filter((r) => r.batch_id === batchFilter))
                        : runs),
     [runs, batchFilter, batchRuns.data])
+
+  const groups = useMemo(() => groupByFile(shown), [shown])
+  const rows = useMemo(() => (showHistory ? shown : groups.map((g) => g.best)),
+    [groups, shown, showHistory])
+  const attemptsOf = useMemo(() => new Map(groups.map((g) => [g.best.id, g.attempts])), [groups])
+  /** 行 id → 该文件全部 run id：删除按**整个文件**生效（不留历史失败记录） */
+  const allIdsOf = useMemo(() => new Map(groups.map((g) => [g.best.id, g.all])), [groups])
 
   const batchIds = useMemo(
     () => [...new Set(runs.map((r) => r.batch_id).filter((x): x is string => !!x))],
@@ -129,7 +172,7 @@ export default function RunListPanel({
 
   const resume = useMutation({
     mutationFn: (runId: string) => api.resumeRun(runId),
-    onSuccess: () => { message.success('已继续'); onChanged?.(); onRefresh?.() },
+    onSuccess: () => { message.success('已继续'); invalidateSelf(); onChanged?.(); onRefresh?.() },
     onError: (e: Error) => message.error(e.message),
   })
 
@@ -140,14 +183,14 @@ export default function RunListPanel({
   // 替换原件：把新文件写进同批次目录 + 更新清单 + 更新该 run 的 input.file
   const replaceFile = useMutation({
     mutationFn: (v: { runId: string; file: File }) => api.replaceRunFile(v.runId, v.file),
-    onSuccess: () => { message.success('已替换原件，点「继续」或「重跑」即可'); onChanged?.(); onRefresh?.() },
+    onSuccess: () => { message.success('已替换原件，点「继续」或「重跑」即可'); invalidateSelf(); onChanged?.(); onRefresh?.() },
     onError: (e: Error) => message.error(e.message),
   })
   // 就地修正参数（密钥名/模型等）
   const patchInput = useMutation({
     mutationFn: (v: { runId: string; input: Record<string, unknown> }) =>
       api.patchRunInput(v.runId, v.input),
-    onSuccess: () => { message.success('已更新参数，点「继续」或「重跑」生效'); setEditRun(null); onRefresh?.() },
+    onSuccess: () => { message.success('已更新参数，点「继续」或「重跑」生效'); setEditRun(null); invalidateSelf(); onRefresh?.() },
     onError: (e: Error) => message.error(e.message),
   })
   const openEdit = (run: RunSummary) => {
@@ -168,21 +211,41 @@ export default function RunListPanel({
   const rerunBatch = useMutation({
     mutationFn: (runIds: string[]) => api.rerunRuns({ run_ids: runIds }),
     onSuccess: (r) => {
-      message.success(`已重跑 ${r.count} 条${r.skipped.length ? `，跳过 ${r.skipped.length} 条` : ''}`)
+      message.success(`已提交 ${r.count} 条重跑${r.skipped.length ? `，跳过 ${r.skipped.length} 条` : ''}`)
       setPicked([])
-      onChanged?.(); onRefresh?.()
+      invalidateSelf(); onChanged?.(); onRefresh?.()
+      // 复查：仍失败/暂停的直接报原因，不用自己翻列表（重跑常在几秒内就出结果）
+      window.setTimeout(() => {
+        void rerunQ.refetch().then((after) => {
+          const back = after.data?.files ?? []
+          if (r.count > 0 && back.length > 0) {
+            const first = back[0]
+            message.warning(`仍有 ${back.length} 个文件未成功：${first.name} —— ${first.error ?? '见任务详情'}`, 8)
+          }
+          invalidateSelf()
+        })
+      }, 2500)
     },
     onError: (e: Error) => message.error(e.message),
   })
 
-  const refreshAll = () => {
+  /** 面板自身的查询失效：批次全量列表 / 待重跑清单 / 占用（父级查询由 onChanged/onRefresh 负责）。 */
+  const invalidateSelf = () => {
+    void qc.invalidateQueries({ queryKey: ['provider', pid, 'batch-runs'] })
+    void qc.invalidateQueries({ queryKey: ['provider', pid, 'rerunnable'] })
     void qc.invalidateQueries({ queryKey: ['provider', pid, 'run-usage'] })
+  }
+
+  const refreshAll = () => {
+    invalidateSelf()
     onChanged?.()
     onRefresh?.()
   }
 
   /** 双选项删除：保留文件 / 连产物一起删（附所选占用大小做预演）。 */
-  async function askDelete(ids: string[]) {
+  async function askDelete(pickedIds: string[]) {
+    // 「一个文件一行」：删除作用于该文件的**全部 run**（否则会留下历史失败记录）
+    const ids = [...new Set(pickedIds.flatMap((id) => allIdsOf.get(id) ?? [id]))]
     const mode = await confirm({
       title: `删除 ${ids.length} 个任务？`,
       content: usage.data
@@ -250,7 +313,20 @@ export default function RunListPanel({
     },
     {
       title: '文件', key: 'file', ellipsis: true,
-      render: (_: unknown, r: RunSummary) => String(r.input?.file ?? r.input?.name ?? r.id).split('/').pop(),
+      render: (_: unknown, r: RunSummary) => {
+        const name = String(r.input?.file ?? r.input?.name ?? r.id).split('/').pop()
+        const n = attemptsOf.get(r.id) ?? 1
+        return (
+          <Space size={4}>
+            <Typography.Text ellipsis style={{ maxWidth: 260 }}>{name}</Typography.Text>
+            {n > 1 && !showHistory && (
+              <Tooltip title="该文件有多次尝试（含自动降级/重跑）；点右上「显示历史尝试」查看">
+                <Tag color="default">{n} 次尝试</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        )
+      },
     },
     {
       title: '流', key: 'flow', width: 170, ellipsis: true,
@@ -344,7 +420,7 @@ export default function RunListPanel({
   ]
 
   return (
-    <Card size="small" title={`任务（${shown.length}）`}
+    <Card size="small" title={`任务（${showHistory ? shown.length : groups.length} 个文件${showHistory ? ` / ${shown.length} 条尝试` : ''}）`}
       extra={(
         <Space>
           {batches.length > 0 && (
@@ -352,6 +428,12 @@ export default function RunListPanel({
               value={batchFilter} onChange={setBatchFilter}
               options={batches.map((b) => ({ value: b.id, label: `${b.label}（${b.n}）` }))} />
           )}
+          <Tooltip title="同一文件只显示最新结果（成功优先）；打开可看每次尝试的记录">
+            <Button size="small" type={showHistory ? 'primary' : 'default'} ghost
+              onClick={() => setShowHistory((v) => !v)}>
+              {showHistory ? '只看最新' : '显示历史尝试'}
+            </Button>
+          </Tooltip>
           <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh}>刷新</Button>
         </Space>
       )}>
@@ -400,7 +482,7 @@ export default function RunListPanel({
           style={{ fontFamily: 'monospace', fontSize: 12 }} />
       </Modal>
       <Table<RunSummary>
-        rowKey="id" size="small" loading={loading} dataSource={shown}
+        rowKey="id" size="small" loading={loading} dataSource={rows}
         pagination={{ size: 'small', pageSize: 20, showSizeChanger: false }}
         scroll={{ x: 'max-content' }}
         locale={{ emptyText: emptyText ?? '暂无任务' }}

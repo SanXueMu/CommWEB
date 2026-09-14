@@ -66,11 +66,19 @@ export default function RunListPanel({
     () => [...new Set(runs.map((r) => r.batch_id).filter((x): x is string => !!x))],
     [runs])
 
-  /** 待重跑的失败项：优先用勾选（勾了失败项时只重跑勾选的），否则当前视图内全部失败项。 */
+  /** 待重跑的失败项：优先勾选（勾了失败项就只重跑勾选的），否则当前视图内全部失败项。
+   *  **同一文件只留最新一条**（runs 按 created_at 倒序）——每次失败的重跑都会新增一条
+   *  failed run，不去重会让下一次点击把历史失败一起重跑（越重跑越多）。 */
   const rerunnable = useMemo(() => {
     const pickedFailed = shown.filter((r) => picked.includes(r.id) && RERUNNABLE.has(r.status))
-    if (pickedFailed.length > 0) return pickedFailed
-    return shown.filter((r) => RERUNNABLE.has(r.status))
+    const base = pickedFailed.length > 0 ? pickedFailed : shown.filter((r) => RERUNNABLE.has(r.status))
+    const seen = new Set<string>()
+    return base.filter((r) => {
+      const key = String(r.input?.file ?? r.id)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   }, [shown, picked])
   // 刷新后本地记不住批次根目录名 → 从服务端清单补（只读，仅在缺名时请求）
   const missingBatchIds = useMemo(
@@ -289,7 +297,7 @@ export default function RunListPanel({
           {rerunnable.length > 0 && (
             <Popconfirm
               title={`重跑 ${rerunnable.length} 条失败任务？`}
-              description="原任务留档；已翻译内容命中全局字典缓存，不会重复计费"
+              description="同一文件只重跑最新一次（原任务留档）；已翻译内容命中全局字典缓存，不会重复计费"
               onConfirm={() => rerunBatch.mutate(rerunnable.map((r) => r.id))}>
               <Button size="small" icon={<RedoOutlined />} loading={rerunBatch.isPending}>
                 重跑失败项（{rerunnable.length}）

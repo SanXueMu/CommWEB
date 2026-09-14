@@ -61,8 +61,9 @@ export interface Task {
   tool_name?: string
   pipeline_name?: string
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'failed_review' | 'cancelled' | 'interrupted'
-  input: Record<string, unknown>
-  output: Record<string, unknown> | null
+  /** 列表接口不再返回整段载荷（翻译步骤可达数 MB）；完整值走单任务详情接口。 */
+  input?: Record<string, unknown>
+  output?: Record<string, unknown> | null
   error: { kind: string; message: string } | null
   pipeline_run: string | null
   task_kind?: TaskKind
@@ -109,8 +110,9 @@ export interface StepLatest {
   handle: string
   status: string
   attempt: number
-  input: Record<string, unknown> | null
-  output: Record<string, unknown> | null
+  /** 步跟踪来自列表接口：载荷可能不下发（完整值走任务详情）。 */
+  input?: Record<string, unknown> | null
+  output?: Record<string, unknown> | null
 }
 
 export interface RunSnapshot {

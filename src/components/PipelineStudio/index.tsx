@@ -129,7 +129,7 @@ export function PipelineStudio() {
   )
 }
 
-function lastOutput(run: { tasks: { status: string; output: Record<string, unknown> | null }[] }): Record<string, unknown> {
+function lastOutput(run: { tasks: { status: string; output?: Record<string, unknown> | null }[] }): Record<string, unknown> {
   const done = run.tasks.filter((t) => t.status === 'succeeded')
   return (done[done.length - 1]?.output ?? {}) as Record<string, unknown>
 }

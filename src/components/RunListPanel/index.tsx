@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Button, Card, Popconfirm, Progress, Select, Space, Table, Tag, Tooltip, Typography, message,
+  Button, Card, Input, Modal, Popconfirm, Progress, Select, Space, Table, Tag, Tooltip, Typography,
+  message,
 } from 'antd'
-import { DeleteOutlined, DownloadOutlined, EyeOutlined, RedoOutlined, ReloadOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, RedoOutlined, ReloadOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
 import { apiFor } from '@/api/client'
 import type { RunSummary } from '@/api/types'
 import { humanSize } from '@/lib/size'
@@ -57,6 +61,11 @@ export default function RunListPanel({
   const [picked, setPicked] = useState<string[]>([])
   const [batchFilter, setBatchFilter] = useState<string>()
   const [packing, setPacking] = useState(false)
+  // N3：替换原件（.doc→.docx 等）/ 就地修正任务参数（密钥名、模型）
+  const [editRun, setEditRun] = useState<RunSummary | null>(null)
+  const [editText, setEditText] = useState('')
+  const replaceInput = useRef<HTMLInputElement>(null)
+  const replaceTarget = useRef<string | null>(null)
 
   useEffect(() => {
     setPicked((keys) => keys.filter((k) => runs.some((r) => r.id === k)))
@@ -90,6 +99,10 @@ export default function RunListPanel({
     [shown, picked])
   const rerunIds = pickedFailed.length > 0 ? pickedFailed : (rerunQ.data?.run_ids ?? [])
   const rerunCount = rerunIds.length
+  /** 仍「从未成功过」的文件（服务端口径）：不在其中的失败行 = 已有成功译文，重跑按钮置灰。 */
+  const pendingFiles = useMemo(
+    () => new Set((rerunQ.data?.files ?? []).map((f) => f.file)),
+    [rerunQ.data])
   // 刷新后本地记不住批次根目录名 → 从服务端清单补（只读，仅在缺名时请求）
   const missingBatchIds = useMemo(
     () => batchIds.filter((id) => !batchNames?.[id]).slice(0, 20),
@@ -123,6 +136,33 @@ export default function RunListPanel({
   const del = useMutation({
     mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles),
   })
+
+  // 替换原件：把新文件写进同批次目录 + 更新清单 + 更新该 run 的 input.file
+  const replaceFile = useMutation({
+    mutationFn: (v: { runId: string; file: File }) => api.replaceRunFile(v.runId, v.file),
+    onSuccess: () => { message.success('已替换原件，点「继续」或「重跑」即可'); onChanged?.(); onRefresh?.() },
+    onError: (e: Error) => message.error(e.message),
+  })
+  // 就地修正参数（密钥名/模型等）
+  const patchInput = useMutation({
+    mutationFn: (v: { runId: string; input: Record<string, unknown> }) =>
+      api.patchRunInput(v.runId, v.input),
+    onSuccess: () => { message.success('已更新参数，点「继续」或「重跑」生效'); setEditRun(null); onRefresh?.() },
+    onError: (e: Error) => message.error(e.message),
+  })
+  const openEdit = (run: RunSummary) => {
+    const { file: _file, ...rest } = (run.input ?? {}) as Record<string, unknown>
+    setEditText(JSON.stringify(rest, null, 2))
+    setEditRun(run)
+  }
+  const submitEdit = () => {
+    if (!editRun) return
+    try {
+      patchInput.mutate({ runId: editRun.id, input: JSON.parse(editText) as Record<string, unknown> })
+    } catch {
+      message.error('参数不是合法 JSON')
+    }
+  }
 
   // 批次失败项一键重跑：原 run 留档、新 run 继承批次；已翻内容命中字典缓存不重复计费
   const rerunBatch = useMutation({
@@ -265,7 +305,32 @@ export default function RunListPanel({
             <Button size="small" type="link" icon={<RedoOutlined />} loading={resume.isPending}
               onClick={() => resume.mutate(r.id)}>继续</Button>
           )}
-          {onRerun && <Button size="small" type="link" onClick={() => onRerun(r.id)}>重跑</Button>}
+          {!RUNNING.has(r.status) && (
+            <Tooltip title="把新文件传上来替换原件（如旧版 .doc 另存为 .docx），随后点「继续」">
+              <Button size="small" type="link" icon={<UploadOutlined />}
+                onClick={() => { replaceTarget.current = r.id; replaceInput.current?.click() }}>
+                替换原件
+              </Button>
+            </Tooltip>
+          )}
+          {!RUNNING.has(r.status) && (
+            <Tooltip title="就地修改密钥名/模型等参数（JSON），随后点「继续」或「重跑」">
+              <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openEdit(r)}>
+                改参数
+              </Button>
+            </Tooltip>
+          )}
+          {onRerun && (() => {
+            // 该文件已有成功译文（不在待重跑清单里）→ 无需重跑，置灰
+            const file = String(r.input?.file ?? '')
+            const done = RERUNNABLE.has(r.status) && file !== '' && !pendingFiles.has(file)
+            return (
+              <Tooltip title={done ? '该文件已有成功译文，无需重跑' : undefined}>
+                <Button size="small" type="link" disabled={done}
+                  onClick={() => onRerun(r.id)}>重跑</Button>
+              </Tooltip>
+            )
+          })()}
           {(onAbort && RUNNING.has(r.status))
             ? <Button size="small" type="link" danger onClick={() => onAbort(r.id)}>中止</Button>
             : (
@@ -319,6 +384,21 @@ export default function RunListPanel({
           )}
         </Space>
       )}
+      <input ref={replaceInput} type="file" style={{ display: 'none' }} onChange={(e) => {
+        const f = e.target.files?.[0]
+        const runId = replaceTarget.current
+        if (f && runId) replaceFile.mutate({ runId, file: f })
+        e.target.value = ''
+      }} />
+      <Modal title={`修改任务参数（${editRun?.id ?? ''}）`} open={Boolean(editRun)}
+        okText="保存" cancelText="取消" confirmLoading={patchInput.isPending}
+        onOk={submitEdit} onCancel={() => setEditRun(null)} width={560}>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          只改参数（密钥名/模型/术语等）；换文件请用「替换原件」。保存后点「继续」或「重跑」生效。
+        </Typography.Paragraph>
+        <Input.TextArea rows={10} value={editText} onChange={(e) => setEditText(e.target.value)}
+          style={{ fontFamily: 'monospace', fontSize: 12 }} />
+      </Modal>
       <Table<RunSummary>
         rowKey="id" size="small" loading={loading} dataSource={shown}
         pagination={{ size: 'small', pageSize: 20, showSizeChanger: false }}

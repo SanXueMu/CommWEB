@@ -129,6 +129,19 @@ function createApi(pid?: string) {
     params.set('offset', String(offset))
     return request<{ runs: RunSummary[]; total: number }>(`/pipeline-runs?${params.toString()}`)
   },
+  /** 替换任务原件（如 .doc 另存为 .docx）：落盘同批次目录 + 更新批次清单 + 更新 run.input.file。 */
+  replaceRunFile: (runId: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return _formPost<{ run_id: string; file: string; replaced: string; manifest_updated: boolean }>(
+      `/pipeline-runs/${runId}/replace-file`, form, pid,
+    )
+  },
+  /** 就地修正任务参数（密钥名/模型等）后继续或重跑；换文件用 replaceRunFile。 */
+  patchRunInput: (runId: string, input: Record<string, unknown>) =>
+    request<{ run_id: string; input: Record<string, unknown> }>(
+      `/pipeline-runs/${runId}/input`, { method: 'PATCH', body: JSON.stringify({ input }) },
+    ),
   /** 可重跑清单（服务端按**整个批次**聚合）：从未成功过且最新一次失败的文件。 */
   rerunnableRuns: (params: { batch_id?: string; flow_ids?: string[]; limit?: number }) => {
     const q = new URLSearchParams()

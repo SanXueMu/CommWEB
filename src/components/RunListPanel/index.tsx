@@ -320,8 +320,10 @@ export default function RunListPanel({
           <Space size={4}>
             <Typography.Text ellipsis style={{ maxWidth: 260 }}>{name}</Typography.Text>
             {n > 1 && !showHistory && (
-              <Tooltip title="该文件有多次尝试（含自动降级/重跑）；点右上「显示历史尝试」查看">
-                <Tag color="default">{n} 次尝试</Tag>
+              <Tooltip title="该文件有多次尝试（含自动降级/重跑）；点这里查看全部记录">
+                <Tag color="blue" style={{ cursor: 'pointer' }} onClick={() => setShowHistory(true)}>
+                  {n} 次尝试 ›
+                </Tag>
               </Tooltip>
             )}
           </Space>
@@ -428,10 +430,10 @@ export default function RunListPanel({
               value={batchFilter} onChange={setBatchFilter}
               options={batches.map((b) => ({ value: b.id, label: `${b.label}（${b.n}）` }))} />
           )}
-          <Tooltip title="同一文件只显示最新结果（成功优先）；打开可看每次尝试的记录">
+          <Tooltip title="同一文件只显示最新结果（成功优先）；打开可看每次尝试的记录（含失败与自动降级）">
             <Button size="small" type={showHistory ? 'primary' : 'default'} ghost
               onClick={() => setShowHistory((v) => !v)}>
-              {showHistory ? '只看最新' : '显示历史尝试'}
+              {showHistory ? '只看最新' : `历史尝试（${shown.length} 条）`}
             </Button>
           </Tooltip>
           <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh}>刷新</Button>

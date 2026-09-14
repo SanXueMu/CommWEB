@@ -14,10 +14,12 @@ function extOf(name: string): string {
 }
 
 export function BatchUpload({
-  extensions = [], maxFiles = 200, maxTotalMB = 500, disabled, onPicked,
+  extensions = [], skip = [], maxFiles = 200, maxTotalMB = 500, disabled, onPicked,
 }: {
   /** 允许的扩展名（含点，如 ['.pdf', '.docx']）；空数组 = 不限制 */
   extensions?: string[]
+  /** 声明驱动的「跳过类型」（如 .ppt/.pptx）：交服务端打标留档，不建任务 */
+  skip?: string[]
   maxFiles?: number
   maxTotalMB?: number
   disabled?: boolean
@@ -57,9 +59,15 @@ export function BatchUpload({
   const uploadDir = async () => {
     setBusy(true)
     try {
-      const result = await api.uploadFiles(picked, extQuery)
-      onPicked(result.files, result.name, { batch_id: result.batch_id, root: result.name })
-      message.success(`已上传 ${result.count} 个文件（${humanSize(result.size)}）`)
+      const result = await api.uploadFiles(picked, extQuery, skip)
+      const skippedByServer = result.skipped ?? []
+      setSkipped(skippedByServer)
+      // 空文件不进任务清单（连暂停记录都不建）；PPT 等「跳过类型」保留，
+      // 由工作台建一条暂停记录留档（用户能看到「哪些没处理、为什么」）
+      const usable = result.files.filter((f) => !f.empty)
+      onPicked(usable, result.name, { batch_id: result.batch_id, root: result.name })
+      message.success(`已上传 ${usable.length} 个文件（${humanSize(result.size)}）`
+        + (skippedByServer.length ? `，跳过 ${skippedByServer.length} 条` : ''))
       setPicked([])
     } catch (error) {
       message.error(`上传失败：${(error as Error).message}`)
@@ -72,10 +80,13 @@ export function BatchUpload({
     if (!picked.length) return
     setBusy(true)
     try {
-      const result = await api.uploadArchive(picked[0], extQuery)
-      onPicked(result.files, result.name, { batch_id: result.batch_id, root: result.name })
-      setSkipped(result.skipped ?? [])
-      message.success(`已解压 ${result.count} 个文件（${humanSize(result.size)}）`)
+      const result = await api.uploadArchive(picked[0], extQuery, skip)
+      const skippedByServer = result.skipped ?? []
+      setSkipped(skippedByServer)
+      const usable = result.files.filter((f) => !f.empty)
+      onPicked(usable, result.name, { batch_id: result.batch_id, root: result.name })
+      message.success(`已解压 ${usable.length} 个文件（${humanSize(result.size)}）`
+        + (skippedByServer.length ? `，跳过 ${skippedByServer.length} 条` : ''))
       setPicked([])
     } catch (error) {
       message.error(`解压失败：${(error as Error).message}`)

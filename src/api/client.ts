@@ -141,11 +141,11 @@ function createApi(pid?: string) {
     }),
   uploadFile: (file: File): Promise<FileUploaded> => apiUpload(file, pid),
   /** 批量上传：目录形态（filename 携带相对路径）→ 服务端批次目录 + 文件清单。 */
-  uploadFiles: (files: File[], extensions?: string): Promise<BatchUploaded> =>
-    apiUploadFiles(files, extensions, pid),
+  uploadFiles: (files: File[], extensions?: string, skip?: string[]): Promise<BatchUploaded> =>
+    apiUploadFiles(files, extensions, skip, pid),
   /** 压缩包上传：服务端解压 → 批次目录 + 文件清单（含被跳过的条目与原因）。 */
-  uploadArchive: (file: File, extensions?: string): Promise<BatchUploaded> =>
-    apiUploadArchive(file, extensions, pid),
+  uploadArchive: (file: File, extensions?: string, skip?: string[]): Promise<BatchUploaded> =>
+    apiUploadArchive(file, extensions, skip, pid),
   /** 列举服务器 DATA_DIR 内既有文件（「目录已在服务器上」形态）。 */
   listFiles: (path: string, extensions?: string, recursive = true): Promise<BatchUploaded> => {
     const params = new URLSearchParams({ path, recursive: String(recursive) })
@@ -210,6 +210,8 @@ export interface BatchFileEntry {
   size: number
   /** 后端按声明分类：本轮不处理（如 PPT），入队后暂停留档 */
   skip?: boolean
+  /** 0 字节空文件：跳过且**不建任务**（与 skip 区分） */
+  empty?: boolean
   skip_reason?: string
 }
 
@@ -263,22 +265,31 @@ function apiUpload(file: File, pid?: string): Promise<FileUploaded> {
   return _formPost<FileUploaded>('/files', body, pid)
 }
 
-function apiUploadFiles(files: File[], extensions: string | undefined, pid?: string): Promise<BatchUploaded> {
+function _batchQuery(extensions?: string, skip?: string[]): string {
+  const params = new URLSearchParams()
+  if (extensions) params.set('extensions', extensions)
+  // 声明驱动的「跳过类型」（如 PPT）：交服务端打标（留档 + 不建任务），不在前端偷偷丢掉
+  if (skip?.length) params.set('skip', skip.join(','))
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
+}
+
+function apiUploadFiles(files: File[], extensions: string | undefined,
+                        skip: string[] | undefined, pid?: string): Promise<BatchUploaded> {
   const body = new FormData()
   for (const file of files) {
     // 第三参 = multipart filename：目录上传时携带相对路径（后端据此还原目录结构）
     const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
     body.append('files', file, rel)
   }
-  const qs = extensions ? `?extensions=${encodeURIComponent(extensions)}` : ''
-  return _formPost<BatchUploaded>(`/files/batch${qs}`, body, pid)
+  return _formPost<BatchUploaded>(`/files/batch${_batchQuery(extensions, skip)}`, body, pid)
 }
 
-function apiUploadArchive(file: File, extensions: string | undefined, pid?: string): Promise<BatchUploaded> {
+function apiUploadArchive(file: File, extensions: string | undefined,
+                          skip: string[] | undefined, pid?: string): Promise<BatchUploaded> {
   const body = new FormData()
   body.append('file', file)
-  const qs = extensions ? `?extensions=${encodeURIComponent(extensions)}` : ''
-  return _formPost<BatchUploaded>(`/files/archive${qs}`, body, pid)
+  return _formPost<BatchUploaded>(`/files/archive${_batchQuery(extensions, skip)}`, body, pid)
 }
 
 /** 活跃会员视图（页面级跟随切换）。 */

@@ -9,7 +9,7 @@
  *  routes?: { ext: string[]; flow: string; label?: string }[]  // 后缀 → 流（同后缀多条=可选）
  *  params?: ParamField[]                         // 通用附加参数（声明驱动，可按流过滤）
  *  unsupported?: { ext: string[]; message: string }[]   // 不支持后缀的提示文案（如旧版 .doc）
- *  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }  // 存在才显示批量入口
+ *  batch?: { extensions?: string[]; skip?: string[]; maxFiles?: number; maxTotalMB?: number }  // 存在才显示批量入口
  *  templatesPath?: string                        // 翻译模板端点（默认 /translate/templates）
  *  dictPath?: string                             // 字典浏览端点（默认 /translate/dict）
  *  languages?: { value: string; label: string }[]
@@ -61,7 +61,7 @@ interface TranslateStudioProps {
   params?: ParamField[]
   unsupported?: UnsupportedRule[]
   /** 批量入口声明：存在才显示「单文件 / 批量」切换（业务常量不下沉前端） */
-  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }
+  batch?: { extensions?: string[]; skip?: string[]; maxFiles?: number; maxTotalMB?: number }
   /** PDF 处理口径候选（声明驱动）：auto 自动探测 / text 一律文字版 / image 一律图片翻译 */
   pdfModes?: { value: string; label: string; hint?: string }[]
   templatesPath?: string
@@ -543,6 +543,7 @@ export function TranslateStudio() {
                       <>
                         <BatchUpload
                           extensions={batchSpec?.extensions}
+                          skip={batchSpec?.skip}
                           maxFiles={batchSpec?.maxFiles}
                           maxTotalMB={batchSpec?.maxTotalMB}
                           disabled={batchRunning}

@@ -6,24 +6,22 @@
  * 声明 props：
  *  recognizeFlow?: string      // 识别管线（第一步应为 spec.template.resolve）
  *  exportFlow?: string         // 视图导出管线（input 含 db/view_spec/name）
- *  genFlow?: string            // 模板生成流（「新建模版」跳转）
  *  searchableFlow?: string     // 可搜索 PDF 导出流（扫描件补隐形文字层）
  *  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }  // 存在才显示批量入口
+ *  manageView?: string         // 「管理模版」弹窗承载的视图 id（声明下发，默认 templates）
  *  description?: string
  *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
-  Alert, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Image, Input, InputNumber,
+  Alert, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber,
   List, Modal, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
 } from 'antd'
-import { useNavigate } from 'react-router-dom'
 import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
 import { useActivePid } from '@/transfer/context'
+import { useDialog } from '@/components/DialogLayer'
 import { apiFor } from '@/api/client'
-import { viewPathByType } from '@/transfer/siteManifest'
-import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import type { PipelineRunCreated } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
@@ -33,7 +31,6 @@ import { humanSize } from '@/lib/size'
 import type { BatchFileEntry } from '@/api/client'
 import { DownloadButton } from '@/components/DownloadButton'
 import { ResultRenderer } from '@/components/ResultRenderer'
-import { TemplateManager } from '@/components/TemplateManager'
 import { SpecEditor, type BuiltinView } from '@/components/SpecEditor'
 import { StepTrack } from '@/components/StepTrack'
 
@@ -115,11 +112,12 @@ interface TplDetail {
 interface OcrStudioProps {
   recognizeFlow?: string
   exportFlow?: string
-  genFlow?: string
   searchableFlow?: string     // 可搜索 PDF 导出流（扫描件补隐形文字层）
   viewTool?: string          // 视图计算工具（声明下发，组件不写死工具名）
   /** 批量入口声明：存在才显示「单文件 / 批量」切换（一次多文件 = 每文件各一条识别任务） */
   batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }
+  /** 「管理模版」弹窗承载的视图 id（声明下发；缺省 templates.manager） */
+  manageView?: string
   description?: string
   builtinViews?: BuiltinView[]
 }
@@ -128,15 +126,13 @@ export function OcrStudio() {
   const props = useViewProps() as OcrStudioProps
   const pid = useActivePid()
   const api = apiFor(pid)
-  const { site } = useSiteCatalog()
-  const navigate = useNavigate()
+  const dialog = useDialog()
   const t = useOcrText()
 
   const [templateId, setTemplateId] = useState<string>()
   const [file, setFile] = useState<string>()
   const [runId, setRunId] = useState<string | null>(null)
   const [detailTpl, setDetailTpl] = useState<string | null>(null)
-  const [managerOpen, setManagerOpen] = useState(false)
   const [pageView, setPageView] = useState<{ path: string; page: number } | null>(null)
   const [viewSpec, setViewSpec] = useState<string>()
   const [extraForm] = Form.useForm()
@@ -292,7 +288,6 @@ export function OcrStudio() {
   // 视图定义未就绪时按钮置灰（此前空 spec 会悄悄提交一个必然失败的任务）
   const specReady = Boolean(viewSpec?.trim())
   const selectedTemplate = (templates.data?.templates ?? []).find((x: TplSummary) => x.id === templateId)
-  const flowListPath = viewPathByType(site, 'flows.list')
 
   return (
     <Card
@@ -316,10 +311,17 @@ export function OcrStudio() {
               <Button size="small" icon={<EyeOutlined />}>{t.detail}</Button>
             </Popover>
           )}
-          <Button size="small" onClick={() => setManagerOpen(true)} icon={<SettingOutlined />}>{t.manage}</Button>
-          {props.genFlow && flowListPath && (
-            <Button size="small" onClick={() => navigate(`${flowListPath}/${props.genFlow}`)}>{t.newTemplate}</Button>
-          )}
+          <Button
+            size="small"
+            icon={<SettingOutlined />}
+            onClick={() => dialog.openView(props.manageView ?? 'templates', {
+              title: t.manage,
+              size: 'lg',
+              onClose: () => templates.refetch(),
+            })}
+          >
+            {t.manage}
+          </Button>
         </Flex>
       }
     >
@@ -579,10 +581,6 @@ export function OcrStudio() {
         />
       </Flex>
 
-      <Drawer title={t.manage} width={680} open={managerOpen} onClose={() => { setManagerOpen(false); templates.refetch() }}>
-        <TemplateManager />
-      </Drawer>
-
       <Modal
         title={pageView ? `${t.originPage} · ${pageView.page}` : t.originPage}
         open={Boolean(pageView)}
@@ -671,7 +669,6 @@ function useOcrText() {
     templatePlaceholder: '选择模版',
     detail: '详情',
     manage: '管理模版',
-    newTemplate: '新建模版',
     dbsTitle: '结果库',
     dbsEmpty: '暂无结果库',
     uploadTitle: '识别',

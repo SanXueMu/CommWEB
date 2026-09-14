@@ -12,7 +12,8 @@ export interface Route {
 export interface ParamField {
   name: string
   label: string
-  type?: 'select' | 'text'
+  /** select=下拉；combo=可选可手写（AutoComplete）；text=纯输入（缺省） */
+  type?: 'select' | 'text' | 'combo'
   options?: { value: string; label: string }[]
   default?: string
   /** 按流覆盖默认值：同一参数在不同路由下默认不同（如 mode 版式流默认 overlay、Word 流默认 bilingual）。 */

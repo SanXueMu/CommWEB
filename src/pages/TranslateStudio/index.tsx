@@ -18,7 +18,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal,
+  Alert, AutoComplete, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal,
   Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import { DeleteOutlined, EditOutlined, EyeOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
@@ -138,6 +138,8 @@ export function TranslateStudio() {
 
   const routes = props.routes ?? []
   const paramFields = props.params ?? []
+  /** 声明的模型参数（模板编辑弹窗复用其候选与占位文案，避免两处硬编码）。 */
+  const modelParam = paramFields.find((p) => p.name === 'model')
   const unsupportedRules = props.unsupported ?? []
   const templatesPath = props.templatesPath ?? '/translate/templates'
   const dictPath = props.dictPath ?? '/translate/dict'
@@ -147,7 +149,6 @@ export function TranslateStudio() {
   const [templateId, setTemplateId] = useState<string>()
   const [file, setFile] = useState<string>()
   const [keyName, setKeyName] = useState<string>()
-  const [model, setModel] = useState<string>('')
   const [sourceLang, setSourceLang] = useState<string>('')
   const [targetLang, setTargetLang] = useState<string>('Chinese')
   const [routeFlow, setRouteFlow] = useState<string>()
@@ -248,7 +249,6 @@ export function TranslateStudio() {
     return {
       file: path,
       key_name: keyName,
-      model: model || null,
       source_lang: sourceLang || null,
       target_lang: targetLang || null,
       terms: selectedTemplate?.terms ?? [],
@@ -462,7 +462,8 @@ export function TranslateStudio() {
 
   const selectTemplate = (tpl: TranslateTemplate) => {
     setTemplateId(tpl.id)
-    setModel(tpl.model ?? '')
+    // 模版声明了模型才覆盖，否则保留声明层默认（如 qwen-mt-flash）
+    if (tpl.model) setParamVals((s) => ({ ...s, model: tpl.model ?? '' }))
     setSourceLang(tpl.source_lang ?? '')
     setTargetLang(tpl.target_lang ?? 'Chinese')
   }
@@ -482,6 +483,14 @@ export function TranslateStudio() {
     () => Array.from(new Set((dict.data?.rows ?? []).map((r) => r.model).filter(Boolean))) as string[],
     [dict.data],
   )
+
+  /** combo 下拉候选：声明 options + 已译字典里真实用过的模型（去重）。仍可手写任意模型名。 */
+  const comboOptions = (p: ParamField) => {
+    const declared = (p.options ?? []).map((o) => ({ value: o.value, label: o.label }))
+    if (p.name !== 'model') return declared
+    const seen = new Set(declared.map((o) => o.value))
+    return [...declared, ...dictModels.filter((m) => !seen.has(m)).map((m) => ({ value: m, label: `${m}${t.modelUsed}` }))]
+  }
 
   return (
     <Card
@@ -602,9 +611,6 @@ export function TranslateStudio() {
                             onChange={setKeyName}
                           />
                         </Form.Item>
-                        <Form.Item label={t.modelLabel} style={{ minWidth: 220 }}>
-                          <Input placeholder={t.modelPlaceholder} value={model} onChange={(e) => setModel(e.target.value)} />
-                        </Form.Item>
                         <Form.Item label={t.sourceLabel} style={{ minWidth: 160 }}>
                           <Select allowClear placeholder={t.autoLang} value={sourceLang || undefined}
                             options={languages.map((l) => ({ value: l.value, label: l.label }))} onChange={(v) => setSourceLang(v ?? '')} />
@@ -624,8 +630,18 @@ export function TranslateStudio() {
                               ? <Select value={paramValue(p) || undefined} placeholder={p.placeholder}
                                   options={(p.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
                                   onChange={(v) => setParamVals((s) => ({ ...s, [p.name]: v ?? '' }))} />
-                              : <Input value={paramValue(p)} placeholder={p.placeholder}
-                                  onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />}
+                              : p.type === 'combo'
+                                ? <AutoComplete
+                                    value={paramValue(p)}
+                                    style={{ minWidth: 220 }}
+                                    placeholder={p.placeholder}
+                                    options={comboOptions(p)}
+                                    filterOption={(input, option) =>
+                                      String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())}
+                                    onChange={(v) => setParamVals((s) => ({ ...s, [p.name]: v ?? '' }))}
+                                  />
+                                : <Input value={paramValue(p)} placeholder={p.placeholder}
+                                    onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />}
                           </Form.Item>
                         ))}
                       </Flex>
@@ -866,7 +882,10 @@ export function TranslateStudio() {
             <Form.Item name="target_lang" label={t.targetLabel} style={{ minWidth: 180 }}>
               <Select options={languages.map((l) => ({ value: l.value, label: l.label }))} />
             </Form.Item>
-            <Form.Item name="model" label={t.modelLabel} style={{ minWidth: 200 }}><Input placeholder={t.modelPlaceholder} /></Form.Item>
+            <Form.Item name="model" label={t.modelLabel} style={{ minWidth: 200 }}>
+              <AutoComplete style={{ minWidth: 200 }} placeholder={t.modelPlaceholder}
+                options={comboOptions({ name: 'model', label: t.modelLabel, options: modelParam?.options })} />
+            </Form.Item>
           </Flex>
           <Form.Item name="terms" label={t.termsLabel} extra={t.termsHint}>
             <Input.TextArea rows={5} placeholder={'Audit Report => 审计报告'} />
@@ -958,7 +977,7 @@ function useTranslateText() {
     builtinTag: '（内置）', termUnit: ' 术语', confirmDeleteTpl: '确认删除该模版？',
     tabTranslate: '翻译', tabTasks: '任务', tabLibrary: '资料库',
     runConfig: '翻译配置', keyLabel: '密钥', keyPlaceholder: '选择密钥', defaultTag: '（默认）',
-    modelLabel: '模型', modelPlaceholder: '留空用密钥默认模型', sourceLabel: '源语言', targetLabel: '目标语言',
+    modelLabel: '模型', modelPlaceholder: '留空用该流默认模型；可手写', modelUsed: '（用过的）', sourceLabel: '源语言', targetLabel: '目标语言',
     routeLabel: '处理方式',
     autoLang: '自动判定', termsFromTpl: '术语表来自模版', start: '开始翻译', noRoute: '未匹配到该文件类型的翻译流',
     supportedExts: '支持的格式',

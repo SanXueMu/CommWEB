@@ -22,9 +22,54 @@ export interface SiteManifest {
   views: SiteViewDecl[]
 }
 
+/** 页眉渲染声明（props.nav，协议 v3）：
+ *  tab（默认）顶层标签 ｜ menu 顶层下拉父项 ｜ child 某下拉父项的子项（group=父 id）
+ *  ｜ header 页眉右侧「设置」下拉的功能项 ｜ hidden 不进导航（可被声明 id 弹窗调起）。 */
+export type NavKind = 'tab' | 'menu' | 'child' | 'header' | 'hidden'
+
+/** 参与导航渲染的 kind（「管理视图」面板只列这些）。 */
+export const NAV_VISIBLE_KINDS: NavKind[] = ['tab', 'menu', 'child']
+
+/** 从声明读导航 kind（缺省 = tab，向后兼容旧声明）。 */
+export function navKindOf(decl: SiteViewDecl | undefined): NavKind {
+  const kind = (decl?.props?.nav as { kind?: string } | undefined)?.kind
+  return kind === 'menu' || kind === 'child' || kind === 'header' || kind === 'hidden' ? kind : 'tab'
+}
+
+/** 导航子项（下拉里的一个目的地；isSelf = 菜单自身的「默认」入口）。 */
+export interface NavChild {
+  key: string
+  viewId: string
+  path: string
+  title: string
+  icon?: string
+  isSelf?: boolean
+}
+
+/** 顶层导航项：tab 直连；menu 出下拉（children）。 */
+export interface NavItem {
+  key: string
+  viewId: string
+  path: string
+  title: string
+  icon?: string
+  kind: 'tab' | 'menu'
+  children?: NavChild[]
+}
+
+/** 页眉右侧「设置」下拉的功能项（order 小者在前）。 */
+export interface HeaderAction {
+  key: string
+  viewId: string
+  path: string
+  title: string
+  order: number
+}
+
 /** 装配模型：NAV 项 + 路由 + 落地页。 */
 export interface ParsedSite {
-  navItems: { key: string; path: string; title: string; icon: string | undefined; viewId: string }[]
+  navItems: NavItem[]
+  headerActions: HeaderAction[]
   routes: { path: string; viewId: string; type: string }[]
   landing: string
   declared: SiteViewDecl[]
@@ -76,20 +121,58 @@ export function parseSite(
       .filter((v) => !prefs.hidden.includes(v.id))
     const ordered = orderViews(visible, prefs)
     const defaultDecl = manifest.views.find((v) => v.default) ?? manifest.views[0]
-    const navItems = ordered.map((v) => ({
-      key: v.id,
-      viewId: v.id,
-      path: pathOf(v, v.id === defaultDecl?.id),
-      title: v.title,
-      icon: v.icon,
-    }))
+    const pathById = new Map(ordered.map((v) => [v.id, pathOf(v, v.id === defaultDecl?.id)]))
     const routes = ordered.map((v) => ({
-      path: pathOf(v, v.id === defaultDecl?.id),
+      path: pathById.get(v.id) as string,
       viewId: v.id,
       type: v.type,
     }))
+
+    const childOf = (v: SiteViewDecl, label: string) => ({
+      key: v.id,
+      viewId: v.id,
+      path: pathById.get(v.id) as string,
+      title: label,
+      icon: v.icon,
+    })
+    const labelOf = (v: SiteViewDecl) => {
+      const nav = v.props?.nav as { label?: string } | undefined
+      return nav?.label ?? v.title
+    }
+
+    const navItems: NavItem[] = ordered
+      .filter((v) => navKindOf(v) === 'tab' || navKindOf(v) === 'menu')
+      .map((v) => {
+        const base = {
+          key: v.id, viewId: v.id, path: pathById.get(v.id) as string, title: v.title, icon: v.icon,
+        }
+        if (navKindOf(v) !== 'menu') return { ...base, kind: 'tab' as const }
+        const children: NavChild[] = [
+          // 首项 = 菜单自身（如「工作区 ▸ 默认」），文案由 props.defaultLabel 声明
+          {
+            key: `${v.id}:self`, viewId: v.id, path: base.path, isSelf: true, icon: v.icon,
+            title: String((v.props?.defaultLabel as string | undefined) ?? '默认'),
+          },
+          ...ordered
+            .filter((c) => navKindOf(c) === 'child' && (c.props?.nav as { group?: string })?.group === v.id)
+            .map((c) => childOf(c, labelOf(c))),
+        ]
+        return { ...base, kind: 'menu' as const, children }
+      })
+
+    const headerActions: HeaderAction[] = ordered
+      .filter((v) => navKindOf(v) === 'header')
+      .map((v) => ({
+        key: v.id,
+        viewId: v.id,
+        path: pathById.get(v.id) as string,
+        title: labelOf(v),
+        order: Number((v.props?.nav as { order?: number } | undefined)?.order ?? 100),
+      }))
+      .sort((a, b) => a.order - b.order)
+
     const landing = navItems.find((n) => n.path === '/')?.path ?? navItems[0]?.path ?? '/'
-    return { navItems, routes, landing, declared: manifest.views }
+    return { navItems, headerActions, routes, landing, declared: manifest.views }
   })
 }
 

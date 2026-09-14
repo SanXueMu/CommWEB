@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react'
-import { App as AntApp, ConfigProvider, Typography } from 'antd'
+import { App as AntApp, ConfigProvider, theme as antdTheme, Typography } from 'antd'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppHeader } from '@/components/AppHeader'
 import { ConfirmProvider } from '@/components/ConfirmDialog'
+import { DialogProvider } from '@/components/DialogLayer'
 import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
 import { WorkspaceProvider } from '@/workspace/store'
@@ -38,7 +39,9 @@ function App() {
       <AntApp>
         <ConfirmProvider>
           <TransferProvider>
-            <SiteFrame />
+            <DialogProvider>
+              <SiteFrame />
+            </DialogProvider>
           </TransferProvider>
         </ConfirmProvider>
       </AntApp>
@@ -50,6 +53,7 @@ function App() {
 function SiteFrame() {
   const location = useLocation()
   const { site } = useSiteCatalog()
+  const { token } = antdTheme.useToken()
   const { activeId: activePid } = useProviders()
   const pidForViews = activePid ?? ''
   const detailPrefixes = site.navItems
@@ -61,7 +65,7 @@ function SiteFrame() {
   return (
     <AppShell>
     <WorkspaceProvider>
-    <div style={{ minHeight: '100vh', background: '#fff' }}>
+    <div style={{ minHeight: '100vh', background: token.colorBgLayout }}>
       <AppHeader />
       <main
         style={{

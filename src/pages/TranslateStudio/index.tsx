@@ -25,7 +25,10 @@ import { apiFor } from '@/api/client'
 import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { viewPathByType } from '@/transfer/siteManifest'
 import { useViewProps } from '@/protocol/ViewPropsContext'
-import { matchRoutes, visibleParams, type ParamField, type Route } from '@/protocol/routeSelect'
+import {
+  matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
+  type ParamField, type Route, type UnsupportedRule,
+} from '@/protocol/routeSelect'
 import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import type {
   PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
@@ -48,6 +51,7 @@ interface TranslateStudioProps {
   flow_prefix?: string
   routes?: Route[]
   params?: ParamField[]
+  unsupported?: UnsupportedRule[]
   templatesPath?: string
   dictPath?: string
   languages?: Language[]
@@ -123,6 +127,7 @@ export function TranslateStudio() {
 
   const routes = props.routes ?? []
   const paramFields = props.params ?? []
+  const unsupportedRules = props.unsupported ?? []
   const templatesPath = props.templatesPath ?? '/translate/templates'
   const dictPath = props.dictPath ?? '/translate/dict'
   const languages = props.languages ?? []
@@ -216,7 +221,10 @@ export function TranslateStudio() {
     [matchedRoutes, routeFlow],
   )
   const activeParams = visibleParams(paramFields, flow)
-  const paramValue = (p: ParamField) => paramVals[p.name] ?? p.default ?? ''
+  const paramValue = (p: ParamField) => paramVals[p.name] ?? paramDefault(p, flow)
+  // 声明驱动的「不支持后缀」提示（如旧版 .doc）+ 受支持后缀一览
+  const unsupportedHint = matchUnsupported(file, unsupportedRules)
+  const supportedExts = supportedExtensions(routes).join(' / ')
   const busy = Boolean(activeRun && RUNNING.has(activeDetail.data?.run.status ?? ''))
 
   // ── 变更 ──
@@ -444,7 +452,16 @@ export function TranslateStudio() {
                           {t.start}
                         </Button>
                         {file && flow && <Tag>{flow}</Tag>}
-                        {file && !flow && <Typography.Text type="warning">{t.noRoute}</Typography.Text>}
+                        {file && !flow && (
+                          <Typography.Text type={unsupportedHint ? 'danger' : 'warning'}>
+                            {unsupportedHint ?? t.noRoute}
+                          </Typography.Text>
+                        )}
+                        {file && !flow && supportedExts && (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            {t.supportedExts}：{supportedExts}
+                          </Typography.Text>
+                        )}
                       </Space>
                     </div>
                   </Card>
@@ -713,6 +730,7 @@ function useTranslateText() {
     modelLabel: '模型', modelPlaceholder: '留空用密钥默认模型', sourceLabel: '源语言', targetLabel: '目标语言',
     routeLabel: '处理方式',
     autoLang: '自动判定', termsFromTpl: '术语表来自模版', start: '开始翻译', noRoute: '未匹配到该文件类型的翻译流',
+    supportedExts: '支持的格式',
     runStatus: '翻译运行', runFailed: '翻译运行失败', startFailed: '提交失败：', rerunFailed: '再运行失败：',
     abortFailed: '取消失败：', deleteFailed: '删除失败：', saveFailed: '保存失败：',
     tabRecords: '', refresh: '刷新', tasksEmpty: '暂无翻译任务', colStatus: '状态', colFile: '文件',

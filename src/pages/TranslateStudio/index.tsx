@@ -308,6 +308,14 @@ export function TranslateStudio() {
     if (ok < report.length) message.warning(`${report.length - ok} ${t.batchSomeFailed}`)
     qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })
   }
+  // 勾选任务的产物占用（只读预演：工具栏显示 + 删除确认里告知将释放多少空间）
+  const usageQ = useQuery({
+    queryKey: ['provider', pid, 'run-usage', pickedRuns],
+    queryFn: () => api.usageRuns(pickedRuns),
+    enabled: pickedRuns.length > 0,
+    staleTime: 30_000,
+  })
+
   const rerunMutation = useMutation({
     mutationFn: (id: string) => api.rerunRun(id),
     onSuccess: (r) => { setActiveRun(r.run_id); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }) },
@@ -389,12 +397,20 @@ export function TranslateStudio() {
   /** 批量删除：一次确认（保留文件 / 含产物），运行中的任务后端会先自动取消。 */
   const askBatchDelete = async () => {
     if (!pickedRuns.length) { message.warning(t.packNone); return }
+    const usage = usageQ.data?.total
     const mode = await confirm({
       title: t.confirmDeleteRun,
       content: (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {t.batchDeleteHint.replace('{n}', String(pickedRuns.length))}
-        </Typography.Text>
+        <div>
+          <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+            {t.batchDeleteHint.replace('{n}', String(pickedRuns.length))}
+          </Typography.Text>
+          {usage && usage.files > 0 && (
+            <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+              {t.batchDeleteUsage.replace('{n}', String(usage.files)).replace('{size}', humanSize(usage.bytes))}
+            </Typography.Text>
+          )}
+        </div>
       ),
       options: deleteRunOptions({
         keep: t.deleteKeep, keepDesc: t.deleteKeepDesc,
@@ -684,6 +700,7 @@ export function TranslateStudio() {
                       <>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                           {t.batchSelected}{pickedRuns.length}
+                          {usageQ.data && usageQ.data.total.files > 0 && ` · ${humanSize(usageQ.data.total.bytes)}`}
                         </Typography.Text>
                         <Button size="small" onClick={askPackage}>{t.packRun}</Button>
                         <Button size="small" danger onClick={askBatchDelete}>{t.batchDelete}</Button>
@@ -952,6 +969,7 @@ function useTranslateText() {
     packFilesWord: '个产物', packSkipped: '部分任务未打包', packFailed: '打包失败：',
     batchDelete: '批量删除', batchDeleteHint: '将对选中的 {n} 个任务执行删除（运行中的会先自动取消）',
     batchDeleteDone: '已删除', batchDeleteFailed: '个任务删除失败', batchSelected: '已选 ',
+    batchDeleteUsage: '所选的 {n} 个文件产物合计 {size}（选择「含产物」才会释放）',
     runStatus: '翻译运行', runFailed: '翻译运行失败', startFailed: '提交失败：', rerunFailed: '再运行失败：',
     abortFailed: '取消失败：', deleteFailed: '删除失败：', saveFailed: '保存失败：',
     tabRecords: '', refresh: '刷新', tasksEmpty: '暂无翻译任务', colStatus: '状态', colFile: '文件',

@@ -156,6 +156,12 @@ function createApi(pid?: string) {
       method: 'POST',
       body: JSON.stringify({ run_ids: runIds, scope, name }),
     }),
+  /** 任务产物占用报告（只读）：任务列表展示占用 / 删除前预演将释放多少空间。 */
+  usageRuns: (runIds?: string[], pipelineId?: string, limit = 50): Promise<RunUsage> =>
+    request<RunUsage>('/pipeline-runs/usage', {
+      method: 'POST',
+      body: JSON.stringify({ run_ids: runIds, pipeline_id: pipelineId, limit }),
+    }),
   listKeys: () => request<{ keys: OcrKey[] }>('/keys'),
   putKey: (body: OcrKey) =>
     request<{ name: string; stored: boolean }>(`/keys/${encodeURIComponent(body.name)}`, {
@@ -209,6 +215,13 @@ export interface RunPackage {
   size: number
   entries: { run_id: string; name: string; arcname: string; step?: number; size?: number }[]
   skipped: { run_id: string; reason: string }[]
+}
+
+/** 任务产物占用（对应 CommAND POST /api/pipeline-runs/usage，只读）。 */
+export interface RunUsage {
+  runs: { run_id: string; pipeline_id: string; status: string; created_at?: string; files: number; bytes: number; dirs: number }[]
+  total: { files: number; bytes: number; dirs: number }
+  missing: string[]
 }
 
 async function _formPost<T>(path: string, body: FormData, pid?: string): Promise<T> {

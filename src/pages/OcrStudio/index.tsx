@@ -149,6 +149,16 @@ export function OcrStudio() {
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
   const [batchReport, setBatchReport] = useState<{ file: string; runId?: string; error?: string }[]>([])
 
+  // 已录入密钥（渲染密钥字段的下拉；避免手写错名）
+  const keysQ = useQuery({
+    queryKey: ['provider', pid, 'ocr-keys'],
+    queryFn: () => api.listKeys(),
+    staleTime: 30_000,
+  })
+  const keyOptions = useMemo(
+    () => (keysQ.data?.keys ?? []).map((k) => ({ value: k.name, label: k.name })),
+    [keysQ.data],
+  )
   const templates = useQuery({
     queryKey: ['provider', pid, 'ocr-templates'],
     queryFn: () => api.get<{ templates: TplSummary[] }>('/ocr/templates?limit=200'),
@@ -436,7 +446,7 @@ export function OcrStudio() {
                             <Flex gap={12} wrap="wrap">
                               {Object.entries(extraProperties).map(([key, schema]) => (
                                 <Form.Item key={key} name={key} label={(schema.title as string) ?? key} style={{ minWidth: 220 }} valuePropName={schema.type === 'boolean' ? 'checked' : undefined}>
-                                  {renderExtraControl(schema)}
+                                  {renderExtraControl(schema, keyOptions)}
                                 </Form.Item>
                               ))}
                             </Flex>
@@ -637,7 +647,12 @@ export function OcrStudio() {
 }
 
 /** 模板增量输入控件（JSON Schema → antd 控件的最小映射）。 */
-function renderExtraControl(schema: Record<string, unknown>) {
+function renderExtraControl(schema: Record<string, unknown>, keyOptions?: { value: string; label: string }[]) {
+  // 密钥类字段：**只能从已录入的密钥里选**（手写错名会让任务白白重试后失败）
+  if ((schema.format as string) === 'keys' || (schema.title as string)?.includes('密钥')) {
+    return <Select allowClear showSearch placeholder="选择已录入的密钥"
+      options={keyOptions ?? []} />
+  }
   if (schema.enum) return <Select options={(schema.enum as unknown[]).map((v) => ({ value: v, label: String(v) }))} />
   if (schema.type === 'boolean') return <Switch />
   if (schema.type === 'number' || schema.type === 'integer') return <InputNumber style={{ width: '100%' }} />

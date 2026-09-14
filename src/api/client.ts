@@ -167,6 +167,10 @@ function createApi(pid?: string) {
       method: 'POST',
       body: JSON.stringify({ batch_id: batchId, name, suffix }),
     }),
+  /** 批次清单摘要（只读）：刷新后仍能显示「批次根目录名」。 */
+  batchNames: (ids: string[]): Promise<{ names: Record<string, string>; count: Record<string, number> }> =>
+    request<{ names: Record<string, string>; count: Record<string, number> }>(
+      `/files/batches?ids=${encodeURIComponent(ids.join(','))}`),
   /** 任务产物占用报告（只读）：任务列表展示占用 / 删除前预演将释放多少空间。 */
   usageRuns: (runIds?: string[], pipelineId?: string, limit = 50): Promise<RunUsage> =>
     request<RunUsage>('/pipeline-runs/usage', {

@@ -60,11 +60,25 @@ export default function RunListPanel({
     () => (batchFilter ? runs.filter((r) => r.batch_id === batchFilter) : runs),
     [runs, batchFilter])
 
+  const batchIds = useMemo(
+    () => [...new Set(runs.map((r) => r.batch_id).filter((x): x is string => !!x))],
+    [runs])
+  // 刷新后本地记不住批次根目录名 → 从服务端清单补（只读，仅在缺名时请求）
+  const missingBatchIds = useMemo(
+    () => batchIds.filter((id) => !batchNames?.[id]).slice(0, 20),
+    [batchIds, batchNames])
+  const remoteNames = useQuery({
+    queryKey: ['provider', pid, 'batch-names', missingBatchIds.join(',')],
+    enabled: missingBatchIds.length > 0,
+    queryFn: () => api.batchNames(missingBatchIds),
+  })
+  const labelOf = (id: string) => batchNames?.[id] ?? remoteNames.data?.names?.[id] ?? id
   const batches = useMemo(() => {
     const seen = new Map<string, number>()
     for (const r of runs) if (r.batch_id) seen.set(r.batch_id, (seen.get(r.batch_id) ?? 0) + 1)
-    return [...seen.entries()].map(([id, n]) => ({ id, n, label: batchNames?.[id] ?? id }))
-  }, [runs, batchNames])
+    return [...seen.entries()].map(([id, n]) => ({ id, n, label: labelOf(id) }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs, batchNames, remoteNames.data])
 
   const usage = useQuery({
     queryKey: ['provider', pid, 'run-usage', picked.join(',')],

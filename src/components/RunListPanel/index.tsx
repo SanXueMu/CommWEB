@@ -154,12 +154,17 @@ export default function RunListPanel({
       title: '状态', key: 'status', width: 140,
       render: (_: unknown, r: RunSummary) => {
         const bad = r.status === 'failed' || r.status === 'interrupted'
+        // 失败降级：原 run 标「已降级」（不是死失败），降级 run 标「自动降级」（指向原 run）
+        const fellBack = bad && Boolean(r.error?.fallback_flow)
         const tag = (
-          <Tag color={r.status === 'succeeded' ? 'green' : bad ? 'red' : r.status === 'paused' ? 'orange' : 'blue'}>
-            {STATUS_LABEL[r.status] ?? r.status}
+          <Tag color={fellBack ? 'gold' : r.status === 'succeeded' ? 'green'
+            : bad ? 'red' : r.status === 'paused' ? 'orange' : 'blue'}>
+            {fellBack ? '已降级' : STATUS_LABEL[r.status] ?? r.status}
           </Tag>
         )
-        const why = r.error?.message
+        const why = fellBack
+          ? `${r.error?.message ?? ''}`
+          : r.fallback_of ? '由原任务能力不可用自动降级而来' : r.error?.message
         return why ? <Tooltip title={why}>{tag}</Tooltip> : tag
       },
     },

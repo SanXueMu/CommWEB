@@ -64,7 +64,9 @@ export interface Task {
   /** 列表接口不再返回整段载荷（翻译步骤可达数 MB）；完整值走单任务详情接口。 */
   input?: Record<string, unknown>
   output?: Record<string, unknown> | null
-  error: { kind: string; message: string } | null
+  error: { kind: string; message: string; hint?: string | null;
+    /** 非空表示该失败已按 on_failure 自动降级到这条流 */
+    fallback_flow?: string | null } | null
   pipeline_run: string | null
   task_kind?: TaskKind
   root_run_id?: string | null
@@ -165,7 +167,9 @@ export interface PipelineRun {
     input: Record<string, unknown>
     batch_id?: string | null
     status: 'running' | 'succeeded' | 'failed' | string
-    error: { kind: string; message: string } | null
+    error: { kind: string; message: string; hint?: string | null;
+    /** 非空表示该失败已按 on_failure 自动降级到这条流 */
+    fallback_flow?: string | null } | null
     created_at: string
     finished_at: string | null
   }
@@ -193,7 +197,11 @@ export interface RunSummary {
   status: string
   /** 批次：一次目录/压缩包上传 = 一个批次（批量导出按批次还原原目录结构）。 */
   batch_id?: string | null
-  error: { kind: string; message: string } | null
+  /** 非空表示本 run 是「因原 run 能力不可用而自动降级」产生的（指向原 run）。 */
+  fallback_of?: string | null
+  error: { kind: string; message: string; hint?: string | null;
+    /** 非空表示该失败已按 on_failure 自动降级到这条流 */
+    fallback_flow?: string | null } | null
   progress?: number | null
   created_at: string
   finished_at: string | null

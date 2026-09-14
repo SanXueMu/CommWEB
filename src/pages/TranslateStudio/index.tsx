@@ -285,9 +285,14 @@ export function TranslateStudio() {
   const paramValue = (p: ParamField, f = flow) => paramVals[p.name] ?? paramDefault(p, f)
   /** 按文件名分流（批量时同一批可含多种类型：pdf 走版式、docx 走 Word 流） */
   const flowFor = (fileName: string) => flowForFile(fileName, routes, routeFlow)
-  /** 单文件 / 批量共用的管线入参 */
-  const buildInput = (fileName: string, path: string): Record<string, unknown> => {
-    const target = flowFor(fileName)
+  /** 单文件 / 批量共用的管线入参。
+   *
+   *  targetFlow **必须**是「即将执行的那条流」（探测/手动选择后的结果）——参数可见性
+   *  按流判定；若这里按扩展名默认流取参数，扫描件走图片流时就会漏发 image_model
+   *  等键，引擎模板缺键直接入队失败（2026-09-14 线上事故根因）。
+   */
+  const buildInput = (fileName: string, path: string, targetFlow?: string): Record<string, unknown> => {
+    const target = targetFlow ?? flowFor(fileName)
     return {
       file: path,
       key_name: keyName,
@@ -310,7 +315,7 @@ export function TranslateStudio() {
   })
   const startTranslate = () => {
     if (!flow || !file) { message.warning(t.noRoute); return }
-    runMutation.mutate(buildInput(file, file))
+    runMutation.mutate(buildInput(file, file, flow))
   }
   // ── 批量：清单增删 + 客户端并发 2 排队（避免撞 MT 模型请求限速）──
   const batchAdd = (files: BatchFileEntry[], _label: string, batch?: { batch_id?: string; root?: string }) => {
@@ -373,7 +378,7 @@ export function TranslateStudio() {
         report.push({ file: item.name, error: t.noRoute })
       } else {
         try {
-          const input = buildInput(item.name, item.path)
+          const input = buildInput(item.name, item.path, target)
           if (reason) input.reason = reason
           const created = await api.runPipeline(target, input, batchId)
           report.push({ file: item.name, flow: target, runId: created.run_id })

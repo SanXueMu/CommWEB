@@ -18,10 +18,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal,
+  Alert, AutoComplete, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal, Tooltip,
   Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
-import { DeleteOutlined, EditOutlined, EyeOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import type { BatchFileEntry } from '@/api/client'
@@ -33,28 +33,25 @@ import {
   supportedExtensions, visibleParams,
   type FileProbe, type ParamField, type Route, type UnsupportedRule,
 } from '@/protocol/routeSelect'
-import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import { runPool } from '@/protocol/pool'
-import { humanSize } from '@/lib/size'
 import type {
   PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
 } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
 import { BatchUpload } from '@/components/BatchUpload'
+import RunListPanel from '@/components/RunListPanel'
 import { DownloadButton } from '@/components/DownloadButton'
 import { StepTrack } from '@/components/StepTrack'
 import { StatusBadge } from '@/components/StatusBadge'
 import { SettingsKeys } from '@/components/SettingsKeys'
-import { useConfirm } from '@/components/ConfirmDialog'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
 const RUNNING = new Set(['running', 'pending', 'queued', 'paused'])
-// 客户端削峰：批量入队并发 2（翻译模型有 RPM 限速，并发过高会 429）；批量删除并发 4
+// 客户端削峰：批量入队并发 2（翻译模型有 RPM 限速，并发过高会 429）
 const ENQUEUE_CONCURRENCY = 2
-const DELETE_CONCURRENCY = 4
 
 interface Language { value: string; label: string }
 interface TranslateStudioProps {
@@ -64,6 +61,8 @@ interface TranslateStudioProps {
   unsupported?: UnsupportedRule[]
   /** 批量入口声明：存在才显示「单文件 / 批量」切换（业务常量不下沉前端） */
   batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }
+  /** PDF 处理口径候选（声明驱动）：auto 自动探测 / text 一律文字版 / image 一律图片翻译 */
+  pdfModes?: { value: string; label: string; hint?: string }[]
   templatesPath?: string
   dictPath?: string
   languages?: Language[]
@@ -135,7 +134,6 @@ export function TranslateStudio() {
   const { site } = useSiteCatalog()
   const qc = useQueryClient()
   const t = useTranslateText()
-  const { confirm } = useConfirm()
 
   const routes = props.routes ?? []
   const paramFields = props.params ?? []
@@ -172,7 +170,17 @@ export function TranslateStudio() {
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
   const [batchReport, setBatchReport] = useState<{ file: string; flow?: string; runId?: string; error?: string }[]>([])
-  const [pickedRuns, setPickedRuns] = useState<string[]>([])
+  /** 本次上传的批次号/批次根目录名（导出按批次还原原目录结构；跨刷新由 batchNames 记忆）。 */
+  const [batchId, setBatchId] = useState<string>()
+  const [batchNames, setBatchNames] = useState<Record<string, string>>({})
+  /** PDF 处理口径：auto=按文字层自动，text=一律文字版（扫描件暂停待补文字层），image=一律图片翻译。 */
+  const [pdfMode, setPdfMode] = useState<'auto' | 'text' | 'image'>('auto')
+  const pdfModes = props.pdfModes ?? []
+  const flowLabels = useMemo(
+    () => Object.fromEntries(routes.map((r) => [r.flow, r.label ?? r.flow])),
+    [routes])
+  /** 声明里标记 skip 的流（PPT 等）：入队后暂停留档，导出时放原文件。 */
+  const skipFlow = useMemo(() => routes.find((r) => r.skip)?.flow, [routes])
   const [dictModel, setDictModel] = useState<string>()
   const [dictPage, setDictPage] = useState(1)
   const [libTab, setLibTab] = useState('glossary')
@@ -303,7 +311,12 @@ export function TranslateStudio() {
     runMutation.mutate(buildInput(file, file))
   }
   // ── 批量：清单增删 + 客户端并发 2 排队（避免撞 MT 模型请求限速）──
-  const batchAdd = (files: BatchFileEntry[]) => {
+  const batchAdd = (files: BatchFileEntry[], _label: string, batch?: { batch_id?: string; root?: string }) => {
+    // 上传端点返回的批次号：建 run 时带上，导出可按批次还原原目录结构
+    if (batch?.batch_id) {
+      setBatchId(batch.batch_id)
+      if (batch.root) setBatchNames((m) => ({ ...m, [batch.batch_id as string]: batch.root as string }))
+    }
     setBatchList((prev) => {
       const seen = new Set(prev.map((f) => f.path))
       return [...prev, ...files.filter((f) => !seen.has(f.path))]
@@ -319,10 +332,26 @@ export function TranslateStudio() {
     setBatchReport([])
     setBatchProgress({ done: 0, total: targets.length })
     const report: { file: string; flow?: string; runId?: string; error?: string }[] = []
-    // 逐文件系统探测后选流：PDF 判有无文字层（扫描件→图片翻译），超页数上限则不入队
+    // 逐文件选流：① 声明标记 skip 的类型（PPT）→ 暂停留档，等人工决策
+    //            ② PDF 按所选口径：auto 探测文字层 / text 强制文字版（扫描件暂停待补文字层）/ image 强制图片翻译
+    //            ③ 其余按扩展名分流；超页数上限不入队
+    const pdfFlow = (kind: string) => routes.find((r) => r.for === kind)?.flow
     const resolveFlow = async (item: BatchFileEntry) => {
       const byExt = flowFor(item.name)
+      if (item.skip && skipFlow) return { flow: skipFlow, reason: item.skip_reason ?? t.skipReason }
       if (!item.name.toLowerCase().endsWith('.pdf')) return { flow: byExt }
+      if (pdfMode === 'image') return { flow: pdfFlow('scanned') ?? byExt }
+      if (pdfMode === 'text') {
+        try {
+          const p = await api.probeFile(item.path)
+          if (p.has_text_layer === false) {
+            return skipFlow
+              ? { flow: skipFlow, reason: t.pdfNeedOcr }
+              : { flow: byExt, error: t.pdfNeedOcr }
+          }
+        } catch { /* 探测失败按文字版继续 */ }
+        return { flow: pdfFlow('text') ?? byExt }
+      }
       try {
         const p = await api.probeFile(item.path)
         const limit = imagePageLimit(p)
@@ -335,14 +364,16 @@ export function TranslateStudio() {
       }
     }
     await runPool(targets, async (item) => {
-      const { flow: target, error: probeError } = await resolveFlow(item)
+      const { flow: target, error: probeError, reason } = await resolveFlow(item)
       if (probeError) {
         report.push({ file: item.name, error: probeError })
       } else if (!target) {
         report.push({ file: item.name, error: t.noRoute })
       } else {
         try {
-          const created = await api.runPipeline(target, buildInput(item.name, item.path))
+          const input = buildInput(item.name, item.path)
+          if (reason) input.reason = reason
+          const created = await api.runPipeline(target, input, batchId)
           report.push({ file: item.name, flow: target, runId: created.run_id })
         } catch (error) {
           report.push({ file: item.name, flow: target, error: errMsg(error) })
@@ -357,14 +388,6 @@ export function TranslateStudio() {
     if (ok < report.length) message.warning(`${report.length - ok} ${t.batchSomeFailed}`)
     qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })
   }
-  // 勾选任务的产物占用（只读预演：工具栏显示 + 删除确认里告知将释放多少空间）
-  const usageQ = useQuery({
-    queryKey: ['provider', pid, 'run-usage', pickedRuns],
-    queryFn: () => api.usageRuns(pickedRuns),
-    enabled: pickedRuns.length > 0,
-    staleTime: 30_000,
-  })
-
   const rerunMutation = useMutation({
     mutationFn: (id: string) => api.rerunRun(id),
     onSuccess: (r) => { setActiveRun(r.run_id); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }) },
@@ -374,11 +397,6 @@ export function TranslateStudio() {
     mutationFn: (id: string) => api.abortRun(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }),
     onError: (e) => message.error(`${t.abortFailed}${errMsg(e)}`),
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles),
-    onSuccess: () => { setDetailRun(null); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }) },
-    onError: (e) => message.error(`${t.deleteFailed}${errMsg(e)}`),
   })
   const saveTplMutation = useMutation({
     mutationFn: (template: TranslateTemplate) => api.send(templatesPath, {
@@ -392,97 +410,6 @@ export function TranslateStudio() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-templates'] }),
     onError: (e) => message.error(`${t.deleteFailed}${errMsg(e)}`),
   })
-
-  /** 删除任务：两选项（保留文件 / 含产物文件），弹窗返回选中 value 后再发请求。 */
-  const askDeleteRun = async (run: RunSummary) => {
-    const artifacts = run.summary?.artifacts?.length ?? 0
-    const mode = await confirm({
-      title: t.confirmDeleteRun,
-      content: (
-        <div>
-          <Typography.Text>{baseName(run.input?.file)}</Typography.Text>
-          <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-            {t.confirmDeleteRunHint.replace('{n}', String(artifacts))}
-          </Typography.Text>
-        </div>
-      ),
-      options: deleteRunOptions({
-        keep: t.deleteKeep, keepDesc: t.deleteKeepDesc,
-        purge: t.deletePurge, purgeDesc: t.deletePurgeDesc,
-      }),
-      cancelText: t.cancel,
-    })
-    const params = deleteRunParams(mode)
-    if (params) deleteMutation.mutate({ id: run.id, purgeFiles: params.purgeFiles })
-  }
-
-  /** 打包下载：服务端把所选任务的最终产物收进一个 zip，再触发浏览器下载。 */
-  const askPackage = async () => {
-    if (!pickedRuns.length) { message.warning(t.packNone); return }
-    try {
-      const pkg = await api.packageRuns(pickedRuns, 'final')
-      message.success(`${t.packDone}：${pkg.runs} ${t.packRunsWord} / ${pkg.count} ${t.packFilesWord}（${humanSize(pkg.size)}）`)
-      if (pkg.skipped.length) {
-        Modal.info({
-          title: t.packSkipped,
-          width: 520,
-          content: (
-            <Space direction="vertical" size={2} style={{ fontSize: 12 }}>
-              {pkg.skipped.map((s) => (
-                <Typography.Text key={s.run_id} type="secondary">
-                  {s.run_id.slice(0, 14)}… — {s.reason}
-                </Typography.Text>
-              ))}
-            </Space>
-          ),
-        })
-      }
-      window.location.href = api.downloadUrl(pkg.path)
-    } catch (error) {
-      message.error(`${t.packFailed}${errMsg(error)}`)
-    }
-  }
-
-  /** 批量删除：一次确认（保留文件 / 含产物），运行中的任务后端会先自动取消。 */
-  const askBatchDelete = async () => {
-    if (!pickedRuns.length) { message.warning(t.packNone); return }
-    const usage = usageQ.data?.total
-    const mode = await confirm({
-      title: t.confirmDeleteRun,
-      content: (
-        <div>
-          <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-            {t.batchDeleteHint.replace('{n}', String(pickedRuns.length))}
-          </Typography.Text>
-          {usage && usage.files > 0 && (
-            <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-              {t.batchDeleteUsage.replace('{n}', String(usage.files)).replace('{size}', humanSize(usage.bytes))}
-            </Typography.Text>
-          )}
-        </div>
-      ),
-      options: deleteRunOptions({
-        keep: t.deleteKeep, keepDesc: t.deleteKeepDesc,
-        purge: t.deletePurge, purgeDesc: t.deletePurgeDesc,
-      }),
-      cancelText: t.cancel,
-    })
-    const params = deleteRunParams(mode)
-    if (!params) return
-    const results = await runPool(pickedRuns, async (id) => {
-      try {
-        await api.deleteRun(id, params.purgeFiles)
-        return { id } as { id: string; error?: string }
-      } catch (error) {
-        return { id, error: errMsg(error) }
-      }
-    }, DELETE_CONCURRENCY)
-    const failed = results.filter((r) => r.error)
-    if (results.length > failed.length) message.success(`${t.batchDeleteDone} ${results.length - failed.length} ${t.packRunsWord}`)
-    if (failed.length) message.warning(`${failed.length} ${t.batchDeleteFailed}`)
-    setPickedRuns([])
-    qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })
-  }
 
   const openEditor = (tpl: TranslateTemplate | null) => {
     setEditTpl(tpl)
@@ -619,6 +546,19 @@ export function TranslateStudio() {
                           disabled={batchRunning}
                           onPicked={batchAdd}
                         />
+                        {pdfModes.length > 0 && (
+                          <Space size={8} style={{ marginTop: 10 }} wrap>
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.pdfMode}</Typography.Text>
+                            <Segmented
+                              size="small" value={pdfMode}
+                              onChange={(v) => setPdfMode(v as 'auto' | 'text' | 'image')}
+                              options={pdfModes.map((m) => ({
+                                value: m.value,
+                                label: <Tooltip title={m.hint}>{m.label}</Tooltip>,
+                              }))}
+                            />
+                          </Space>
+                        )}
                         {batchList.length > 0 && (
                           <div style={{ marginTop: 8 }}>
                             <Flex justify="space-between" align="center" wrap="wrap">
@@ -769,72 +709,16 @@ export function TranslateStudio() {
             {
               key: 'tasks', label: t.tabTasks,
               children: (
-                <Card size="small" extra={
-                  <Space size={4}>
-                    {pickedRuns.length > 0 && (
-                      <>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {t.batchSelected}{pickedRuns.length}
-                          {usageQ.data && usageQ.data.total.files > 0 && ` · ${humanSize(usageQ.data.total.bytes)}`}
-                        </Typography.Text>
-                        <Button size="small" onClick={askPackage}>{t.packRun}</Button>
-                        <Button size="small" danger onClick={askBatchDelete}>{t.batchDelete}</Button>
-                      </>
-                    )}
-                    <Button size="small" onClick={() => runs.refetch()}>{t.refresh}</Button>
-                  </Space>
-                }>
-                  <Table
-                    size="small" rowKey="id" loading={runs.isLoading}
-                    dataSource={runList}
-                    locale={{ emptyText: t.tasksEmpty }}
-                    pagination={{ size: 'small', pageSize: 20, showSizeChanger: false }}
-                    rowSelection={{
-                      selectedRowKeys: pickedRuns,
-                      onChange: (keys) => setPickedRuns(keys as string[]),
-                    }}
-                    columns={[
-                      { title: t.colStatus, dataIndex: 'status', width: 110, render: (v: string) => <StatusBadge value={v} /> },
-                      { title: t.colFile, key: 'file', ellipsis: true, render: (_: unknown, r: RunSummary) => baseName(r.input?.file) },
-                      { title: t.colFlow, dataIndex: 'pipeline_id', width: 170, ellipsis: true },
-                      {
-                        title: t.colProgress, key: 'progress', width: 130,
-                        render: (_: unknown, r: RunSummary) => {
-                          const done = r.summary?.steps_done ?? 0
-                          const total = r.summary?.steps_total ?? 0
-                          return <Progress percent={total ? Math.round((done / total) * 100) : 0} size="small" status={RUNNING.has(r.status) ? 'active' : 'normal'} />
-                        },
-                      },
-                      {
-                        title: t.colStats, key: 'stats', width: 180,
-                        render: (_: unknown, r: RunSummary) => {
-                          const s = r.summary
-                          if (!s) return '—'
-                          return (
-                            <Space size={4}>
-                              <Tag color="green">✓{s.ok_count ?? 0}</Tag>
-                              <Tag color="blue">⚡{s.cache_hits ?? 0}</Tag>
-                              <Tag color="orange">⚠{s.review_count ?? 0}</Tag>
-                            </Space>
-                          )
-                        },
-                      },
-                      { title: t.colCreated, dataIndex: 'created_at', width: 160, render: (v: string) => (v ? v.replace('T', ' ').slice(0, 19) : '—') },
-                      {
-                        title: t.colActions, key: 'actions', width: 200,
-                        render: (_: unknown, r: RunSummary) => (
-                          <Space size={4}>
-                            <Button size="small" type="link" icon={<EyeOutlined />} onClick={() => setDetailRun(r.id)}>{t.detail}</Button>
-                            <Button size="small" type="link" onClick={() => rerunMutation.mutate(r.id)}>{t.rerun}</Button>
-                            {RUNNING.has(r.status)
-                              ? <Button size="small" type="link" danger onClick={() => abortMutation.mutate(r.id)}>{t.abort}</Button>
-                              : <Button size="small" type="link" danger onClick={() => askDeleteRun(r)}>{t.remove}</Button>}
-                          </Space>
-                        ),
-                      },
-                    ]}
-                  />
-                </Card>
+                <RunListPanel
+                  pid={pid} runs={runList} loading={runs.isLoading} showStats
+                  onRefresh={() => runs.refetch()}
+                  onChanged={() => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })}
+                  flowLabels={flowLabels}
+                  batchNames={batchNames}
+                  onOpenRun={setDetailRun}
+                  onRerun={(id) => rerunMutation.mutate(id)}
+                  onAbort={(id) => abortMutation.mutate(id)}
+                />
               ),
             },
             {
@@ -1044,6 +928,9 @@ function useTranslateText() {
     clearList: '清空清单', batchStart: '开始翻译（批量）', batchNone: '请先勾选要翻译的文件',
     batchQueued: '已入队', batchSomeFailed: '个未能入队（见下方明细）',
     probeText: '已识别：文字版 PDF（走版式翻译）', probeScanned: '已识别：扫描件（走图片翻译，保留版式）',
+    pdfMode: 'PDF 处理方式',
+    skipReason: '本轮不处理该类型（任务暂停留档，原文件随批次导出）',
+    pdfNeedOcr: '扫描件需文字版：请先补文字层（如 ocrmypdf）后重跑，或改用「图片翻译」口径',
     pagesWord: '页', pageOver: '超过图片翻译单任务页数上限，请拆分',
     packNone: '请先勾选任务', packRun: '打包下载', packDone: '已打包', packRunsWord: '个任务',
     packFilesWord: '个产物', packSkipped: '部分任务未打包', packFailed: '打包失败：',

@@ -9,6 +9,8 @@ export interface Route {
   label?: string
   /** 供「系统探测」自动选流：text=有文字层, scanned=扫描件（图片翻译） */
   for?: string
+  /** 声明标记为本轮不处理（PPT 等）：入队后暂停留档，导出时放原文件 */
+  skip?: boolean
 }
 
 export interface ParamField {

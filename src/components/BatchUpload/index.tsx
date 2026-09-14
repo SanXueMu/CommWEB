@@ -21,7 +21,7 @@ export function BatchUpload({
   maxFiles?: number
   maxTotalMB?: number
   disabled?: boolean
-  onPicked: (files: BatchFileEntry[], label: string) => void
+  onPicked: (files: BatchFileEntry[], label: string, batch?: { batch_id?: string; root?: string }) => void
 }) {
   const [mode, setMode] = useState<BatchMode>('dir')
   const [picked, setPicked] = useState<File[]>([])
@@ -58,7 +58,7 @@ export function BatchUpload({
     setBusy(true)
     try {
       const result = await api.uploadFiles(picked, extQuery)
-      onPicked(result.files, result.name)
+      onPicked(result.files, result.name, { batch_id: result.batch_id, root: result.name })
       message.success(`已上传 ${result.count} 个文件（${humanSize(result.size)}）`)
       setPicked([])
     } catch (error) {
@@ -73,7 +73,7 @@ export function BatchUpload({
     setBusy(true)
     try {
       const result = await api.uploadArchive(picked[0], extQuery)
-      onPicked(result.files, result.name)
+      onPicked(result.files, result.name, { batch_id: result.batch_id, root: result.name })
       setSkipped(result.skipped ?? [])
       message.success(`已解压 ${result.count} 个文件（${humanSize(result.size)}）`)
       setPicked([])

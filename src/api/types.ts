@@ -163,6 +163,7 @@ export interface PipelineRun {
     id: string
     pipeline_id: string
     input: Record<string, unknown>
+    batch_id?: string | null
     status: 'running' | 'succeeded' | 'failed' | string
     error: { kind: string; message: string } | null
     created_at: string
@@ -190,6 +191,8 @@ export interface RunSummary {
   pipeline_id: string | null
   input: Record<string, unknown>
   status: string
+  /** 批次：一次目录/压缩包上传 = 一个批次（批量导出按批次还原原目录结构）。 */
+  batch_id?: string | null
   error: { kind: string; message: string } | null
   progress?: number | null
   created_at: string

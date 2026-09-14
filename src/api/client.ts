@@ -108,10 +108,11 @@ function createApi(pid?: string) {
     return { pipelines: pipelines.map((p) => normalizePipeline(p, providerId)) }
   },
   getPipeline: async (id: string): Promise<PipelineSummary> => normalizePipeline(await request<unknown>(`/pipelines/${id}`), pid ?? registry.activeId() ?? 'default'),
-  runPipeline: (id: string, input: Record<string, unknown>) =>
+  /** 建 run；批量（一文件一任务）时带 batch_id，导出可按批次还原原目录结构。 */
+  runPipeline: (id: string, input: Record<string, unknown>, batchId?: string) =>
     request<PipelineRunCreated>(`/pipelines/${id}/run`, {
       method: 'POST',
-      body: JSON.stringify({ input }),
+      body: JSON.stringify({ input, batch_id: batchId }),
     }),
   getPipelineRun: (runId: string) => request<PipelineRun>(`/pipeline-runs/${runId}`),
   listRuns: (pipelineId?: string, limit = 50, offset = 0) => {
@@ -160,6 +161,12 @@ function createApi(pid?: string) {
       method: 'POST',
       body: JSON.stringify({ run_ids: runIds, scope, name }),
     }),
+  /** 批次打包下载：按上传清单还原**原目录结构**（根目录加 suffix），未处理/跳过的文件放原文件。 */
+  packageBatch: (batchId: string, name?: string, suffix = '_中文'): Promise<RunPackage> =>
+    request<RunPackage>('/files/package_batch', {
+      method: 'POST',
+      body: JSON.stringify({ batch_id: batchId, name, suffix }),
+    }),
   /** 任务产物占用报告（只读）：任务列表展示占用 / 删除前预演将释放多少空间。 */
   usageRuns: (runIds?: string[], pipelineId?: string, limit = 50): Promise<RunUsage> =>
     request<RunUsage>('/pipeline-runs/usage', {
@@ -197,14 +204,20 @@ export interface BatchFileEntry {
   name: string
   rel?: string
   size: number
+  /** 后端按声明分类：本轮不处理（如 PPT），入队后暂停留档 */
+  skip?: boolean
+  skip_reason?: string
 }
 
 export interface BatchUploaded {
   path: string
   name: string
+  /** 批次号：同一次目录/压缩包上传的所有文件共享，用于按批次导出原目录结构。 */
+  batch_id?: string
   count: number
   size: number
   files: BatchFileEntry[]
+  /** 按声明跳过的条目（如 PPT）：仍随批次导出原文件，但本轮不翻译。 */
   skipped?: { name: string; reason: string }[]
   truncated?: boolean
 }
@@ -219,6 +232,9 @@ export interface RunPackage {
   size: number
   entries: { run_id: string; name: string; arcname: string; step?: number; size?: number }[]
   skipped: { run_id: string; reason: string }[]
+  /** 仅批次导出：未翻译/暂停/跳过的文件按原文件放入（附原因）。 */
+  passthrough?: { rel: string; name: string; reason: string; arcname: string }[]
+  missing?: { rel: string; reason: string }[]
 }
 
 /** 任务产物占用（对应 CommAND POST /api/pipeline-runs/usage，只读）。 */

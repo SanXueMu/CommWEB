@@ -31,6 +31,7 @@ import { humanSize } from '@/lib/size'
 import type { BatchFileEntry } from '@/api/client'
 import { DownloadButton } from '@/components/DownloadButton'
 import { ResultRenderer } from '@/components/ResultRenderer'
+import RunListPanel from '@/components/RunListPanel'
 import { SpecEditor, type BuiltinView } from '@/components/SpecEditor'
 import { StepTrack } from '@/components/StepTrack'
 
@@ -118,6 +119,8 @@ interface OcrStudioProps {
   batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }
   /** 「管理模版」弹窗承载的视图 id（声明下发；缺省 templates.manager） */
   manageView?: string
+  /** 本工作台任务清单的流过滤（通用 RunListPanel 用，声明下发） */
+  flows?: string[]
   description?: string
   builtinViews?: BuiltinView[]
 }
@@ -171,6 +174,12 @@ export function OcrStudio() {
     enabled: Boolean(db),
   })
 
+  const ocrRuns = useQuery({
+    queryKey: ['provider', pid, 'ocr-runs', (props.flows ?? []).join(',')],
+    queryFn: () => api.listRuns(undefined, 200),
+    refetchInterval: 2000,
+    enabled: (props.flows?.length ?? 0) > 0,
+  })
   const run = useQuery({
     queryKey: ['provider', pid, 'studio-run', runId],
     queryFn: () => api.getPipelineRun(runId!),
@@ -542,6 +551,17 @@ export function OcrStudio() {
               ),
             },
             {
+              key: 'runs', label: t.tabRuns,
+              children: (
+                <RunListPanel
+                  runs={(ocrRuns.data?.runs ?? []).filter((r) => !props.flows?.length || props.flows.includes(r.pipeline_id ?? ''))}
+                  loading={ocrRuns.isLoading}
+                  onRefresh={() => { void ocrRuns.refetch() }}
+                  onChanged={() => { void ocrRuns.refetch() }}
+                />
+              ),
+            },
+            {
               key: 'views', label: t.tabViews,
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -686,6 +706,7 @@ function useOcrText() {
     tabRecognize: '识别',
     tabRecords: '结果',
     tabViews: '视图',
+    tabRuns: '任务',
     scopeAll: '全部文件',
     recordsEmpty: '暂无记录',
     originPage: '原页',

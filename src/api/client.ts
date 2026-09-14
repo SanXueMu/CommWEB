@@ -120,8 +120,9 @@ function createApi(pid?: string) {
     params.set('offset', String(offset))
     return request<{ runs: RunSummary[]; total: number }>(`/pipeline-runs?${params.toString()}`)
   },
-  deleteRun: (runId: string) =>
-    request<{ id: string; status: string }>(`/pipeline-runs/${runId}`, { method: 'DELETE' }),
+  deleteRun: (runId: string, purgeFiles = true) =>
+    request<{ id: string; status: string; aborted?: boolean; files_removed?: number; bytes_freed?: number }>(
+      `/pipeline-runs/${runId}?purge_files=${purgeFiles}`, { method: 'DELETE' }),
   getRunSnapshot: (runId: string) => request<RunSnapshot>(`/pipeline-runs/${runId}/snapshot`),
   listRunEvents: (runId: string, limit = 200) =>
     request<{ events: RunEvent[] }>(`/pipeline-runs/${runId}/events?limit=${limit}`),

@@ -26,6 +26,7 @@ import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { viewPathByType } from '@/transfer/siteManifest'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import { matchRoutes, visibleParams, type ParamField, type Route } from '@/protocol/routeSelect'
+import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import type {
   PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
 } from '@/api/types'
@@ -34,6 +35,7 @@ import { DownloadButton } from '@/components/DownloadButton'
 import { StepTrack } from '@/components/StepTrack'
 import { StatusBadge } from '@/components/StatusBadge'
 import { SettingsKeys } from '@/components/SettingsKeys'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -117,6 +119,7 @@ export function TranslateStudio() {
   const { site } = useSiteCatalog()
   const qc = useQueryClient()
   const t = useTranslateText()
+  const { confirm } = useConfirm()
 
   const routes = props.routes ?? []
   const paramFields = props.params ?? []
@@ -245,7 +248,7 @@ export function TranslateStudio() {
     onError: (e) => message.error(`${t.abortFailed}${errMsg(e)}`),
   })
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteRun(id),
+    mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles),
     onSuccess: () => { setDetailRun(null); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }) },
     onError: (e) => message.error(`${t.deleteFailed}${errMsg(e)}`),
   })
@@ -261,6 +264,29 @@ export function TranslateStudio() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-templates'] }),
     onError: (e) => message.error(`${t.deleteFailed}${errMsg(e)}`),
   })
+
+  /** 删除任务：两选项（保留文件 / 含产物文件），弹窗返回选中 value 后再发请求。 */
+  const askDeleteRun = async (run: RunSummary) => {
+    const artifacts = run.summary?.artifacts?.length ?? 0
+    const mode = await confirm({
+      title: t.confirmDeleteRun,
+      content: (
+        <div>
+          <Typography.Text>{baseName(run.input?.file)}</Typography.Text>
+          <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+            {t.confirmDeleteRunHint.replace('{n}', String(artifacts))}
+          </Typography.Text>
+        </div>
+      ),
+      options: deleteRunOptions({
+        keep: t.deleteKeep, keepDesc: t.deleteKeepDesc,
+        purge: t.deletePurge, purgeDesc: t.deletePurgeDesc,
+      }),
+      cancelText: t.cancel,
+    })
+    const params = deleteRunParams(mode)
+    if (params) deleteMutation.mutate({ id: run.id, purgeFiles: params.purgeFiles })
+  }
 
   const openEditor = (tpl: TranslateTemplate | null) => {
     setEditTpl(tpl)
@@ -479,9 +505,7 @@ export function TranslateStudio() {
                             <Button size="small" type="link" onClick={() => rerunMutation.mutate(r.id)}>{t.rerun}</Button>
                             {RUNNING.has(r.status)
                               ? <Button size="small" type="link" danger onClick={() => abortMutation.mutate(r.id)}>{t.abort}</Button>
-                              : <Popconfirm title={t.confirmDeleteRun} onConfirm={() => deleteMutation.mutate(r.id)}>
-                                  <Button size="small" type="link" danger>{t.remove}</Button>
-                                </Popconfirm>}
+                              : <Button size="small" type="link" danger onClick={() => askDeleteRun(r)}>{t.remove}</Button>}
                           </Space>
                         ),
                       },
@@ -693,7 +717,11 @@ function useTranslateText() {
     abortFailed: '取消失败：', deleteFailed: '删除失败：', saveFailed: '保存失败：',
     tabRecords: '', refresh: '刷新', tasksEmpty: '暂无翻译任务', colStatus: '状态', colFile: '文件',
     colFlow: '流', colProgress: '进度', colStats: '统计', colCreated: '创建时间', colActions: '操作',
-    detail: '详情', rerun: '再运行', abort: '取消', remove: '删除', confirmDeleteRun: '确认删除该任务？',
+    detail: '详情', rerun: '再运行', abort: '取消', remove: '删除', confirmDeleteRun: '删除该任务？',
+    confirmDeleteRunHint: '该任务现有产物 {n} 项，请选择删除口径（不可恢复）',
+    deleteKeep: '删除任务，保留文件', deleteKeepDesc: '任务记录消失，服务器上的产物文件保留',
+    deletePurge: '删除任务，并删除产物文件', deletePurgeDesc: '连同该任务的产物与中间结果一起清除',
+    cancel: '取消',
     detailTitle: '任务详情', errorLabel: '错误', artifacts: '产物', logs: '运行日志', noLogs: '暂无日志',
     usage: 'Token 用量', statOk: '新译', statCache: '缓存', statReview: '待审', calls: '调用',
     statOverflow: '溢出',

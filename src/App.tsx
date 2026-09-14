@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { App as AntApp, ConfigProvider, Typography } from 'antd'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppHeader } from '@/components/AppHeader'
+import { ConfirmProvider } from '@/components/ConfirmDialog'
 import { PORTAL } from '@/config/portal'
 import { useTheme } from '@/theme/store'
 import { WorkspaceProvider } from '@/workspace/store'
@@ -35,9 +36,11 @@ function App() {
   return (
     <ConfigProvider theme={config}>
       <AntApp>
-        <TransferProvider>
-          <SiteFrame />
-        </TransferProvider>
+        <ConfirmProvider>
+          <TransferProvider>
+            <SiteFrame />
+          </TransferProvider>
+        </ConfirmProvider>
       </AntApp>
     </ConfigProvider>
   )

@@ -1,8 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import {
-  defaultParams, matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
+  defaultParams, flowForFile, matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
   type ParamField, type Route, type UnsupportedRule,
 } from './routeSelect'
+
+const mixedRoutes: Route[] = [
+  { ext: ['.pdf'], flow: 'flow.translate.pdf.layout', label: '版式翻译' },
+  { ext: ['.pdf'], flow: 'flow.translate.pdf', label: '文档翻译' },
+  { ext: ['.docx'], flow: 'flow.translate.docx', label: 'Word 翻译' },
+]
+
+describe('flowForFile：单文件与批量共用的分流', () => {
+  it('用户显式选的流仍匹配该文件时优先', () => {
+    expect(flowForFile('合同.pdf', mixedRoutes, 'flow.translate.pdf')).toBe('flow.translate.pdf')
+    expect(flowForFile('说明.docx', mixedRoutes, 'flow.translate.docx')).toBe('flow.translate.docx')
+  })
+
+  it('显式选的流不匹配（如批量里换成了另一种文件）则回落第一条匹配', () => {
+    expect(flowForFile('说明.docx', mixedRoutes, 'flow.translate.pdf.layout')).toBe('flow.translate.docx')
+  })
+
+  it('批量清单混合类型各自分流；无匹配返回 undefined', () => {
+    expect(['合同.pdf', '说明.docx', '扫描件.pdf'].map((n) => flowForFile(n, mixedRoutes, 'flow.translate.pdf.layout')))
+      .toEqual(['flow.translate.pdf.layout', 'flow.translate.docx', 'flow.translate.pdf.layout'])
+    expect(flowForFile('照片.png', mixedRoutes)).toBeUndefined()
+    expect(flowForFile(undefined, mixedRoutes)).toBeUndefined()
+  })
+})
 
 const routes: Route[] = [
   { ext: ['.pdf'], flow: 'flow.a', label: 'A' },

@@ -8,6 +8,8 @@
  *  flow_prefix?: string
  *  routes?: { ext: string[]; flow: string; label?: string }[]  // 后缀 → 流（同后缀多条=可选）
  *  params?: ParamField[]                         // 通用附加参数（声明驱动，可按流过滤）
+ *  unsupported?: { ext: string[]; message: string }[]   // 不支持后缀的提示文案（如旧版 .doc）
+ *  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }  // 存在才显示批量入口
  *  templatesPath?: string                        // 翻译模板端点（默认 /translate/templates）
  *  dictPath?: string                             // 字典浏览端点（默认 /translate/dict）
  *  languages?: { value: string; label: string }[]
@@ -16,24 +18,28 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, Badge, Button, Card, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal,
-  Popconfirm, Progress, Select, Space, Table, Tabs, Tag, Typography, message,
+  Alert, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal,
+  Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import { DeleteOutlined, EditOutlined, EyeOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
+import type { BatchFileEntry } from '@/api/client'
 import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { viewPathByType } from '@/transfer/siteManifest'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import {
-  matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
+  flowForFile, matchRoutes, matchUnsupported, paramDefault, supportedExtensions, visibleParams,
   type ParamField, type Route, type UnsupportedRule,
 } from '@/protocol/routeSelect'
 import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
+import { runPool } from '@/protocol/pool'
+import { humanSize } from '@/lib/size'
 import type {
   PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
 } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
+import { BatchUpload } from '@/components/BatchUpload'
 import { DownloadButton } from '@/components/DownloadButton'
 import { StepTrack } from '@/components/StepTrack'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -45,6 +51,9 @@ function errMsg(e: unknown): string {
 }
 
 const RUNNING = new Set(['running', 'pending', 'queued', 'paused'])
+// 客户端削峰：批量入队并发 2（翻译模型有 RPM 限速，并发过高会 429）；批量删除并发 4
+const ENQUEUE_CONCURRENCY = 2
+const DELETE_CONCURRENCY = 4
 
 interface Language { value: string; label: string }
 interface TranslateStudioProps {
@@ -52,6 +61,8 @@ interface TranslateStudioProps {
   routes?: Route[]
   params?: ParamField[]
   unsupported?: UnsupportedRule[]
+  /** 批量入口声明：存在才显示「单文件 / 批量」切换（业务常量不下沉前端） */
+  batch?: { extensions?: string[]; maxFiles?: number; maxTotalMB?: number }
   templatesPath?: string
   dictPath?: string
   languages?: Language[]
@@ -148,6 +159,15 @@ export function TranslateStudio() {
   const [keysOpen, setKeysOpen] = useState(false)
   const [dictQ, setDictQ] = useState('')
   const [dictStatus, setDictStatus] = useState<string>()
+  // ── 批量模式 ──
+  const batchSpec = props.batch
+  const [batchOn, setBatchOn] = useState(false)
+  const [batchList, setBatchList] = useState<BatchFileEntry[]>([])
+  const [batchSel, setBatchSel] = useState<string[]>([])
+  const [batchRunning, setBatchRunning] = useState(false)
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
+  const [batchReport, setBatchReport] = useState<{ file: string; runId?: string; error?: string }[]>([])
+  const [pickedRuns, setPickedRuns] = useState<string[]>([])
   const [dictModel, setDictModel] = useState<string>()
   const [dictPage, setDictPage] = useState(1)
   const [libTab, setLibTab] = useState('glossary')
@@ -216,12 +236,25 @@ export function TranslateStudio() {
   })
   const selectedTemplate = tplDetailQuery.data ?? tplList.find((x) => x.id === templateId)
   const matchedRoutes = useMemo(() => matchRoutes(file, routes), [file, routes])
-  const flow = useMemo(
-    () => (matchedRoutes.some((r) => r.flow === routeFlow) ? routeFlow : matchedRoutes[0]?.flow),
-    [matchedRoutes, routeFlow],
-  )
+  const flow = useMemo(() => flowForFile(file, routes, routeFlow), [file, routes, routeFlow])
   const activeParams = visibleParams(paramFields, flow)
-  const paramValue = (p: ParamField) => paramVals[p.name] ?? paramDefault(p, flow)
+  /** 参数默认值：声明 default_by_flow 优先于 default（如 Word 默认双语、PDF 版式默认原位） */
+  const paramValue = (p: ParamField, f = flow) => paramVals[p.name] ?? paramDefault(p, f)
+  /** 按文件名分流（批量时同一批可含多种类型：pdf 走版式、docx 走 Word 流） */
+  const flowFor = (fileName: string) => flowForFile(fileName, routes, routeFlow)
+  /** 单文件 / 批量共用的管线入参 */
+  const buildInput = (fileName: string, path: string): Record<string, unknown> => {
+    const target = flowFor(fileName)
+    return {
+      file: path,
+      key_name: keyName,
+      model: model || null,
+      source_lang: sourceLang || null,
+      target_lang: targetLang || null,
+      terms: selectedTemplate?.terms ?? [],
+      ...Object.fromEntries(visibleParams(paramFields, target).map((p) => [p.name, paramValue(p, target) || null])),
+    }
+  }
   // 声明驱动的「不支持后缀」提示（如旧版 .doc）+ 受支持后缀一览
   const unsupportedHint = matchUnsupported(file, unsupportedRules)
   const supportedExts = supportedExtensions(routes).join(' / ')
@@ -234,16 +267,46 @@ export function TranslateStudio() {
     onError: (e) => message.error(`${t.startFailed}${errMsg(e)}`),
   })
   const startTranslate = () => {
-    if (!flow) { message.warning(t.noRoute); return }
-    runMutation.mutate({
-      file,
-      key_name: keyName,
-      model: model || null,
-      source_lang: sourceLang || null,
-      target_lang: targetLang || null,
-      terms: selectedTemplate?.terms ?? [],
-      ...Object.fromEntries(activeParams.map((p) => [p.name, paramValue(p) || null])),
+    if (!flow || !file) { message.warning(t.noRoute); return }
+    runMutation.mutate(buildInput(file, file))
+  }
+  // ── 批量：清单增删 + 客户端并发 2 排队（避免撞 MT 模型请求限速）──
+  const batchAdd = (files: BatchFileEntry[]) => {
+    setBatchList((prev) => {
+      const seen = new Set(prev.map((f) => f.path))
+      return [...prev, ...files.filter((f) => !seen.has(f.path))]
     })
+    setBatchSel((sel) => [...new Set([...sel, ...files.map((f) => f.path)])])
+  }
+  const batchToggle = (path: string, on: boolean) =>
+    setBatchSel((prev) => (on ? [...new Set([...prev, path])] : prev.filter((p) => p !== path)))
+  const startBatch = async () => {
+    const targets = batchList.filter((f) => batchSel.includes(f.path))
+    if (!targets.length) { message.warning(t.batchNone); return }
+    setBatchRunning(true)
+    setBatchReport([])
+    setBatchProgress({ done: 0, total: targets.length })
+    const report: { file: string; runId?: string; error?: string }[] = []
+    await runPool(targets, async (item) => {
+      const target = flowFor(item.name)
+      if (!target) {
+        report.push({ file: item.name, error: t.noRoute })
+      } else {
+        try {
+          const created = await api.runPipeline(target, buildInput(item.name, item.path))
+          report.push({ file: item.name, runId: created.run_id })
+        } catch (error) {
+          report.push({ file: item.name, error: errMsg(error) })
+        }
+      }
+      setBatchProgress((p) => ({ ...p, done: p.done + 1 }))
+      setBatchReport([...report])
+    }, ENQUEUE_CONCURRENCY)
+    setBatchRunning(false)
+    const ok = report.filter((r) => r.runId).length
+    if (ok) message.success(`${t.batchQueued} ${ok}/${report.length}`)
+    if (ok < report.length) message.warning(`${report.length - ok} ${t.batchSomeFailed}`)
+    qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })
   }
   const rerunMutation = useMutation({
     mutationFn: (id: string) => api.rerunRun(id),
@@ -294,6 +357,66 @@ export function TranslateStudio() {
     })
     const params = deleteRunParams(mode)
     if (params) deleteMutation.mutate({ id: run.id, purgeFiles: params.purgeFiles })
+  }
+
+  /** 打包下载：服务端把所选任务的最终产物收进一个 zip，再触发浏览器下载。 */
+  const askPackage = async () => {
+    if (!pickedRuns.length) { message.warning(t.packNone); return }
+    try {
+      const pkg = await api.packageRuns(pickedRuns, 'final')
+      message.success(`${t.packDone}：${pkg.runs} ${t.packRunsWord} / ${pkg.count} ${t.packFilesWord}（${humanSize(pkg.size)}）`)
+      if (pkg.skipped.length) {
+        Modal.info({
+          title: t.packSkipped,
+          width: 520,
+          content: (
+            <Space direction="vertical" size={2} style={{ fontSize: 12 }}>
+              {pkg.skipped.map((s) => (
+                <Typography.Text key={s.run_id} type="secondary">
+                  {s.run_id.slice(0, 14)}… — {s.reason}
+                </Typography.Text>
+              ))}
+            </Space>
+          ),
+        })
+      }
+      window.location.href = api.downloadUrl(pkg.path)
+    } catch (error) {
+      message.error(`${t.packFailed}${errMsg(error)}`)
+    }
+  }
+
+  /** 批量删除：一次确认（保留文件 / 含产物），运行中的任务后端会先自动取消。 */
+  const askBatchDelete = async () => {
+    if (!pickedRuns.length) { message.warning(t.packNone); return }
+    const mode = await confirm({
+      title: t.confirmDeleteRun,
+      content: (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {t.batchDeleteHint.replace('{n}', String(pickedRuns.length))}
+        </Typography.Text>
+      ),
+      options: deleteRunOptions({
+        keep: t.deleteKeep, keepDesc: t.deleteKeepDesc,
+        purge: t.deletePurge, purgeDesc: t.deletePurgeDesc,
+      }),
+      cancelText: t.cancel,
+    })
+    const params = deleteRunParams(mode)
+    if (!params) return
+    const results = await runPool(pickedRuns, async (id) => {
+      try {
+        await api.deleteRun(id, params.purgeFiles)
+        return { id } as { id: string; error?: string }
+      } catch (error) {
+        return { id, error: errMsg(error) }
+      }
+    }, DELETE_CONCURRENCY)
+    const failed = results.filter((r) => r.error)
+    if (results.length > failed.length) message.success(`${t.batchDeleteDone} ${results.length - failed.length} ${t.packRunsWord}`)
+    if (failed.length) message.warning(`${failed.length} ${t.batchDeleteFailed}`)
+    setPickedRuns([])
+    qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })
   }
 
   const openEditor = (tpl: TranslateTemplate | null) => {
@@ -403,7 +526,57 @@ export function TranslateStudio() {
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                   <Card size="small" title={t.runConfig}>
-                    <FileUpload value={file ?? undefined} onChange={setFile} />
+                    {batchSpec && (
+                      <Segmented
+                        block style={{ marginBottom: 12 }}
+                        value={batchOn ? 'batch' : 'single'}
+                        onChange={(v) => setBatchOn(v === 'batch')}
+                        options={[{ value: 'single', label: t.modeSingle }, { value: 'batch', label: t.modeBatch }]}
+                      />
+                    )}
+                    {batchOn ? (
+                      <>
+                        <BatchUpload
+                          extensions={batchSpec?.extensions}
+                          maxFiles={batchSpec?.maxFiles}
+                          maxTotalMB={batchSpec?.maxTotalMB}
+                          disabled={batchRunning}
+                          onPicked={batchAdd}
+                        />
+                        {batchList.length > 0 && (
+                          <div style={{ marginTop: 8 }}>
+                            <Flex justify="space-between" align="center" wrap="wrap">
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                {t.batchList}（{batchSel.length}/{batchList.length}）
+                              </Typography.Text>
+                              <Space size={4} wrap>
+                                <Button size="small" onClick={() => setBatchSel(batchList.map((f) => f.path))}>{t.selectAll}</Button>
+                                <Button size="small" onClick={() => setBatchSel([])}>{t.selectNone}</Button>
+                                <Button size="small" danger disabled={batchRunning}
+                                  onClick={() => { setBatchList([]); setBatchSel([]); setBatchReport([]) }}>
+                                  {t.clearList}
+                                </Button>
+                              </Space>
+                            </Flex>
+                            <div style={{ maxHeight: 180, overflow: 'auto', marginTop: 4 }}>
+                              {batchList.map((f) => (
+                                <div key={f.path}>
+                                  <Checkbox checked={batchSel.includes(f.path)} disabled={batchRunning}
+                                    onChange={(e) => batchToggle(f.path, e.target.checked)}>
+                                    <Typography.Text style={{ fontSize: 12 }}>{f.rel ?? f.name}</Typography.Text>
+                                    <Typography.Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>
+                                      {f.size >= 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(f.size / 1024))}KB`}
+                                    </Typography.Text>
+                                  </Checkbox>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <FileUpload value={file ?? undefined} onChange={setFile} />
+                    )}
                     <Form layout="vertical" style={{ marginTop: 12 }}>
                       <Flex gap={12} wrap="wrap">
                         <Form.Item label={t.keyLabel} style={{ minWidth: 200 }}>
@@ -448,21 +621,45 @@ export function TranslateStudio() {
                     )}
                     <div style={{ marginTop: 12 }}>
                       <Space wrap>
-                        <Button type="primary" size="large" loading={busy || runMutation.isPending} disabled={!canStart} onClick={startTranslate}>
-                          {t.start}
-                        </Button>
-                        {file && flow && <Tag>{flow}</Tag>}
-                        {file && !flow && (
+                        {batchOn ? (
+                          <Button type="primary" size="large" loading={batchRunning}
+                            disabled={!batchSel.length || batchRunning} onClick={startBatch}>
+                            {t.batchStart}（{batchSel.length}）
+                          </Button>
+                        ) : (
+                          <Button type="primary" size="large" loading={busy || runMutation.isPending} disabled={!canStart} onClick={startTranslate}>
+                            {t.start}
+                          </Button>
+                        )}
+                        {!batchOn && file && flow && <Tag>{flow}</Tag>}
+                        {!batchOn && file && !flow && (
                           <Typography.Text type={unsupportedHint ? 'danger' : 'warning'}>
                             {unsupportedHint ?? t.noRoute}
                           </Typography.Text>
                         )}
-                        {file && !flow && supportedExts && (
+                        {!batchOn && file && !flow && supportedExts && (
                           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                             {t.supportedExts}：{supportedExts}
                           </Typography.Text>
                         )}
                       </Space>
+                      {batchOn && batchProgress.total > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <Progress
+                            size="small" percent={Math.round((batchProgress.done / batchProgress.total) * 100)}
+                            status={batchRunning ? 'active' : 'normal'}
+                            format={() => `${batchProgress.done}/${batchProgress.total}`}
+                          />
+                          <div style={{ maxHeight: 140, overflow: 'auto' }}>
+                            {batchReport.map((r) => (
+                              <Typography.Text key={r.file} type={r.runId ? 'secondary' : 'danger'}
+                                style={{ fontSize: 12, display: 'block' }}>
+                                {r.runId ? '✓' : '✕'} {r.file}{r.runId ? '' : `：${r.error}`}
+                              </Typography.Text>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </Card>
                   {activeRun && activeStatus && (
@@ -481,12 +678,29 @@ export function TranslateStudio() {
             {
               key: 'tasks', label: t.tabTasks,
               children: (
-                <Card size="small" extra={<Button size="small" onClick={() => runs.refetch()}>{t.refresh}</Button>}>
+                <Card size="small" extra={
+                  <Space size={4}>
+                    {pickedRuns.length > 0 && (
+                      <>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {t.batchSelected}{pickedRuns.length}
+                        </Typography.Text>
+                        <Button size="small" onClick={askPackage}>{t.packRun}</Button>
+                        <Button size="small" danger onClick={askBatchDelete}>{t.batchDelete}</Button>
+                      </>
+                    )}
+                    <Button size="small" onClick={() => runs.refetch()}>{t.refresh}</Button>
+                  </Space>
+                }>
                   <Table
                     size="small" rowKey="id" loading={runs.isLoading}
                     dataSource={runList}
                     locale={{ emptyText: t.tasksEmpty }}
                     pagination={{ size: 'small', pageSize: 20, showSizeChanger: false }}
+                    rowSelection={{
+                      selectedRowKeys: pickedRuns,
+                      onChange: (keys) => setPickedRuns(keys as string[]),
+                    }}
                     columns={[
                       { title: t.colStatus, dataIndex: 'status', width: 110, render: (v: string) => <StatusBadge value={v} /> },
                       { title: t.colFile, key: 'file', ellipsis: true, render: (_: unknown, r: RunSummary) => baseName(r.input?.file) },
@@ -731,6 +945,13 @@ function useTranslateText() {
     routeLabel: '处理方式',
     autoLang: '自动判定', termsFromTpl: '术语表来自模版', start: '开始翻译', noRoute: '未匹配到该文件类型的翻译流',
     supportedExts: '支持的格式',
+    modeSingle: '单文件', modeBatch: '批量', batchList: '待翻译文件', selectAll: '全选', selectNone: '全不选',
+    clearList: '清空清单', batchStart: '开始翻译（批量）', batchNone: '请先勾选要翻译的文件',
+    batchQueued: '已入队', batchSomeFailed: '个未能入队（见下方明细）',
+    packNone: '请先勾选任务', packRun: '打包下载', packDone: '已打包', packRunsWord: '个任务',
+    packFilesWord: '个产物', packSkipped: '部分任务未打包', packFailed: '打包失败：',
+    batchDelete: '批量删除', batchDeleteHint: '将对选中的 {n} 个任务执行删除（运行中的会先自动取消）',
+    batchDeleteDone: '已删除', batchDeleteFailed: '个任务删除失败', batchSelected: '已选 ',
     runStatus: '翻译运行', runFailed: '翻译运行失败', startFailed: '提交失败：', rerunFailed: '再运行失败：',
     abortFailed: '取消失败：', deleteFailed: '删除失败：', saveFailed: '保存失败：',
     tabRecords: '', refresh: '刷新', tasksEmpty: '暂无翻译任务', colStatus: '状态', colFile: '文件',

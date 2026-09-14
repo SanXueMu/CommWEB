@@ -138,6 +138,24 @@ function createApi(pid?: string) {
       body: JSON.stringify({ override: override ?? null }),
     }),
   uploadFile: (file: File): Promise<FileUploaded> => apiUpload(file, pid),
+  /** 批量上传：目录形态（filename 携带相对路径）→ 服务端批次目录 + 文件清单。 */
+  uploadFiles: (files: File[], extensions?: string): Promise<BatchUploaded> =>
+    apiUploadFiles(files, extensions, pid),
+  /** 压缩包上传：服务端解压 → 批次目录 + 文件清单（含被跳过的条目与原因）。 */
+  uploadArchive: (file: File, extensions?: string): Promise<BatchUploaded> =>
+    apiUploadArchive(file, extensions, pid),
+  /** 列举服务器 DATA_DIR 内既有文件（「目录已在服务器上」形态）。 */
+  listFiles: (path: string, extensions?: string, recursive = true): Promise<BatchUploaded> => {
+    const params = new URLSearchParams({ path, recursive: String(recursive) })
+    if (extensions) params.set('extensions', extensions)
+    return request<BatchUploaded>(`/files/list?${params.toString()}`, undefined, pid)
+  },
+  /** 批量打包下载：服务端把多个任务的产物收进一个 zip（返回 zip 路径，再走 downloadUrl 下载）。 */
+  packageRuns: (runIds: string[], scope: 'final' | 'all' = 'final', name?: string): Promise<RunPackage> =>
+    request<RunPackage>('/files/package', {
+      method: 'POST',
+      body: JSON.stringify({ run_ids: runIds, scope, name }),
+    }),
   listKeys: () => request<{ keys: OcrKey[] }>('/keys'),
   putKey: (body: OcrKey) =>
     request<{ name: string; stored: boolean }>(`/keys/${encodeURIComponent(body.name)}`, {
@@ -163,16 +181,67 @@ function createApi(pid?: string) {
 }
 
 /** 上传出站（api 工厂与页面共用）。 */
+/** 批量上传/解压/列举的统一返回形态（对应 CommAND /api/files/{batch,archive,list}）。 */
+export interface BatchFileEntry {
+  path: string
+  name: string
+  rel?: string
+  size: number
+}
+
+export interface BatchUploaded {
+  path: string
+  name: string
+  count: number
+  size: number
+  files: BatchFileEntry[]
+  skipped?: { name: string; reason: string }[]
+  truncated?: boolean
+}
+
+/** 批量打包下载（对应 CommAND POST /api/files/package）。 */
+export interface RunPackage {
+  path: string
+  name: string
+  scope: string
+  count: number
+  runs: number
+  size: number
+  entries: { run_id: string; name: string; arcname: string; step?: number; size?: number }[]
+  skipped: { run_id: string; reason: string }[]
+}
+
+async function _formPost<T>(path: string, body: FormData, pid?: string): Promise<T> {
+  const response = await fetch(`${apiBaseOf(pid)}${path}`, { method: 'POST', body })
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
+  }
+  return response.json() as Promise<T>
+}
+
 function apiUpload(file: File, pid?: string): Promise<FileUploaded> {
   const body = new FormData()
   body.append('file', file)
-  return fetch(`${apiBaseOf(pid)}/files`, { method: 'POST', body }).then(async (response) => {
-    if (!response.ok) {
-      const detail = await response.json().catch(() => ({ detail: response.statusText }))
-      throw new ApiError(response.status, formatDetail((detail as { detail?: unknown }).detail) || String(response.status))
-    }
-    return response.json() as Promise<FileUploaded>
-  })
+  return _formPost<FileUploaded>('/files', body, pid)
+}
+
+function apiUploadFiles(files: File[], extensions: string | undefined, pid?: string): Promise<BatchUploaded> {
+  const body = new FormData()
+  for (const file of files) {
+    // 第三参 = multipart filename：目录上传时携带相对路径（后端据此还原目录结构）
+    const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+    body.append('files', file, rel)
+  }
+  const qs = extensions ? `?extensions=${encodeURIComponent(extensions)}` : ''
+  return _formPost<BatchUploaded>(`/files/batch${qs}`, body, pid)
+}
+
+function apiUploadArchive(file: File, extensions: string | undefined, pid?: string): Promise<BatchUploaded> {
+  const body = new FormData()
+  body.append('file', file)
+  const qs = extensions ? `?extensions=${encodeURIComponent(extensions)}` : ''
+  return _formPost<BatchUploaded>(`/files/archive${qs}`, body, pid)
 }
 
 /** 活跃会员视图（页面级跟随切换）。 */

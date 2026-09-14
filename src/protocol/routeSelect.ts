@@ -34,6 +34,12 @@ export function matchRoutes(file: string | undefined, routes: Route[]): Route[] 
   return routes.filter((r) => r.ext.some((e) => lower.endsWith(e.toLowerCase())))
 }
 
+/** 单文件与批量共用的分流：用户显式选的流若仍匹配则优先，否则取第一条匹配。 */
+export function flowForFile(file: string | undefined, routes: Route[], preferred?: string): string | undefined {
+  const matched = matchRoutes(file, routes)
+  return matched.some((r) => r.flow === preferred) ? preferred : matched[0]?.flow
+}
+
 /** 附加参数按选中流过滤（无 when_flow 恒显示）。 */
 export function visibleParams(params: ParamField[], flow?: string): ParamField[] {
   return params.filter((p) => !p.when_flow || (flow !== undefined && p.when_flow.includes(flow)))

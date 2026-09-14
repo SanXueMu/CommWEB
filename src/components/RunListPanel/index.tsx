@@ -12,6 +12,8 @@ import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import { useConfirm } from '@/components/ConfirmDialog'
 
 const RUNNING = new Set(['running', 'queued'])
+/** 可批量重跑的失败态（与服务端 PipelineService.RERUNNABLE_STATUSES 对齐；paused 走「继续」） */
+const RERUNNABLE = new Set(['failed', 'failed_review', 'cancelled', 'interrupted'])
 /** 删除并发：4（防拖垮 command-api） */
 const DELETE_CONCURRENCY = 4
 
@@ -63,6 +65,13 @@ export default function RunListPanel({
   const batchIds = useMemo(
     () => [...new Set(runs.map((r) => r.batch_id).filter((x): x is string => !!x))],
     [runs])
+
+  /** 待重跑的失败项：优先用勾选（勾了失败项时只重跑勾选的），否则当前视图内全部失败项。 */
+  const rerunnable = useMemo(() => {
+    const pickedFailed = shown.filter((r) => picked.includes(r.id) && RERUNNABLE.has(r.status))
+    if (pickedFailed.length > 0) return pickedFailed
+    return shown.filter((r) => RERUNNABLE.has(r.status))
+  }, [shown, picked])
   // 刷新后本地记不住批次根目录名 → 从服务端清单补（只读，仅在缺名时请求）
   const missingBatchIds = useMemo(
     () => batchIds.filter((id) => !batchNames?.[id]).slice(0, 20),
@@ -95,6 +104,17 @@ export default function RunListPanel({
 
   const del = useMutation({
     mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles),
+  })
+
+  // 批次失败项一键重跑：原 run 留档、新 run 继承批次；已翻内容命中字典缓存不重复计费
+  const rerunBatch = useMutation({
+    mutationFn: (runIds: string[]) => api.rerunRuns({ run_ids: runIds }),
+    onSuccess: (r) => {
+      message.success(`已重跑 ${r.count} 条${r.skipped.length ? `，跳过 ${r.skipped.length} 条` : ''}`)
+      setPicked([])
+      onChanged?.(); onRefresh?.()
+    },
+    onError: (e: Error) => message.error(e.message),
   })
 
   const refreshAll = () => {
@@ -250,7 +270,7 @@ export default function RunListPanel({
           <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh}>刷新</Button>
         </Space>
       )}>
-      {(picked.length > 0 || batchFilter) && (
+      {(picked.length > 0 || batchFilter || rerunnable.length > 0) && (
         <Space style={{ marginBottom: 8 }} wrap>
           {picked.length > 0 && (
             <>
@@ -265,6 +285,16 @@ export default function RunListPanel({
           {batchFilter && (
             <Button size="small" type="primary" ghost icon={<DownloadOutlined />}
               onClick={() => packBatch(batchFilter)}>导出本批次（原目录结构）</Button>
+          )}
+          {rerunnable.length > 0 && (
+            <Popconfirm
+              title={`重跑 ${rerunnable.length} 条失败任务？`}
+              description="原任务留档；已翻译内容命中全局字典缓存，不会重复计费"
+              onConfirm={() => rerunBatch.mutate(rerunnable.map((r) => r.id))}>
+              <Button size="small" icon={<RedoOutlined />} loading={rerunBatch.isPending}>
+                重跑失败项（{rerunnable.length}）
+              </Button>
+            </Popconfirm>
           )}
         </Space>
       )}

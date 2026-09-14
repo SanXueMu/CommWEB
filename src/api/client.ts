@@ -102,6 +102,12 @@ function createApi(pid?: string) {
       `/pipeline-runs/${runId}/rerun`,
       { method: 'POST', body: JSON.stringify({ input: inputOverride ?? {} }) },
     ),
+  /** 批次失败项一键重跑：给 run_ids 或 batch_id（服务端取该批次内失败态 run）。 */
+  rerunRuns: (body: { run_ids?: string[]; batch_id?: string }): Promise<{
+    count: number
+    rerun: { from: string; to: string }[]
+    skipped: { run_id: string; reason: string }[]
+  }> => request('/pipeline-runs/rerun-batch', { method: 'POST', body: JSON.stringify(body) }),
   listPipelines: async (): Promise<{ pipelines: PipelineSummary[] }> => {
     const providerId = pid ?? registry.activeId() ?? 'default'
     const { pipelines } = await request<{ pipelines: unknown[] }>('/pipelines')

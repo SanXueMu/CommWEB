@@ -719,6 +719,7 @@ export function TranslateStudio() {
               children: (
                 <RunListPanel
                   pid={pid} runs={runList} loading={runs.isLoading} showStats
+                  flowIds={flowIds}
                   onRefresh={() => runs.refetch()}
                   onChanged={() => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })}
                   flowLabels={flowLabels}

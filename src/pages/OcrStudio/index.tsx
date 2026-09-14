@@ -227,8 +227,14 @@ export function OcrStudio() {
     const report: { file: string; runId?: string; error?: string }[] = []
     await runPool(targets, async (item) => {
       try {
-        const created = await api.runPipeline(props.recognizeFlow!, { template_id: templateId, file: item.path, ...extra })
-        report.push({ file: item.name, runId: created.run_id })
+        // 服务端按声明分类：不可识别类型（如混进目录的 docx/rar）不进识别流，
+        // 只报告跳过——它们仍随批次导出（保持交付目录结构完整）
+        if (item.skip) {
+          report.push({ file: item.name, error: item.skip_reason ?? '不在可识别类型内，已跳过' })
+        } else {
+          const created = await api.runPipeline(props.recognizeFlow!, { template_id: templateId, file: item.path, ...extra })
+          report.push({ file: item.name, runId: created.run_id })
+        }
       } catch (error) {
         report.push({ file: item.name, error: errMsg(error) })
       }
@@ -556,6 +562,7 @@ export function OcrStudio() {
               children: (
                 <RunListPanel
                   runs={(ocrRuns.data?.runs ?? []).filter((r) => !props.flows?.length || props.flows.includes(r.pipeline_id ?? ''))}
+                  flowIds={props.flows}
                   loading={ocrRuns.isLoading}
                   onRefresh={() => { void ocrRuns.refetch() }}
                   onChanged={() => { void ocrRuns.refetch() }}

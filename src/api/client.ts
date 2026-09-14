@@ -121,12 +121,25 @@ function createApi(pid?: string) {
       body: JSON.stringify({ input, batch_id: batchId }),
     }),
   getPipelineRun: (runId: string) => request<PipelineRun>(`/pipeline-runs/${runId}`),
-  listRuns: (pipelineId?: string, limit = 50, offset = 0) => {
+  listRuns: (pipelineId?: string, limit = 50, offset = 0, batchId?: string) => {
     const params = new URLSearchParams()
     if (pipelineId) params.set('pipeline_id', pipelineId)
+    if (batchId) params.set('batch_id', batchId)
     params.set('limit', String(limit))
     params.set('offset', String(offset))
     return request<{ runs: RunSummary[]; total: number }>(`/pipeline-runs?${params.toString()}`)
+  },
+  /** 可重跑清单（服务端按**整个批次**聚合）：从未成功过且最新一次失败的文件。 */
+  rerunnableRuns: (params: { batch_id?: string; flow_ids?: string[]; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params.batch_id) q.set('batch_id', params.batch_id)
+    if (params.flow_ids?.length) q.set('flow_ids', params.flow_ids.join(','))
+    if (params.limit) q.set('limit', String(params.limit))
+    return request<{
+      count: number
+      run_ids: string[]
+      files: { file: string; name: string; run_id: string; status: string; error?: string | null }[]
+    }>(`/pipeline-runs/rerunnable?${q.toString()}`)
   },
   deleteRun: (runId: string, purgeFiles = true) =>
     request<{ id: string; status: string; aborted?: boolean; files_removed?: number; bytes_freed?: number }>(

@@ -8,11 +8,6 @@ import { humanSize } from '@/lib/size'
 
 export type BatchMode = 'dir' | 'zip' | 'server'
 
-function extOf(name: string): string {
-  const i = name.lastIndexOf('.')
-  return i < 0 ? '' : name.slice(i).toLowerCase()
-}
-
 export function BatchUpload({
   extensions = [], skip = [], maxFiles = 200, maxTotalMB = 500, disabled, onPicked,
 }: {
@@ -37,11 +32,20 @@ export function BatchUpload({
   const maxBytes = maxTotalMB * 1024 * 1024
 
   const sizeOf = (files: File[]) => files.reduce((s, f) => s + f.size, 0)
+  /** 操作系统垃圾文件：不参与翻译也不进交付目录（避免污染原目录结构）。 */
+  const isJunk = (name: string) => {
+    const base = name.split('/').pop() ?? name
+    return base === '.DS_Store' || base === 'Thumbs.db' || base === 'desktop.ini'
+      || base.startsWith('~$')
+  }
 
   const takeDir = (list: FileList | null) => {
     const all = Array.from(list ?? [])
     if (!all.length) return
-    const ok = extensions.length ? all.filter((f) => extensions.includes(extOf(f.name))) : all
+    // 不再按扩展名过滤：**全部上传**，由服务端按声明分类（不可翻译的留档跳过），
+    // 这样批次导出才能还原出与原目录完全一致的结构（2026-09-14 用户口径）。
+    // 仅忽略操作系统垃圾文件（.DS_Store / Thumbs.db / desktop.ini / ~$ 临时文件）。
+    const ok = all.filter((f) => !isJunk(f.name))
     if (ok.length > maxFiles) {
       message.error(`单批最多 ${maxFiles} 个文件（当前 ${ok.length} 个），请分批或改用压缩包`)
       return
@@ -52,7 +56,7 @@ export function BatchUpload({
     }
     setPicked(ok)
     const dropped = all.length - ok.length
-    setSkipped(dropped > 0 ? [{ name: `${dropped} 个文件`, reason: '扩展名不在允许范围，未上传' }] : [])
+    setSkipped(dropped > 0 ? [{ name: `${dropped} 个文件`, reason: '系统文件（.DS_Store/Thumbs.db 等），已忽略' }] : [])
     if (!ok.length) message.warning('所选目录内没有符合扩展名的文件')
   }
 

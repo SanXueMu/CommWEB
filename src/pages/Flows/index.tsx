@@ -87,7 +87,7 @@ export function Flows() {
           flexShrink: 0,
           position: 'sticky',
           top: 76,
-          borderRight: '1px solid #f0f0f0',
+          borderRight: '1px solid var(--cw-border)',
           paddingRight: 16,
         }}
       >
@@ -104,7 +104,7 @@ export function Flows() {
               <CatalogBadge
                 value={LABEL_OF[k]}
                 catalog={new Map()}
-                fallback={flowType === k ? '#202753' : 'auto'}
+                fallback={flowType === k ? 'var(--cw-ink)' : 'auto'}
                 size="sm"
                 radius="round"
                 plain={flowType !== k}

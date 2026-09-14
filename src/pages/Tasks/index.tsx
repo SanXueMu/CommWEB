@@ -102,7 +102,7 @@ export function Tasks() {
           flexShrink: 0,
           position: 'sticky',
           top: 76,
-          borderRight: '1px solid #f0f0f0',
+          borderRight: '1px solid var(--cw-border)',
           paddingRight: 16,
         }}
       >
@@ -125,7 +125,7 @@ export function Tasks() {
               <CatalogBadge
                 value={STATUS_GROUP_LABELS[g]}
                 catalog={new Map()}
-                fallback={group === g ? '#202753' : 'auto'}
+                fallback={group === g ? 'var(--cw-ink)' : 'auto'}
                 size="sm"
                 radius="round"
                 plain={group !== g}
@@ -156,14 +156,14 @@ export function Tasks() {
 /** kind 分类标签（全部=auto 色板；选中实底、未选中描边）。 */
 function KindChip({ label, kind, active }: { label: string; kind: '' | TaskKind; active: boolean }) {
   if (!kind) {
-    return <CatalogBadge value={label} catalog={new Map()} fallback={active ? '#202753' : 'auto'} size="sm" radius="round" plain={!active} />
+    return <CatalogBadge value={label} catalog={new Map()} fallback={active ? 'var(--cw-ink)' : 'auto'} size="sm" radius="round" plain={!active} />
   }
-  const color = TASK_KIND_COLORS[kind] ?? '#8c8c8c'
+  const color = TASK_KIND_COLORS[kind] ?? 'var(--cw-text-muted)'
   return (
     <span
       style={{
         background: active ? color : 'transparent',
-        color: active ? '#fff' : color,
+        color: active ? 'var(--cw-card)' : color,
         border: `1px solid ${color}`,
         borderRadius: 999,
         padding: '0 10px',

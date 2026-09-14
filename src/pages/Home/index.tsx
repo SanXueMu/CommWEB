@@ -12,7 +12,7 @@ const STATUS_COLOR: Record<ProviderDescriptor['status'], string> = {
   online: '#52c41a',
   offline: '#ff4d4f',
   degraded: '#faad14',
-  unknown: '#d9d9d9',
+  unknown: 'var(--cw-border-strong)',
 }
 
 function capabilitySummary(p: ProviderDescriptor): string {

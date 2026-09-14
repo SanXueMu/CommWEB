@@ -115,13 +115,13 @@ export function DataListPanel<T>({
           gap: 12,
           paddingBottom: 12,
           marginBottom: 16,
-          borderBottom: '1px solid #f0f0f0',
+          borderBottom: '1px solid var(--cw-border)',
         }}
       >
         {onSearch && (
           <Input
             allowClear
-            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+            prefix={<SearchOutlined style={{ color: 'var(--cw-text-muted)' }} />}
             placeholder={searchPlaceholder}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -170,7 +170,7 @@ export function DataListPanel<T>({
                     gap: 8,
                     padding: density === 'compact' ? '6px 0' : undefined,
                     ...(bordered
-                      ? { border: '1px solid #f0f0f0', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }
+                      ? { border: '1px solid var(--cw-border)', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }
                       : undefined),
                   }}
                 >

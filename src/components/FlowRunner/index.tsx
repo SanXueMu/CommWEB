@@ -150,7 +150,7 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
         )}
         <AuditTimeline runId={runId} />
       </Space>
-      <aside style={{ width: 220, flexShrink: 0, position: 'sticky', top: 76, borderLeft: '1px solid #f0f0f0', paddingLeft: 16 }}>
+      <aside style={{ width: 220, flexShrink: 0, position: 'sticky', top: 76, borderLeft: '1px solid var(--cw-border)', paddingLeft: 16 }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {PORTAL.workspace.flowOutline}
         </Typography.Text>

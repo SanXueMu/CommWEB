@@ -3,6 +3,28 @@ html, body, #root {
   margin: 0;
 }
 
+/* ===== 主题变量（与 antd token 对齐；<html data-theme> 由 theme/store 落地） ===== */
+:root {
+  --cw-border: #f0f0f0;
+  --cw-border-strong: #d9d9d9;
+  --cw-fill: #fafafa;
+  --cw-card: #fff;
+  --cw-ink: #202753;
+  --cw-text-strong: rgba(0, 0, 0, 0.88);
+  --cw-text-muted: #8c8c8c;
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  --cw-border: #303030;
+  --cw-border-strong: #424242;
+  --cw-fill: rgba(255, 255, 255, 0.06);
+  --cw-card: #1f1f1f;
+  --cw-ink: #9db2e8;
+  --cw-text-strong: rgba(255, 255, 255, 0.88);
+  --cw-text-muted: rgba(255, 255, 255, 0.45);
+  color-scheme: dark;
+}
+
 /* DocPanel：markdown 渲染基线（packy 风：细灰线表格、代码块浅底） */
 .commweb-doc table {
   border-collapse: collapse;
@@ -11,16 +33,16 @@ html, body, #root {
 }
 .commweb-doc th,
 .commweb-doc td {
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--cw-border);
   padding: 6px 10px;
   text-align: left;
 }
 .commweb-doc th {
-  background: #fafafa;
+  background: var(--cw-fill);
 }
 .commweb-doc pre {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: var(--cw-fill);
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   padding: 10px 12px;
   overflow-x: auto;
@@ -30,10 +52,10 @@ html, body, #root {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .commweb-doc blockquote {
-  border-left: 3px solid #f0f0f0;
+  border-left: 3px solid var(--cw-border);
   margin: 8px 0;
   padding: 2px 12px;
-  color: #8c8c8c;
+  color: var(--cw-text-muted);
 }
 .commweb-doc h1 { font-size: 20px; }
 .commweb-doc h2 { font-size: 17px; }
@@ -42,10 +64,10 @@ html, body, #root {
 
 /* 列表式行 hover */
 .commweb-list-row {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--cw-border);
 }
 .commweb-list-row:hover {
-  background: #fafafa;
+  background: var(--cw-fill);
 }
 .commweb-list-row:last-child {
   border-bottom: none;
@@ -56,25 +78,61 @@ html, body, #root {
   background: rgba(175, 169, 236, 0.12) !important;
 }
 
-/* 暗色主题下行 hover 底色随算法走 */
-[data-theme='dark'] .commweb-list-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+/* ===== 工作区标签（浏览器式）：等分收缩 + 无独立框 + 与正文细线分隔 + 右侧留白 =====
+   注意：.ant-tabs-* 为 AntD 内部结构，AntD 大版本升级需回归验证 */
+.workspace-tabs .ant-tabs-nav {
+  margin-bottom: 0 !important;
+  border-bottom: 1px solid var(--cw-border); /* 标签条与正文的实质分隔线 */
+  padding-inline-end: 4px;
 }
-
-/* ===== 工作区标签等分收缩（多标签平分宽度、溢出省略，尽量避免进「更多」下拉） =====
-   注意：.ant-tabs-nav-list / .ant-tabs-tab 为 AntD 内部结构，AntD 大版本升级需回归验证 */
+.workspace-tabs .ant-tabs-nav::before {
+  border-bottom: none !important; /* 去掉 AntD 自带底线，避免双线 */
+}
 .workspace-tabs .ant-tabs-nav-list {
   width: 100%;
 }
 .workspace-tabs .ant-tabs-tab {
   flex: 1 1 0;
   min-width: 96px; /* 收缩下限：图标+省略号+关闭钮；超出容器才回落 AntD 滚动/下拉 */
+  margin: 0 !important;
+  padding: 6px 10px !important;
+  border: none !important;            /* 独立标签不再有各自的框 */
+  background: transparent !important;
+  border-radius: 0 !important;
+  transition: background 0.15s, color 0.15s;
+}
+.workspace-tabs .ant-tabs-tab::before {
+  display: none !important; /* editable-card 的标签间竖分隔线 */
+}
+.workspace-tabs .ant-tabs-tab:hover {
+  background: var(--cw-fill) !important;
+}
+.workspace-tabs .ant-tabs-tab-active {
+  background: transparent !important;
+  box-shadow: inset 0 -2px 0 0 var(--cw-ink); /* 当前页墨线指示（压在分隔线上） */
+}
+.workspace-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--cw-ink) !important;
+  font-weight: 600;
 }
 .workspace-tabs .ant-tabs-tab .ant-tabs-tab-btn {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.workspace-tabs .ant-tabs-tab .ant-tabs-tab-remove {
+  opacity: 0.55;
+}
+.workspace-tabs .ant-tabs-tab .ant-tabs-tab-remove:hover {
+  opacity: 1;
+  color: var(--cw-ink);
+}
+.workspace-tabs .ant-tabs-nav-extra {
+  margin-inline-start: 20px !important; /* 「＋打开」与标签拉开距离 */
+}
+.workspace-tabs .ant-tabs-content-holder {
+  padding-top: 12px; /* 正文与标签分隔线之间留白 */
 }
 
 /* ===== 起始首页（蓝图04：零状态界面） ===== */
@@ -85,12 +143,12 @@ html, body, #root {
 @media (max-width: 719px) { .home-grid-2 { grid-template-columns: 1fr; } }
 .home-card {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-  padding: 16px 20px; background: #fff; border: 1px solid #f0f0f0; border-radius: 8px;
+  padding: 16px 20px; background: var(--cw-card); border: 1px solid var(--cw-border); border-radius: 8px;
   cursor: pointer; transition: border-color .15s, box-shadow .15s; font: inherit;
 }
-.home-card:hover { border-color: #d9d9d9; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.home-card:focus-visible { outline: 2px solid #202753; outline-offset: 2px; }
-.home-card-using { border: 1.5px solid #202753; }
+.home-card:hover { border-color: var(--cw-border-strong); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.home-card:focus-visible { outline: 2px solid var(--cw-ink); outline-offset: 2px; }
+.home-card-using { border: 1.5px solid var(--cw-ink); }
 .home-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .home-avatar {
   width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
@@ -98,7 +156,7 @@ html, body, #root {
   color: #fff; font-size: 16px; font-weight: 600;
 }
 .home-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.home-name { font-size: 14px; font-weight: 600; color: rgba(0,0,0,.88); display: flex; align-items: center; gap: 8px; }
-.home-using-tag { font-size: 10px; color: #202753; border: 1px solid #202753; border-radius: 2px; padding: 0 4px; line-height: 16px; }
-.home-id { font-size: 11px; color: #8c8c8c; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-caps { font-size: 12px; color: #8c8c8c; flex-shrink: 0; }
+.home-name { font-size: 14px; font-weight: 600; color: var(--cw-text-strong); display: flex; align-items: center; gap: 8px; }
+.home-using-tag { font-size: 10px; color: var(--cw-ink); border: 1px solid var(--cw-ink); border-radius: 2px; padding: 0 4px; line-height: 16px; }
+.home-id { font-size: 11px; color: var(--cw-text-muted); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-caps { font-size: 12px; color: var(--cw-text-muted); flex-shrink: 0; }

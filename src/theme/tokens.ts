@@ -20,6 +20,16 @@ export const STATUS_COLOR_OVERRIDES: Record<string, string> = {
   queued: '#5B8DEF',
 }
 
+/** 品牌墨色（logo / 激活态 / 强调描边）：暗色下换亮化蓝，保证深底可读。 */
+export const BRAND_INK: Record<ThemeName, string> = {
+  light: '#202753',
+  dark: '#9db2e8',
+  brand: '#202753',
+}
+
+/** 品牌青绿（徽标/流程类型）：三主题通用，深底浅底均可读。 */
+export const BRAND_TEAL = '#3bb093'
+
 const base: ThemeConfig = {
   token: { borderRadius: 6, fontSize: 14 },
 }

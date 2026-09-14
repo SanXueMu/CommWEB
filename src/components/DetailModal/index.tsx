@@ -49,7 +49,7 @@ export function DetailModal({
             display: 'flex',
             justifyContent: 'flex-end',
             gap: 8,
-            borderTop: '1px solid #f0f0f0',
+            borderTop: '1px solid var(--cw-border)',
             paddingTop: 12,
             marginTop: 12,
           }}

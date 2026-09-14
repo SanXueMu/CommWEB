@@ -81,7 +81,7 @@ export function EventStream({
         ref={terminalRef}
         style={{
           background: 'rgba(0,0,0,0.85)',
-          color: '#d9d9d9',
+          color: 'var(--cw-border-strong)',
           padding: 12,
           borderRadius: 6,
           maxHeight: 240,

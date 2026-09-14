@@ -29,10 +29,10 @@ export function FileUpload({
             onError?.(error as Error)
           }
         }}
-        style={{ background: '#fafafa' }}
+        style={{ background: 'var(--cw-fill)' }}
       >
         <p style={{ margin: '12px 0 4px' }}>
-          <InboxOutlined style={{ fontSize: 28, color: '#202753' }} />
+          <InboxOutlined style={{ fontSize: 28, color: 'var(--cw-ink)' }} />
         </p>
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
           点击或拖拽文件上传（≤200MB，上传后得到服务端路径）

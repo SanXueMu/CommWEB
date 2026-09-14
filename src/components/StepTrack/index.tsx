@@ -40,7 +40,7 @@ export function StepTrack({ runId, steps, runStatus }: { runId: string; steps: S
             <div style={{ fontSize: 12 }}>
               <div>
                 {s.skipped ? (
-                  <Typography.Text type="secondary" style={{ color: '#bfbfbf' }}>
+                  <Typography.Text type="secondary" style={{ color: 'var(--cw-text-muted)' }}>
                     {PORTAL.workspace.skipped}
                   </Typography.Text>
                 ) : s.latest ? (
@@ -115,7 +115,7 @@ function RerunModal({ runId, step, onClose }: { runId: string; step: Step; onClo
       <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
         留档输入（原样为底，填写即覆盖、留空即沿用）：
       </Typography.Paragraph>
-      <pre style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: 10, fontSize: 12, maxHeight: 180, overflow: 'auto' }}>
+      <pre style={{ background: 'var(--cw-fill)', border: '1px solid var(--cw-border)', borderRadius: 8, padding: 10, fontSize: 12, maxHeight: 180, overflow: 'auto' }}>
         {JSON.stringify(step.latest?.input ?? {}, null, 2)}
       </pre>
       <Form form={form} layout="vertical" initialValues={step.latest?.input ?? {}} onFinish={submit}>

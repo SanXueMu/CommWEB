@@ -23,8 +23,8 @@ export interface LifeFlowProps {
 
 const STATUS_COLORS: Record<LifeFlowStatus, string> = {
   done: '#3bb093',
-  running: '#202753',
-  pending: '#d9d9d9',
+  running: 'var(--cw-ink)',
+  pending: 'var(--cw-border-strong)',
   error: '#cf1322',
 }
 
@@ -55,7 +55,7 @@ export function LifeFlow({ nodes, direction = 'horizontal', size = 'md', activeK
                 className={activeKey === n.key ? 'life-flow-dot life-flow-dot-active' : 'life-flow-dot'}
                 style={{ width: s.dot, height: s.dot, background: color, borderRadius: 999 }}
               />
-              <span className="life-flow-label" style={{ fontSize: s.font, color: activeKey === n.key ? '#202753' : undefined }}>
+              <span className="life-flow-label" style={{ fontSize: s.font, color: activeKey === n.key ? 'var(--cw-ink)' : undefined }}>
                 {n.label}
               </span>
             </div>

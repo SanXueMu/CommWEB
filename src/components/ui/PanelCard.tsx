@@ -25,11 +25,11 @@ export function PanelCard({
     <div
       onClick={onClick}
       style={{
-        border: '1px solid #ececec',
+        border: '1px solid var(--cw-border)',
         borderRadius: resolvedRadius,
         padding: 16,
         height: '100%',
-        background: bgColor ?? '#fff',
+        background: bgColor ?? 'var(--cw-card)',
         transition: 'box-shadow .2s',
         cursor: onClick ? 'pointer' : 'default',
         ...style,

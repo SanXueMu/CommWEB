@@ -37,7 +37,7 @@ export function FilterSidebar({ groups, onClear, width = 168 }: {
         flexShrink: 0,
         position: 'sticky',
         top: 76,
-        borderRight: '1px solid #f0f0f0',
+        borderRight: '1px solid var(--cw-border)',
         paddingRight: 16,
       }}
     >

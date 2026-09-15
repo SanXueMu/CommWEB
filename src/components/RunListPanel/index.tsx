@@ -151,9 +151,16 @@ export default function RunListPanel({
     queryFn: () => api.allBatches(),
     staleTime: 30_000,
   })
-  const batches = useMemo(
-    () => (allBatchesQ.data?.batches ?? []).map((b: BatchInfo) => ({ id: b.id, n: b.files, label: b.root || b.id })),
-    [allBatchesQ.data])
+  const batches = useMemo(() => {
+    const server = allBatchesQ.data?.batches ?? []
+    if (server.length > 0) return server.map((b: BatchInfo) => ({ id: b.id, n: b.files, label: b.root || b.id }))
+    // 兜底：全量清单端点不可用（旧后端 422 / 网络错）时退回从已加载 run 推导——
+    // 宁可只有窗口内的批次，也不能让批次下拉整个消失。
+    const seen = new Map<string, number>()
+    for (const r of runs) if (r.batch_id) seen.set(r.batch_id, (seen.get(r.batch_id) ?? 0) + 1)
+    return [...seen.entries()].map(([id, n]) => ({ id, n, label: batchNames?.[id] ?? id }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allBatchesQ.data, runs, batchNames])
   const batchNameMap = useMemo(() => new Map(batches.map((b) => [b.id, b.label])), [batches])
   const nameOf = (id: string) => batchNameMap.get(id) ?? batchNames?.[id] ?? id
 

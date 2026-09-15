@@ -174,8 +174,9 @@ export function TranslateStudio() {
   /** 本次上传的批次号/批次根目录名（导出按批次还原原目录结构；跨刷新由 batchNames 记忆）。 */
   const [batchId, setBatchId] = useState<string>()
   const [batchNames, setBatchNames] = useState<Record<string, string>>({})
-  /** PDF 处理口径：auto=按文字层自动，text=一律文字版（扫描件暂停待补文字层），image=一律图片翻译。 */
-  const [pdfMode, setPdfMode] = useState<'auto' | 'text' | 'image'>('auto')
+  /** PDF 处理口径（取值与声明 pdfModes[].value 一致，前端不写死）：
+   *  auto=按文字层自动；doc=一律文档翻译（自动补文字层）；text=一律版式（扫描件暂停待补层）；image=一律图片翻译。 */
+  const [pdfMode, setPdfMode] = useState<string>('auto')
   const pdfModes = props.pdfModes ?? []
   const flowLabels = useMemo(
     () => Object.fromEntries(routes.map((r) => [r.flow, r.label ?? r.flow])),
@@ -348,6 +349,8 @@ export function TranslateStudio() {
       if (item.skip && skipFlow) return { flow: skipFlow, reason: item.skip_reason ?? t.skipReason }
       if (!item.name.toLowerCase().endsWith('.pdf')) return { flow: byExt }
       if (pdfMode === 'image') return { flow: pdfFlow('scanned') ?? byExt }
+      // 「全部文档翻译」：一律走文档翻译（工具侧 auto_ocr 自动补文字层），扫描件无需预处理
+      if (pdfMode === 'doc') return { flow: pdfFlow('doc') ?? byExt }
       if (pdfMode === 'text') {
         try {
           const p = await api.probeFile(item.path)
@@ -939,7 +942,7 @@ function useTranslateText() {
     probeText: '已识别：文字版 PDF（走版式翻译）', probeScanned: '已识别：扫描件（走图片翻译，保留版式）',
     pdfMode: 'PDF 处理方式',
     skipReason: '本轮不处理该类型（任务暂停留档，原文件随批次导出）',
-    pdfNeedOcr: '扫描件需文字版：请先补文字层（如 ocrmypdf）后重跑，或改用「图片翻译」口径',
+    pdfNeedOcr: '扫描件需文字版：请改用「全部文档翻译」口径（会自动补文字层），或先补文字层（如 ocrmypdf）后重跑',
     pagesWord: '页', pageOver: '超过图片翻译单任务页数上限，请拆分',
     packNone: '请先勾选任务', packRun: '打包下载', packDone: '已打包', packRunsWord: '个任务',
     packFilesWord: '个产物', packSkipped: '部分任务未打包', packFailed: '打包失败：',

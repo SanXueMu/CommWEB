@@ -190,6 +190,14 @@ export interface OcrKey {
   is_default: boolean
 }
 
+/** 批次摘要（GET /files/batches 全量清单项）。 */
+export interface BatchInfo {
+  id: string
+  root: string
+  files: number
+  created_at: string
+}
+
 export interface RunSummary {
   id: string
   pipeline_id: string | null

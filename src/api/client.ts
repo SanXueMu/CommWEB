@@ -5,6 +5,7 @@ import type {
   OcrDbFile,
   OcrKey,
   PipelineDefinition,
+  BatchInfo,
   PipelineRun,
   PipelineRunCreated,
   PipelineSummary,
@@ -121,6 +122,17 @@ function createApi(pid?: string) {
       body: JSON.stringify({ input, batch_id: batchId }),
     }),
   getPipelineRun: (runId: string) => request<PipelineRun>(`/pipeline-runs/${runId}`),
+  /** 某批次的全部 run：循环分页取全（单页 1000 上限是窗口，批内 run 可超过它）。 */
+  listAllRuns: async (batchId: string): Promise<RunSummary[]> => {
+    const out: RunSummary[] = []
+    for (let offset = 0; ; offset += 1000) {
+      const params = new URLSearchParams({ batch_id: batchId, limit: '1000', offset: String(offset) })
+      const page = await request<{ runs: RunSummary[]; total: number }>(`/pipeline-runs?${params.toString()}`)
+      out.push(...page.runs)
+      if (out.length >= page.total || page.runs.length === 0) break
+    }
+    return out
+  },
   listRuns: (pipelineId?: string, limit = 50, offset = 0, batchId?: string) => {
     const params = new URLSearchParams()
     if (pipelineId) params.set('pipeline_id', pipelineId)
@@ -205,6 +217,8 @@ function createApi(pid?: string) {
   batchNames: (ids: string[]): Promise<{ names: Record<string, string>; count: Record<string, number> }> =>
     request<{ names: Record<string, string>; count: Record<string, number> }>(
       `/files/batches?ids=${encodeURIComponent(ids.join(','))}`),
+  /** 全部批次（无窗口）：批次下拉以此为准，不再从「最新 N 条 run」反推。 */
+  allBatches: (): Promise<{ batches: BatchInfo[] }> => request<{ batches: BatchInfo[] }>('/files/batches'),
   /** 任务产物占用报告（只读）：任务列表展示占用 / 删除前预演将释放多少空间。 */
   usageRuns: (runIds?: string[], pipelineId?: string, limit = 50): Promise<RunUsage> =>
     request<RunUsage>('/pipeline-runs/usage', {

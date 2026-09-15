@@ -9,7 +9,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons'
 import { apiFor } from '@/api/client'
-import type { RunSummary } from '@/api/types'
+import type { BatchInfo, RunSummary } from '@/api/types'
 import { humanSize } from '@/lib/size'
 import { triggerDownload } from '@/lib/download'
 import { runPool } from '@/protocol/pool'
@@ -125,10 +125,6 @@ export default function RunListPanel({
   /** 行 id → 该文件全部 run id：删除按**整个文件**生效（不留历史失败记录） */
   const allIdsOf = useMemo(() => new Map(groups.map((g) => [g.best.id, g.all])), [groups])
 
-  const batchIds = useMemo(
-    () => [...new Set(runs.map((r) => r.batch_id).filter((x): x is string => !!x))],
-    [runs])
-
   /** 待重跑清单：**服务端按整批次聚合**（「从未成功过 + 最新一次失败」），
    *  不再用当前列表算——列表只加载最新 N 条，历史失败会把计数虚高（线上 42 全是噪声）。
    *  勾选了失败项时优先只重跑勾选的。 */
@@ -148,22 +144,18 @@ export default function RunListPanel({
   const doneFiles = useMemo(
     () => new Set(rerunQ.data?.done_files ?? []),
     [rerunQ.data])
-  // 刷新后本地记不住批次根目录名 → 从服务端清单补（只读，仅在缺名时请求）
-  const missingBatchIds = useMemo(
-    () => batchIds.filter((id) => !batchNames?.[id]).slice(0, 20),
-    [batchIds, batchNames])
-  const remoteNames = useQuery({
-    queryKey: ['provider', pid, 'batch-names', missingBatchIds.join(',')],
-    enabled: missingBatchIds.length > 0,
-    queryFn: () => api.batchNames(missingBatchIds),
+  /** 批次下拉/名称以服务端全量清单为准（GET /files/batches）。
+   *  不能从「最新 N 条 run」反推——旧批次的 run 被新 run 挤出窗口后整批从下拉里消失。 */
+  const allBatchesQ = useQuery({
+    queryKey: ['provider', pid, 'all-batches'],
+    queryFn: () => api.allBatches(),
+    staleTime: 30_000,
   })
-  const labelOf = (id: string) => batchNames?.[id] ?? remoteNames.data?.names?.[id] ?? id
-  const batches = useMemo(() => {
-    const seen = new Map<string, number>()
-    for (const r of runs) if (r.batch_id) seen.set(r.batch_id, (seen.get(r.batch_id) ?? 0) + 1)
-    return [...seen.entries()].map(([id, n]) => ({ id, n, label: labelOf(id) }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runs, batchNames, remoteNames.data])
+  const batches = useMemo(
+    () => (allBatchesQ.data?.batches ?? []).map((b: BatchInfo) => ({ id: b.id, n: b.files, label: b.root || b.id })),
+    [allBatchesQ.data])
+  const batchNameMap = useMemo(() => new Map(batches.map((b) => [b.id, b.label])), [batches])
+  const nameOf = (id: string) => batchNameMap.get(id) ?? batchNames?.[id] ?? id
 
   const usage = useQuery({
     queryKey: ['provider', pid, 'run-usage', picked.join(',')],
@@ -339,7 +331,7 @@ export default function RunListPanel({
     ...(batches.length > 0
       ? [{
         title: '批次', key: 'batch', width: 130, ellipsis: true,
-        render: (_: unknown, r: RunSummary) => (r.batch_id ? batchNames?.[r.batch_id] ?? r.batch_id : '—'),
+        render: (_: unknown, r: RunSummary) => (r.batch_id ? nameOf(r.batch_id) : '—'),
       }]
       : []),
     {

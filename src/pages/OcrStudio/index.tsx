@@ -445,7 +445,7 @@ export function OcrStudio() {
                           )}>
                             <Flex gap={12} wrap="wrap">
                               {Object.entries(extraProperties).map(([key, schema]) => (
-                                <Form.Item key={key} name={key} label={(schema.title as string) ?? key} style={{ minWidth: 220 }} valuePropName={schema.type === 'boolean' ? 'checked' : undefined}>
+                                <Form.Item key={key} name={key} label={(schema.title as string) ?? key} style={{ minWidth: 220 }} valuePropName={Array.isArray(schema.type) && schema.type.includes('boolean') || schema.type === 'boolean' ? 'checked' : undefined}>
                                   {renderExtraControl(schema, keyOptions)}
                                 </Form.Item>
                               ))}
@@ -654,7 +654,7 @@ function renderExtraControl(schema: Record<string, unknown>, keyOptions?: { valu
       options={keyOptions ?? []} />
   }
   if (schema.enum) return <Select options={(schema.enum as unknown[]).map((v) => ({ value: v, label: String(v) }))} />
-  if (schema.type === 'boolean') return <Switch />
+  if (schema.type === 'boolean' || (Array.isArray(schema.type) && schema.type.includes('boolean'))) return <Switch />
   if (schema.type === 'number' || schema.type === 'integer') return <InputNumber style={{ width: '100%' }} />
   if ((schema.format as string) === 'textarea') return <Input.TextArea rows={2} />
   return <Input placeholder={schema.description as string | undefined} />

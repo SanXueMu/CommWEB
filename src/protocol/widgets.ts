@@ -27,15 +27,20 @@ interface SchemaLike {
   maxLength?: number
 }
 
+/** 类型匹配（兼容 JSON Schema 联合类型，如 ["boolean","null"]——可空参数已普遍化）。 */
+export function schemaIs(schema: SchemaLike, kind: string): boolean {
+  return Array.isArray(schema.type) ? schema.type.includes(kind) : schema.type === kind
+}
+
 /** 蓝图 2.2 推导表：string→Input / enum→Select / array→tags或多选 / number→InputNumber / boolean→Switch。 */
 export function inferWidget(schema: SchemaLike): WidgetKind {
-  if (schema.type === 'boolean') return 'switch'
-  if (schema.type === 'number' || schema.type === 'integer') return 'number'
-  if (schema.type === 'array') {
+  if (schemaIs(schema, 'boolean')) return 'switch'
+  if (schemaIs(schema, 'number') || schemaIs(schema, 'integer')) return 'number'
+  if (schemaIs(schema, 'array')) {
     if (schema.items?.enum) return 'multiSelect'
     return 'tags'
   }
-  if (schema.type === 'string') {
+  if (schemaIs(schema, 'string')) {
     if (schema.enum) return 'select'
     if (schema.format === 'date') return 'date'
     if (schema.format === 'file') return 'file'

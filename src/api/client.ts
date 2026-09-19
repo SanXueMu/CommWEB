@@ -218,7 +218,9 @@ function createApi(pid?: string) {
     request<{ names: Record<string, string>; count: Record<string, number> }>(
       `/files/batches?ids=${encodeURIComponent(ids.join(','))}`),
   /** 全部批次（无窗口）：批次下拉以此为准，不再从「最新 N 条 run」反推。 */
-  allBatches: (): Promise<{ batches: BatchInfo[] }> => request<{ batches: BatchInfo[] }>('/files/batches'),
+  allBatches: (flowIds?: string[]): Promise<{ batches: BatchInfo[] }> =>
+    request<{ batches: BatchInfo[] }>(
+      `/files/batches${flowIds?.length ? `?flow_ids=${encodeURIComponent(flowIds.join(','))}` : ''}`),
   /** 任务产物占用报告（只读）：任务列表展示占用 / 删除前预演将释放多少空间。 */
   usageRuns: (runIds?: string[], pipelineId?: string, limit = 50): Promise<RunUsage> =>
     request<RunUsage>('/pipeline-runs/usage', {

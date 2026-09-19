@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Badge, Button, Card, Checkbox, Descriptions, Drawer, Empty, Flex, Form, Input, List, Modal, Tooltip,
+  Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, List, Modal, Tooltip,
   Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
@@ -36,14 +36,13 @@ import {
 import { runPool } from '@/protocol/pool'
 import { pollIntervalFor } from '@/protocol/polling'
 import type {
-  PipelineRun, RunEvent, RunSummary, Task, TranslateDictEntry, TranslateTemplate,
+  Task, TranslateDictEntry, TranslateTemplate,
 } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
 import { BatchUpload } from '@/components/BatchUpload'
 import RunListPanel from '@/components/RunListPanel'
-import { DownloadButton } from '@/components/DownloadButton'
 import { StepTrack } from '@/components/StepTrack'
-import { StatusBadge } from '@/components/StatusBadge'
+import { TaskFloat, RunDetail, UsagePanel, aggregate } from '@/components/RunWidgets'
 import { SettingsKeys } from '@/components/SettingsKeys'
 
 function errMsg(e: unknown): string {
@@ -68,64 +67,6 @@ interface TranslateStudioProps {
   dictPath?: string
   languages?: Language[]
   description?: string
-}
-
-function baseName(p?: unknown): string {
-  const s = String(p ?? '')
-  return s.split('/').pop() || s
-}
-
-/** 聚合一次运行的翻译产物统计（步骤 output 的 usage/totals）。 */
-function aggregate(run?: PipelineRun) {
-  const byModel: Record<string, { calls: number; prompt_tokens: number; completion_tokens: number }> = {}
-  let calls = 0, cache = 0, review = 0, ok = 0, overflow = 0
-  const artifacts: { name: string; path: string }[] = []
-  for (const task of run?.tasks ?? []) {
-    const out = (task.output ?? {}) as Record<string, unknown>
-    const ubm = out.usage_by_model as Record<string, { calls: number; prompt_tokens: number; completion_tokens: number }> | undefined
-    if (ubm) {
-      for (const [m, v] of Object.entries(ubm)) {
-        const slot = byModel[m] ?? (byModel[m] = { calls: 0, prompt_tokens: 0, completion_tokens: 0 })
-        slot.calls += v.calls ?? 0
-        slot.prompt_tokens += v.prompt_tokens ?? 0
-        slot.completion_tokens += v.completion_tokens ?? 0
-      }
-    }
-    calls += Number(out.calls ?? 0)
-    cache += Number(out.cache_hits ?? 0)
-    review += Number(out.review_count ?? 0)
-    overflow += Number(out.overflow ?? 0)
-    const st = out.statuses as string[] | undefined
-    if (Array.isArray(st)) ok += st.filter((s) => s === 'ok').length
-    if (typeof out.file === 'string' && out.file) artifacts.push({ name: baseName(out.file), path: out.file })
-    if (typeof out.path === 'string' && out.path) artifacts.push({ name: String(out.name ?? baseName(out.path)), path: out.path })
-  }
-  return { byModel, calls, cache, review, ok, overflow, artifacts }
-}
-
-/** 任务浮窗：右下角常驻，显示进行中的翻译作业。 */
-function TaskFloat({ runs, onOpen }: { runs: RunSummary[]; onOpen: (id: string) => void }) {
-  if (runs.length === 0) return null
-  return (
-    <div style={{ position: 'fixed', right: 24, bottom: 24, width: 300, zIndex: 1000 }}>
-      <Card size="small" title={`翻译进行中（${runs.length}）`} styles={{ body: { padding: 8, maxHeight: 260, overflow: 'auto' } }}>
-        {runs.map((r) => {
-          const s = r.summary
-          const done = s?.steps_done ?? 0
-          const total = s?.steps_total ?? 0
-          return (
-            <div key={r.id} style={{ cursor: 'pointer', padding: '4px 0' }} onClick={() => onOpen(r.id)}>
-              <Flex justify="space-between">
-                <Typography.Text ellipsis style={{ maxWidth: 170, fontSize: 12 }}>{baseName(r.input?.file)}</Typography.Text>
-                <StatusBadge value={r.status} />
-              </Flex>
-              <Progress percent={total ? Math.round((done / total) * 100) : undefined} size="small" status="active" />
-            </div>
-          )
-        })}
-      </Card>
-    </div>
-  )
 }
 
 export function TranslateStudio() {
@@ -711,7 +652,7 @@ export function TranslateStudio() {
                         <Alert type="error" showIcon style={{ marginTop: 8 }}
                           message={(activeDetail.data?.run.error as { message?: string } | null)?.message ?? t.runFailed} />
                       )}
-                      <UsagePanel usage={activeUsage} t={t} />
+                      <UsagePanel usage={activeUsage} />
                     </Card>
                   )}
                 </Space>
@@ -818,7 +759,7 @@ export function TranslateStudio() {
 
       {/* 任务详情抽屉 */}
       <Drawer title={t.detailTitle} width={720} open={Boolean(detailRun)} onClose={() => setDetailRun(null)}>
-        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} t={t} />}
+        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} />}
       </Drawer>
 
       {/* 模板编辑 */}
@@ -853,77 +794,12 @@ export function TranslateStudio() {
         <SettingsKeys />
       </Drawer>
 
-      <TaskFloat runs={runningRuns} onOpen={setDetailRun} />
+      <TaskFloat runs={runningRuns} onOpen={setDetailRun} title="翻译进行中" />
     </Card>
   )
 }
 
 /** 运行详情：输入/产物/用量/日志。 */
-function RunDetail({ run, logs, t }: { run: PipelineRun; logs: RunEvent[]; t: ReturnType<typeof useTranslateText> }) {
-  const usage = aggregate(run)
-  return (
-    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-      <Descriptions size="small" column={1} bordered>
-        <Descriptions.Item label={t.colStatus}><StatusBadge value={run.run.status} /></Descriptions.Item>
-        <Descriptions.Item label={t.colFile}>{baseName(run.run.input?.file)}</Descriptions.Item>
-        <Descriptions.Item label={t.colFlow}>{run.run.pipeline_id}</Descriptions.Item>
-        {run.run.error && <Descriptions.Item label={t.errorLabel}>
-          <Typography.Text type="danger">{(run.run.error as { message?: string }).message}</Typography.Text>
-        </Descriptions.Item>}
-      </Descriptions>
-      {usage.artifacts.length > 0 && (
-        <Card size="small" title={t.artifacts}>
-          <Space direction="vertical">
-            {usage.artifacts.map((a) => (
-              <Space key={a.path}>
-                <DownloadButton path={a.path} label={a.name} />
-              </Space>
-            ))}
-          </Space>
-        </Card>
-      )}
-      <UsagePanel usage={usage} t={t} />
-      <Card size="small" title={t.logs} styles={{ body: { maxHeight: 240, overflow: 'auto', background: 'rgba(0,0,0,0.03)' } }}>
-        {(logs ?? []).length === 0 ? <Typography.Text type="secondary">{t.noLogs}</Typography.Text> : logs.map((e) => (
-          <div key={e.id} style={{ fontSize: 12, fontFamily: 'monospace' }}>
-            <Typography.Text type="secondary">{(e.created_at ?? '').replace('T', ' ').slice(11, 19)}</Typography.Text>{' '}
-            <Badge status={e.kind === 'error' ? 'error' : 'processing'} /> {e.kind} {JSON.stringify(e.detail ?? {})}
-          </div>
-        ))}
-      </Card>
-    </Space>
-  )
-}
-
-/** Token 用量面板（按模型：调用/输入/输出）。 */
-function UsagePanel({ usage, t }: { usage: ReturnType<typeof aggregate>; t: ReturnType<typeof useTranslateText> }) {
-  const models = Object.entries(usage.byModel)
-  if (models.length === 0 && usage.calls === 0) return null
-  return (
-    <Card size="small" title={t.usage} style={{ marginTop: 8 }}>
-      <Space size={16} wrap style={{ marginBottom: 8 }}>
-        <Tag color="green">✓ {t.statOk} {usage.ok}</Tag>
-        <Tag color="blue">⚡ {t.statCache} {usage.cache}</Tag>
-        <Tag color="orange">⚠ {t.statReview} {usage.review}</Tag>
-        {usage.overflow > 0 && <Tag color="red">{t.statOverflow} {usage.overflow}</Tag>}
-        {usage.calls > 0 && <Typography.Text type="secondary">{t.calls} {usage.calls}</Typography.Text>}
-      </Space>
-      {models.length > 0 && (
-        <Table
-          size="small" rowKey={(r) => r.model} pagination={false}
-          dataSource={models.map(([m, v]) => ({ model: m, ...v }))}
-          columns={[
-            { title: t.colModel, dataIndex: 'model' },
-            { title: t.colCalls, dataIndex: 'calls', width: 90 },
-            { title: t.colPrompt, dataIndex: 'prompt_tokens', width: 120 },
-            { title: t.colCompletion, dataIndex: 'completion_tokens', width: 120 },
-          ]}
-        />
-      )}
-    </Card>
-  )
-}
-
 /** 工作台文案（协议内置 UI 语义，非业务）。 */
 function useTranslateText() {
   return {

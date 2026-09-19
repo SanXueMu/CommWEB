@@ -13,17 +13,19 @@
  *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber,
-  List, Modal, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
+  List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
+import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { apiFor } from '@/api/client'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import type { PipelineRunCreated } from '@/api/types'
+import { TaskFloat, RunDetail } from '@/components/RunWidgets'
 import { FileUpload } from '@/components/FileUpload'
 import { BatchUpload } from '@/components/BatchUpload'
 import { runPool } from '@/protocol/pool'
@@ -212,6 +214,34 @@ export function OcrStudio() {
   const selectedDetail = detailTpl ? detail.data : undefined
   const extraProperties = (selectedDetail?.input_schema?.properties ?? {}) as Record<string, Record<string, unknown>>
 
+  // X6：任务详情抽屉 + 重跑/中止接线（与翻译工作台同一套组件）
+  const qc = useQueryClient()
+  const [detailRun, setDetailRun] = useState<string | null>(null)
+  const detailDetail = useQuery({
+    queryKey: ['provider', pid, 'run-detail', detailRun],
+    queryFn: () => api.getPipelineRun(detailRun!),
+    enabled: Boolean(detailRun),
+  })
+  const detailLogs = useQuery({
+    queryKey: ['provider', pid, 'run-logs', detailRun],
+    queryFn: () => api.listRunEvents(detailRun!, 200),
+    enabled: Boolean(detailRun),
+  })
+  const invalidateRuns = () => {
+    void ocrRuns.refetch()
+    qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-runs'] })
+  }
+  const rerunMutation = useMutation({
+    mutationFn: (id: string) => api.rerunRun(id),
+    onSuccess: () => { message.success('已重新入队'); invalidateRuns() },
+    onError: (e: Error) => message.error(`重跑失败：${e.message}`),
+  })
+  const abortMutation = useMutation({
+    mutationFn: (id: string) => api.abortRun(id),
+    onSuccess: () => { message.success('已中止'); invalidateRuns() },
+    onError: (e: Error) => message.error(`中止失败：${e.message}`),
+  })
+
   const runMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.runPipeline(props.recognizeFlow!, payload) as Promise<PipelineRunCreated>,
     onSuccess: (created) => { setRunId(created.run_id) },
@@ -259,10 +289,10 @@ export function OcrStudio() {
 
   // 视图预览：跑视图计算工具（纯预览不落盘），splits 由 ResultRenderer 渲染
   const previewMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (specOverride?: string) => {
       const created = await api.createTask(props.viewTool!, {
         records: records.data?.rows ?? [],
-        view_spec: viewSpec!,
+        view_spec: specOverride ?? viewSpec!,
       })
       return waitTaskOutput(api, created.handle)
     },
@@ -284,6 +314,56 @@ export function OcrStudio() {
     },
     onError: (err) => message.error(`${t.exportFailedPrefix}${errMsg(err)}`),
   })
+
+  // ── X5：视图库（我的视图，REST /ocr/views）+ 视图选择联动（选中即载入并预览）──
+  const [viewSel, setViewSel] = useState<string>()
+  const [saveViewOpen, setSaveViewOpen] = useState(false)
+  const [saveViewName, setSaveViewName] = useState('')
+  const myViews = useQuery({
+    queryKey: ['provider', pid, 'ocr-my-views'],
+    queryFn: () => api.get<{ views: { id: string; name: string }[] }>('/ocr/views'),
+  })
+  const saveMyViewMutation = useMutation({
+    mutationFn: (body: { name: string; spec: Record<string, unknown> }) =>
+      api.send('/ocr/views', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: () => { message.success(t.saveMyViewOk); setSaveViewOpen(false); void myViews.refetch() },
+    onError: (err) => message.error(`${t.saveMyViewFailedPrefix}${errMsg(err)}`),
+  })
+  const deleteViewMutation = useMutation({
+    mutationFn: (id: string) => api.send(`/ocr/views/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    onSuccess: () => { void myViews.refetch(); message.success(t.myViewDeleted) },
+    onError: (err) => message.error(`${t.myViewDelFailedPrefix}${errMsg(err)}`),
+  })
+  const viewOptions = useMemo(() => {
+    const groups: { label: string; options: { value: string; label: string }[] }[] = []
+    const builtin = props.builtinViews ?? []
+    if (builtin.length) {
+      groups.push({ label: t.builtinViewsGroup, options: builtin.map((b) => ({ value: `builtin:${b.id}`, label: b.name })) })
+    }
+    if (detail.data?.view_spec) {
+      groups.push({ label: t.templateViewGroup, options: [{ value: 'template', label: String(detail.data.name ?? templateId ?? '') }] })
+    }
+    const mine = myViews.data?.views ?? []
+    if (mine.length) {
+      groups.push({ label: t.myViewsGroup, options: mine.map((v) => ({ value: `my:${v.id}`, label: v.name })) })
+    }
+    return groups
+  }, [props.builtinViews, detail.data, myViews.data, t, templateId])
+  const applyView = (value: string) => {
+    setViewSel(value)
+    const fire = (text: string) => { setViewSpec(text); if (db && props.viewTool) previewMutation.mutate(text) }
+    if (value.startsWith('builtin:')) {
+      const spec = (props.builtinViews ?? []).find((b) => `builtin:${b.id}` === value)?.spec
+      if (spec) fire(JSON.stringify(spec, null, 2))
+    } else if (value === 'template') {
+      if (detail.data?.view_spec) fire(JSON.stringify(detail.data.view_spec, null, 2))
+    } else if (value.startsWith('my:')) {
+      const vid = value.slice(3)
+      void api.get<{ spec: Record<string, unknown> }>(`/ocr/views/${encodeURIComponent(vid)}`)
+        .then((v) => fire(JSON.stringify(v.spec, null, 2)))
+        .catch((e) => message.error(`${t.myViewDelFailedPrefix}${errMsg(e)}`))
+    }
+  }
   // 可搜索 PDF：扫描/图片版补隐形文字层（声明流，产物键为 path）
   const [searchableFile, setSearchableFile] = useState<string>()
   const searchableMutation = useMutation({
@@ -316,41 +396,7 @@ export function OcrStudio() {
   const selectedTemplate = (templates.data?.templates ?? []).find((x: TplSummary) => x.id === templateId)
 
   return (
-    <Card
-      title={t.title}
-      extra={
-        <Flex gap={12} align="center" wrap="wrap">
-          <Typography.Text type="secondary">{t.templateLabel}</Typography.Text>
-          <Select
-            style={{ minWidth: 220 }}
-            placeholder={t.templatePlaceholder}
-            value={templateId}
-            onChange={(id) => { setTemplateId(id); setDetailTpl(id); extraForm.resetFields() }}
-            loading={templates.isLoading}
-            options={(templates.data?.templates ?? []).map((x) => ({ value: x.id, label: x.name ?? x.id }))}
-          />
-          {templateId && (
-            <Popover
-              trigger="click"
-              content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
-            >
-              <Button size="small" icon={<EyeOutlined />}>{t.detail}</Button>
-            </Popover>
-          )}
-          <Button
-            size="small"
-            icon={<SettingOutlined />}
-            onClick={() => dialog.openView(props.manageView ?? 'templates', {
-              title: t.manage,
-              size: 'lg',
-              onClose: () => templates.refetch(),
-            })}
-          >
-            {t.manage}
-          </Button>
-        </Flex>
-      }
-    >
+    <Card title={t.title}>
       {props.description && (
         <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
           {props.description}
@@ -384,6 +430,37 @@ export function OcrStudio() {
               key: 'recognize', label: t.tabRecognize,
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  <Card size="small" title={t.templateLabel}>
+                    <Flex gap={12} align="center" wrap="wrap">
+                      <Select
+                        style={{ minWidth: 220 }}
+                        placeholder={t.templatePlaceholder}
+                        value={templateId}
+                        onChange={(id) => { setTemplateId(id); setDetailTpl(id); extraForm.resetFields() }}
+                        loading={templates.isLoading}
+                        options={(templates.data?.templates ?? []).map((x) => ({ value: x.id, label: x.name ?? x.id }))}
+                      />
+                      {templateId && (
+                        <Popover
+                          trigger="click"
+                          content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
+                        >
+                          <Button size="small" icon={<EyeOutlined />}>{t.detail}</Button>
+                        </Popover>
+                      )}
+                      <Button
+                        size="small"
+                        icon={<SettingOutlined />}
+                        onClick={() => dialog.openView(props.manageView ?? 'templates', {
+                          title: t.manage,
+                          size: 'lg',
+                          onClose: () => templates.refetch(),
+                        })}
+                      >
+                        {t.manage}
+                      </Button>
+                    </Flex>
+                  </Card>
                   <Card
                     size="small"
                     title={t.uploadTitle}
@@ -576,6 +653,9 @@ export function OcrStudio() {
                   loading={ocrRuns.isLoading}
                   onRefresh={() => { void ocrRuns.refetch() }}
                   onChanged={() => { void ocrRuns.refetch() }}
+                  onOpenRun={setDetailRun}
+                  onRerun={(id) => rerunMutation.mutate(id)}
+                  onAbort={(id) => abortMutation.mutate(id)}
                 />
               ),
             },
@@ -583,12 +663,52 @@ export function OcrStudio() {
               key: 'views', label: t.tabViews,
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <Card size="small" title={t.viewDefTitle}>
-                    <SpecEditor value={viewSpec ?? ''} onChange={setViewSpec} builtinViews={props.builtinViews ?? []} />
-                    <Flex gap={8} style={{ marginTop: 8 }} wrap="wrap">
+                  <Card size="small" title={t.viewPickTitle}>
+                    <Flex gap={8} wrap="wrap" align="center">
+                      <Select
+                        style={{ minWidth: 280 }}
+                        placeholder={t.viewPickPlaceholder}
+                        value={viewSel}
+                        onChange={applyView}
+                        options={viewOptions}
+                      />
                       <Button size="small" loading={previewMutation.isPending} disabled={!db || !props.viewTool || !specReady} onClick={() => previewMutation.mutate()}>{t.preview}</Button>
                       <Button size="small" type="primary" loading={exportMutation.isPending} disabled={!db || !props.exportFlow || !specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>
                       {exportFile && <DownloadButton path={exportFile} label={t.download} />}
+                      <Button size="small" disabled={!specReady} onClick={() => setSaveViewOpen(true)}>{t.saveMyView}</Button>
+                      <Popover
+                        trigger="click"
+                        title={t.myViews}
+                        content={(
+                          <List
+                            size="small" style={{ width: 300 }}
+                            loading={myViews.isLoading}
+                            dataSource={myViews.data?.views ?? []}
+                            locale={{ emptyText: t.myViewsEmpty }}
+                            renderItem={(v: { id: string; name: string }) => (
+                              <List.Item
+                                actions={[
+                                  <Popconfirm key="del" title={t.myViewDelConfirm} onConfirm={() => deleteViewMutation.mutate(v.id)}>
+                                    <Button size="small" type="link" danger>{t.myViewDel}</Button>
+                                  </Popconfirm>,
+                                ]}
+                              >
+                                <Typography.Text ellipsis style={{ maxWidth: 200 }}>{v.name}</Typography.Text>
+                              </List.Item>
+                            )}
+                          />
+                        )}
+                      >
+                        <Button size="small">{t.manageMyViews}</Button>
+                      </Popover>
+                    </Flex>
+                    {!specReady
+                      ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.specRequired}</Typography.Text>
+                      : <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.previewHint}</Typography.Text>}
+                  </Card>
+                  <Card size="small" title={t.viewDefTitle}>
+                    <SpecEditor value={viewSpec ?? ''} onChange={(next) => { setViewSpec(next); setViewSel(undefined) }} builtinViews={props.builtinViews ?? []} />
+                    <Flex gap={8} style={{ marginTop: 8 }} wrap="wrap">
                       {templateId && detail.data && (
                         <Button
                           size="small"
@@ -603,9 +723,6 @@ export function OcrStudio() {
                         </Button>
                       )}
                     </Flex>
-                    {!specReady
-                      ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.specRequired}</Typography.Text>
-                      : <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.previewHint}</Typography.Text>}
                   </Card>
                   {previewMutation.data && (
                     <Card size="small" title={t.previewResult}>
@@ -637,11 +754,49 @@ export function OcrStudio() {
         {pageView && (
           <Image
             src={api.pageUrl(pageView.path, pageView.page)}
-            fallback="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4="
+            fallback="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=="
             style={{ maxHeight: 520, objectFit: 'contain' }}
           />
         )}
       </Modal>
+
+      {/* X5：另存为我的视图 */}
+      <Modal
+        title={t.saveMyView}
+        open={saveViewOpen}
+        onCancel={() => setSaveViewOpen(false)}
+        footer={[
+          <Button key="c" size="small" onClick={() => setSaveViewOpen(false)}>{t.myViewCancel}</Button>,
+          <Button key="ok" size="small" type="primary" loading={saveMyViewMutation.isPending}
+            disabled={!saveViewName.trim()}
+            onClick={() => {
+              try { saveMyViewMutation.mutate({ name: saveViewName.trim(), spec: JSON.parse(viewSpec ?? '{}') }) }
+              catch { message.error('视图定义不是合法 JSON，无法另存') }
+            }}>{t.saveMyViewOkBtn}</Button>,
+        ]}
+      >
+        <Input
+          placeholder={t.saveMyViewNameLabel}
+          value={saveViewName}
+          onChange={(e) => setSaveViewName(e.target.value)}
+          onPressEnter={() => {
+            if (saveViewName.trim()) {
+              try { saveMyViewMutation.mutate({ name: saveViewName.trim(), spec: JSON.parse(viewSpec ?? '{}') }) }
+              catch { message.error('视图定义不是合法 JSON，无法另存') }
+            }
+          }}
+        />
+      </Modal>
+
+      {/* X6：任务详情抽屉 + 进行中浮窗（与翻译工作台同一套） */}
+      <Drawer title="任务详情" width={720} open={Boolean(detailRun)} onClose={() => setDetailRun(null)}>
+        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} />}
+      </Drawer>
+      <TaskFloat
+        runs={(ocrRuns.data?.runs ?? []).filter((r) => r.status === 'running' || r.status === 'queued')}
+        onOpen={setDetailRun}
+        title="识别进行中"
+      />
     </Card>
   )
 }
@@ -751,5 +906,23 @@ function useOcrText() {
     download: '下载导出文件',
     exportOkPrefix: '导出完成：',
     exportFailedPrefix: '导出失败：',
+    viewPickTitle: '选择视图',
+    viewPickPlaceholder: '选择视图（内置 / 模版 / 我的）',
+    saveMyView: '另存为我的视图',
+    manageMyViews: '管理我的视图',
+    myViews: '我的视图',
+    myViewsEmpty: '还没有保存的视图',
+    myViewDel: '删除',
+    myViewDelConfirm: '删除该视图？',
+    saveMyViewOk: '已保存到我的视图',
+    saveMyViewOkBtn: '保存',
+    myViewCancel: '取消',
+    saveMyViewNameLabel: '视图名称',
+    saveMyViewFailedPrefix: '保存失败：',
+    myViewDeleted: '已删除',
+    myViewDelFailedPrefix: '操作失败：',
+    builtinViewsGroup: '内置视图',
+    templateViewGroup: '模版视图',
+    myViewsGroup: '我的视图',
   }
 }

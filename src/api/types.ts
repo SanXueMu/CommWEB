@@ -223,6 +223,8 @@ export interface RunSummary {
     cache_hits?: number | null
     review_count?: number | null
     ok_count?: number | null
+    /** X4：识别部分页失败数（未达熔断线时 run 落 succeeded）——徽标与「重试失败页」依据 */
+    failed_pages?: number | null
   }
 }
 

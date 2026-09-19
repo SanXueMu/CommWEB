@@ -147,8 +147,8 @@ export default function RunListPanel({
   /** 批次下拉/名称以服务端全量清单为准（GET /files/batches）。
    *  不能从「最新 N 条 run」反推——旧批次的 run 被新 run 挤出窗口后整批从下拉里消失。 */
   const allBatchesQ = useQuery({
-    queryKey: ['provider', pid, 'all-batches'],
-    queryFn: () => api.allBatches(),
+    queryKey: ['provider', pid, 'all-batches', flowIds?.join(',') ?? ''],
+    queryFn: () => api.allBatches(flowIds),
     staleTime: 30_000,
   })
   const batches = useMemo(() => {
@@ -309,7 +309,19 @@ export default function RunListPanel({
         const why = fellBack
           ? `${r.error?.message ?? ''}`
           : r.fallback_of ? '由原任务能力不可用自动降级而来' : r.error?.message
-        return why ? <Tooltip title={why}>{tag}</Tooltip> : tag
+        // X4：succeeded 但有失败页（未达熔断线）——徽标可见，操作列提供「重试失败页」
+        const fp = r.summary?.failed_pages ?? 0
+        const wrapped = (
+          <Space size={4}>
+            {tag}
+            {fp > 0 && (
+              <Tooltip title={`识别有 ${fp} 页失败（未达熔断线所以任务完成）；点操作里的「重试失败页」只补失败页，已成功页走缓存不重复计费`}>
+                <Tag color="orange">部分失败（{fp} 页）</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        )
+        return why ? <Tooltip title={why}>{wrapped}</Tooltip> : wrapped
       },
     },
     {
@@ -400,6 +412,15 @@ export default function RunListPanel({
             </Tooltip>
           )}
           {onRerun && (() => {
+            // X4：部分页失败的成功任务 → 「重试失败页」（重放进原流，已成功页命中缓存）
+            const partial = r.status === 'succeeded' && (r.summary?.failed_pages ?? 0) > 0
+            if (partial) {
+              return (
+                <Tooltip title="只补失败页：已成功页走页级缓存，不重复计费">
+                  <Button size="small" type="link" onClick={() => onRerun(r.id)}>重试失败页</Button>
+                </Tooltip>
+              )
+            }
             // 该文件已有成功译文（不在待重跑清单里）→ 无需重跑，置灰
             const file = String(r.input?.file ?? '')
             const done = RERUNNABLE.has(r.status) && file !== '' && doneFiles.has(file)

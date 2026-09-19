@@ -12,7 +12,7 @@
  *  description?: string
  *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber,
@@ -193,6 +193,26 @@ export function OcrStudio() {
     refetchInterval: (q) => pollIntervalFor((q.state.data?.runs ?? []).map((r) => r.status)),
     enabled: (props.flows?.length ?? 0) > 0,
   })
+  const qc = useQueryClient()
+  // Y5：任务 running → 终态时联动失效数据面查询（结果库计数/预览），不再需要 F5
+  const prevStatusRef = useRef<Record<string, string>>({})
+  useEffect(() => {
+    const runs = ocrRuns.data?.runs ?? []
+    const prev = prevStatusRef.current
+    let finished = false
+    const next: Record<string, string> = {}
+    for (const r of runs) {
+      next[r.id] = r.status
+      if (prev[r.id] && (prev[r.id] === 'running' || prev[r.id] === 'queued')
+        && prev[r.id] !== r.status) finished = true
+    }
+    prevStatusRef.current = next
+    if (finished) {
+      qc.invalidateQueries({ queryKey: ['provider', pid, 'data-dbs'] })
+      qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-records'] })
+    }
+  }, [ocrRuns.data, pid, qc])
+
   const run = useQuery({
     queryKey: ['provider', pid, 'studio-run', runId],
     queryFn: () => api.getPipelineRun(runId!),
@@ -215,7 +235,6 @@ export function OcrStudio() {
   const extraProperties = (selectedDetail?.input_schema?.properties ?? {}) as Record<string, Record<string, unknown>>
 
   // X6：任务详情抽屉 + 重跑/中止接线（与翻译工作台同一套组件）
-  const qc = useQueryClient()
   const [detailRun, setDetailRun] = useState<string | null>(null)
   const detailDetail = useQuery({
     queryKey: ['provider', pid, 'run-detail', detailRun],

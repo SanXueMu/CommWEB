@@ -311,12 +311,24 @@ export default function RunListPanel({
           : r.fallback_of ? '由原任务能力不可用自动降级而来' : r.error?.message
         // X4：succeeded 但有失败页（未达熔断线）——徽标可见，操作列提供「重试失败页」
         const fp = r.summary?.failed_pages ?? 0
+        const zero = r.status === 'succeeded' && r.summary?.records_count === 0
+        const skippedN = r.summary?.steps_skipped?.length ?? 0
         const wrapped = (
           <Space size={4}>
             {tag}
             {fp > 0 && (
               <Tooltip title={`识别有 ${fp} 页失败（未达熔断线所以任务完成）；点操作里的「重试失败页」只补失败页，已成功页走缓存不重复计费`}>
                 <Tag color="orange">部分失败（{fp} 页）</Tag>
+              </Tooltip>
+            )}
+            {zero && (
+              <Tooltip title="识别完成但结果库 0 条记录：检查模版字段/提示词与该文档是否匹配">
+                <Tag color="orange">0 记录</Tag>
+              </Tooltip>
+            )}
+            {skippedN > 0 && (
+              <Tooltip title={(r.summary?.steps_skipped ?? []).map((x) => `第 ${(x.step_index ?? 0) + 1} 步：${x.reason}`).join('\n')}>
+                <Tag>{skippedN} 步跳过</Tag>
               </Tooltip>
             )}
           </Space>

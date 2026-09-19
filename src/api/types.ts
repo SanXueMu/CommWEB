@@ -174,6 +174,7 @@ export interface PipelineRun {
     finished_at: string | null
   }
   tasks: Task[]
+  summary?: RunSummary['summary']
 }
 
 export interface FileUploaded {
@@ -225,6 +226,8 @@ export interface RunSummary {
     ok_count?: number | null
     /** X4：识别部分页失败数（未达熔断线时 run 落 succeeded）——徽标与「重试失败页」依据 */
     failed_pages?: number | null
+    records_count?: number | null
+    steps_skipped?: { step_index?: number; reason?: string }[] | null
   }
 }
 

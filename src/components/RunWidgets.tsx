@@ -7,7 +7,7 @@
  * 翻译工作台与 OCR 工作台共用同一套（此前两份实现易漂移）。
  * 文案为协议级通用词（非业务词），两工作台一致。
  */
-import { Badge, Card, Descriptions, Flex, Progress, Space, Table, Tag, Typography } from 'antd'
+import { Badge, Card, Descriptions, Flex, Progress, Space, Table, Tag, Tooltip, Typography } from 'antd'
 import { DownloadButton } from '@/components/DownloadButton'
 import { StatusBadge } from '@/components/StatusBadge'
 import type { PipelineRun, RunEvent, RunSummary } from '@/api/types'
@@ -77,6 +77,21 @@ export function RunDetail({ run, logs }: { run: PipelineRun; logs: RunEvent[] })
         <Descriptions.Item label="状态"><StatusBadge value={run.run.status} /></Descriptions.Item>
         <Descriptions.Item label="文件">{baseName(run.run.input?.file)}</Descriptions.Item>
         <Descriptions.Item label="流">{run.run.pipeline_id}</Descriptions.Item>
+        {run.summary && (run.summary.steps_total ?? 0) > 0 && (
+          <Descriptions.Item label="进度">
+            <Space size={4} wrap>
+              <span>{run.summary.steps_done ?? 0}/{run.summary.steps_total}</span>
+              {(run.summary.steps_skipped ?? []).map((sk) => (
+                <Tooltip key={sk.step_index} title={sk.reason}>
+                  <Tag>第 {(sk.step_index ?? 0) + 1} 步跳过</Tag>
+                </Tooltip>
+              ))}
+              {run.run.status === 'succeeded' && run.summary.records_count === 0 && (
+                <Tag color="orange">0 记录</Tag>
+              )}
+            </Space>
+          </Descriptions.Item>
+        )}
         {run.run.error && <Descriptions.Item label="错误">
           <Typography.Text type="danger">{(run.run.error as { message?: string }).message}</Typography.Text>
         </Descriptions.Item>}

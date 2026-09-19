@@ -326,6 +326,14 @@ export default function RunListPanel({
                 <Tag color="orange">0 记录</Tag>
               </Tooltip>
             )}
+            {(r.summary?.review_notes_count ?? 0) > 0 && (
+              <Tooltip title="hook 勾稽校验有告警（如借贷不平/金额歧义）——多半是缺行或金额误读，详情日志可看明细">
+                <Tag color="orange">勾稽告警（{(r.summary?.review_notes_count ?? 0)}）</Tag>
+              </Tooltip>
+            )}
+            {r.status === 'running' && r.summary?.latest_note && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.summary.latest_note}</Typography.Text>
+            )}
             {skippedN > 0 && (
               <Tooltip title={(r.summary?.steps_skipped ?? []).map((x) => `第 ${(x.step_index ?? 0) + 1} 步：${x.reason}`).join('\n')}>
                 <Tag>{skippedN} 步跳过</Tag>

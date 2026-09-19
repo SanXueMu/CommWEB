@@ -228,6 +228,10 @@ export interface RunSummary {
     failed_pages?: number | null
     records_count?: number | null
     steps_skipped?: { step_index?: number; reason?: string }[] | null
+    /** AA3：hook/勾稽告警数（校验不平、宽松修复等） */
+    review_notes_count?: number | null
+    /** AB2：running 时最新工具进度消息（「已识别 12/42 页」） */
+    latest_note?: string | null
   }
 }
 

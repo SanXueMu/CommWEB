@@ -60,6 +60,9 @@ export function TaskFloat({ runs, onOpen, title }: { runs: RunSummary[]; onOpen:
                 <StatusBadge value={r.status} />
               </Flex>
               <Progress percent={total ? Math.round((done / total) * 100) : undefined} size="small" status="active" />
+              {s?.latest_note && (
+                <Typography.Text type="secondary" ellipsis style={{ fontSize: 12, display: 'block' }}>{s.latest_note}</Typography.Text>
+              )}
             </div>
           )
         })}

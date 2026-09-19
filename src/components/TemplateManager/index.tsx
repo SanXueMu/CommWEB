@@ -3,7 +3,7 @@
  *  数据面 = CommAND REST /ocr/templates（同步 CRUD，区别于 spec.template.* 异步工具链路）。 */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, Drawer, Form, Input, Popconfirm, Select, Space, Switch, Table, Typography } from 'antd'
+import { App as AntApp, Button, Drawer, Form, Input, Modal as AntModal, Popconfirm, Select, Space, Switch, Table, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { useActivePid } from '@/transfer/context'
@@ -147,7 +147,10 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
   const [bodyText, setBodyText] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // 打开时注入当前值（编辑=全量，新建=骨架）；关闭后下次打开重新注入
+  const [loadingBody, setLoadingBody] = useState(false)
+
+  // Z2：编辑时必须拉取详情端点的全量主体（列表行只是计数桩，直接注入会丢
+  // prompt_template/fields/rules/example/hooks，保存即毁模版）
   useEffect(() => {
     if (!open) return
     const base: Record<string, unknown> = template ?? {
@@ -157,21 +160,24 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
     form.setFieldsValue({
       id: base.id, name: base.name, category: base.category, enabled: base.enabled,
     })
-    const advanced: Record<string, unknown> = { ...base }
-    delete advanced.id; delete advanced.name; delete advanced.category; delete advanced.enabled
-    delete advanced.created_at; delete advanced.updated_at
-    setBodyText(JSON.stringify(advanced, null, 2))
-  }, [open, template, form])
-
-  const save = async () => {
-    const head = await form.validateFields()
-    let body: Record<string, unknown>
-    try {
-      body = bodyText.trim() ? JSON.parse(bodyText) : {}
-    } catch (err) {
-      message.error(`高级主体不是合法 JSON：${(err as Error).message}`)
-      return
+    const inject = (full: Record<string, unknown>) => {
+      const advanced: Record<string, unknown> = { ...full }
+      delete advanced.id; delete advanced.name; delete advanced.category; delete advanced.enabled
+      delete advanced.created_at; delete advanced.updated_at
+      setBodyText(JSON.stringify(advanced, null, 2))
     }
+    if (template) {
+      setLoadingBody(true)
+      apiFor(providerId).get<Record<string, unknown>>(`/ocr/templates/${encodeURIComponent(template.id)}`)
+        .then(inject)
+        .catch(() => inject(template))
+        .finally(() => setLoadingBody(false))
+    } else {
+      inject(base)
+    }
+  }, [open, template, form, providerId])
+
+  const send = async (head: Record<string, unknown>, body: Record<string, unknown>) => {
     const payload = { ...body, ...head, enabled: Boolean(head.enabled) }
     setSaving(true)
     try {
@@ -189,6 +195,29 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
     }
   }
 
+  const save = async () => {
+    const head = await form.validateFields()
+    let body: Record<string, unknown>
+    try {
+      body = bodyText.trim() ? JSON.parse(bodyText) : {}
+    } catch (err) {
+      message.error(`高级主体不是合法 JSON：${(err as Error).message}`)
+      return
+    }
+    // Z2 防呆：编辑态主体缺核心内容 → 多半是拿桩/空壳保存，确认后再放行
+    if (template && (typeof body.prompt_template !== 'string' || !body.prompt_template.trim()
+      || !Array.isArray(body.fields) || body.fields.length === 0)) {
+      AntModal.confirm({
+        title: '高级主体缺少识别逻辑',
+        content: '检测到 prompt_template 或 fields 为空。继续保存将清空该模版的识别规则（原内容不可从界面恢复），确定继续吗？',
+        okText: '仍然保存', okButtonProps: { danger: true }, cancelText: '返回检查',
+        onOk: () => send(head, body),
+      })
+      return
+    }
+    await send(head, body)
+  }
+
   return (
     <Drawer
       title={template ? `编辑模版 ${template.id}` : '新建识别模版'}
@@ -196,7 +225,7 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
       onClose={onClose}
       width={560}
       destroyOnHidden
-      extra={<Button type="primary" loading={saving} onClick={save}>保存</Button>}
+      extra={<Button type="primary" loading={saving || loadingBody} onClick={save} disabled={loadingBody}>保存</Button>}
     >
       <Form form={form} layout="vertical">
         <Form.Item name="id" label="模版 ID"

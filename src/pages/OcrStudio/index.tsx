@@ -180,6 +180,8 @@ export function OcrStudio() {
     },
   })
   const [db, setDb] = useState<string>()
+  // AJ2：结果库多选（合并导出用；存库 path）。焦点库 db 仍单选——预览/结果 tab 不受影响
+  const [mergedPaths, setMergedPaths] = useState<string[]>([])
   const [scope, setScope] = useState<string>()
   const [pageNum, setPageNum] = useState(1)
   // AD3：删除结果库（后端防呆：被任务引用时 409 报引用数，先删任务再删库）
@@ -347,10 +349,13 @@ export function OcrStudio() {
   const [exportFile, setExportFile] = useState<string>()
   const exportMutation = useMutation({
     mutationFn: async () => {
+      // AJ2：多选 ≥2 库 → 合并导出（后端逐库读取按来源分组排序）；否则单库现行为
+      const merging = mergedPaths.length >= 2
       const created = await api.runPipeline(props.exportFlow!, {
-        db: dbs.data?.dbs.find((x) => x.name === db)?.path ?? db,
+        db: merging ? mergedPaths : (dbs.data?.dbs.find((x) => x.name === db)?.path ?? db),
         view_spec: viewSpec!,
-        name: `${db?.replace(/\.db$/, '') ?? '视图导出'}.xlsx`,
+        name: merging ? `${t.mergedExportName(mergedPaths.length)}.xlsx`
+          : `${db?.replace(/\.db$/, '') ?? '视图导出'}.xlsx`,
       } as Record<string, unknown>)
       return waitRunFile(api, created.run_id)
     },
@@ -449,7 +454,14 @@ export function OcrStudio() {
         </Typography.Paragraph>
       )}
       <Flex gap={16} align="stretch" style={{ minHeight: 460 }}>
-        <Card size="small" title={t.dbsTitle} style={{ width: 240, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
+        <Card size="small" title={t.dbsTitle} style={{ width: 240, flexShrink: 0 }} styles={{ body: { padding: 0 } }}
+          extra={mergedPaths.length >= 2 ? (
+            <Flex gap={6} align="center">
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.mergedSelected(mergedPaths.length)}</Typography.Text>
+              <Button size="small" type="text" onClick={() => setMergedPaths([])}>{t.mergedClear}</Button>
+            </Flex>
+          ) : undefined}
+        >
           <List
             size="small"
             loading={dbs.isLoading}
@@ -460,6 +472,15 @@ export function OcrStudio() {
                 style={{ cursor: 'pointer', padding: '8px 12px', background: item.name === db ? 'rgba(91,141,239,0.10)' : undefined }}
                 onClick={() => { setDb(item.name); setPageNum(1); setScope(undefined) }}
               >
+                <Checkbox
+                  checked={mergedPaths.includes(item.path)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMergedPaths((prev) => prev.includes(item.path)
+                      ? prev.filter((x) => x !== item.path) : [...prev, item.path])
+                  }}
+                  title={t.mergedHint}
+                />
                 <List.Item.Meta
                   title={<Typography.Text ellipsis style={{ maxWidth: 150 }}>{item.name}</Typography.Text>}
                   description={<Typography.Text type="secondary" style={{ fontSize: 12 }}>{item.records} 条</Typography.Text>}
@@ -986,5 +1007,10 @@ function useOcrText() {
     builtinViewsGroup: '内置视图',
     templateViewGroup: '模版视图',
     myViewsGroup: '我的视图',
+    mergeExport: '合并导出',
+    mergedHint: '勾选 ≥2 个结果库后，导出按钮变为合并导出（按来源分组、同页多行有序）',
+    mergedSelected: (n: number) => `已选 ${n} 库`,
+    mergedClear: '清空',
+    mergedExportName: (n: number) => `合并导出${n}库`,
   }
 }

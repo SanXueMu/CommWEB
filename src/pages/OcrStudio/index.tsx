@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber,
+  Alert, AutoComplete, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber,
   List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
 } from 'antd'
 import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
@@ -828,6 +828,11 @@ function renderExtraControl(schema: Record<string, unknown>, keyOptions?: { valu
       options={keyOptions ?? []} />
   }
   if (schema.enum) return <Select options={(schema.enum as unknown[]).map((v) => ({ value: v, label: String(v) }))} />
+  // AC1：examples → AutoComplete（既给候选又可填自定义模型快照名，规避 enum 只能选的限制）
+  if (Array.isArray(schema.examples) && schema.examples.length > 0) {
+    return <AutoComplete allowClear placeholder={schema.description as string | undefined}
+      options={(schema.examples as unknown[]).map((v) => ({ value: String(v) }))} />
+  }
   if (schema.type === 'boolean' || (Array.isArray(schema.type) && schema.type.includes('boolean'))) return <Switch />
   if (schema.type === 'number' || schema.type === 'integer') return <InputNumber style={{ width: '100%' }} />
   if ((schema.format as string) === 'textarea') return <Input.TextArea rows={2} />

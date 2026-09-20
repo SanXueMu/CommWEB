@@ -847,7 +847,7 @@ export function OcrStudio() {
 
       {/* X6：任务详情抽屉 + 进行中浮窗（与翻译工作台同一套） */}
       <Drawer title="任务详情" width={720} open={Boolean(detailRun)} onClose={() => setDetailRun(null)}>
-        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} />}
+        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} toolNames={detailDetail.data.tool_names} />}
       </Drawer>
       <TaskFloat
         runs={taskRuns.filter((r) => r.status === 'running' || r.status === 'queued')}

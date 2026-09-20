@@ -764,7 +764,7 @@ export function TranslateStudio() {
 
       {/* 任务详情抽屉 */}
       <Drawer title={t.detailTitle} width={720} open={Boolean(detailRun)} onClose={() => setDetailRun(null)}>
-        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} />}
+        {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} toolNames={detailDetail.data.tool_names} />}
       </Drawer>
 
       {/* 模板编辑 */}

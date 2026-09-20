@@ -87,7 +87,38 @@ export function TaskFloat({ runs, onOpen, title }: { runs: RunSummary[]; onOpen:
 }
 
 /** 任务详情（抽屉内容）：状态 / 产物 / 用量 / 运行日志。 */
-export function RunDetail({ run, logs }: { run: PipelineRun; logs: RunEvent[] }) {
+/** AI3：审计事件 → 人话文案（原始 JSON 收进 Tooltip，审计不丢） */
+const KIND_LABELS: Record<string, string> = {
+  created: '任务创建', step_queued: '步骤排队', step_started: '步骤开始',
+  step_completed: '步骤完成', step_failed: '步骤失败', step_cancelled: '步骤取消',
+  step_skipped: '步骤跳过', step_paused: '步骤暂停', pause_requested: '请求暂停',
+  resume_requested: '请求继续', resumed: '已继续', abort_requested: '请求中止',
+  run_aborted: '任务中止', rerun_requested: '请求重跑', override_applied: '人工覆盖',
+  run_recovered: '进程重启中断收口', artifacts_purged: '决定性错误自动清理产物',
+  file_replaced: '替换任务原件', input_updated: '修正任务参数',
+  subrun_created: '子任务创建', subrun_finished: '子任务完成',
+}
+
+function eventText(e: RunEvent, toolNames: Record<string, string>,
+                   skipped: { step_index?: number; reason: string }[]): string {
+  const d = (e.detail ?? {}) as Record<string, unknown>
+  const tool = (tid: unknown) => toolNames[String(tid)] ?? String(tid ?? '')
+  switch (e.kind) {
+    case 'created': return `任务创建 · ${String(d.pipeline_id ?? '')}`
+    case 'step_queued': case 'step_started': case 'step_completed': case 'step_failed':
+      return `${KIND_LABELS[e.kind]} · ${tool(d.tool)}`
+    case 'step_skipped': {
+      const reason = skipped.find((sk) => sk.step_index === d.step_index)?.reason
+      return `步骤跳过 · ${reason ?? '条件不满足'}`
+    }
+    case 'progress': return String(d.message ?? '')
+    default: return KIND_LABELS[e.kind] ?? e.kind
+  }
+}
+
+export function RunDetail({ run, logs, toolNames }: {
+  run: PipelineRun; logs: RunEvent[]; toolNames?: Record<string, string>
+}) {
   const usage = aggregate(run)
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -99,6 +130,11 @@ export function RunDetail({ run, logs }: { run: PipelineRun; logs: RunEvent[] })
           <Descriptions.Item label="进度">
             <Space size={4} wrap>
               <span>{run.summary.steps_done ?? 0}/{run.summary.steps_total}</span>
+              {run.summary.latest_note && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {run.summary.latest_note}
+                </Typography.Text>
+              )}
               {(run.summary.steps_skipped ?? []).map((sk) => (
                 <Tooltip key={sk.step_index} title={sk.reason}>
                   <Tag>第 {(sk.step_index ?? 0) + 1} 步跳过</Tag>
@@ -132,9 +168,17 @@ export function RunDetail({ run, logs }: { run: PipelineRun; logs: RunEvent[] })
       <UsagePanel usage={usage} />
       <Card size="small" title="运行日志" styles={{ body: { maxHeight: 240, overflow: 'auto', background: 'rgba(0,0,0,0.03)' } }}>
         {(logs ?? []).length === 0 ? <Typography.Text type="secondary">暂无日志</Typography.Text> : logs.map((e) => (
-          <div key={e.id} style={{ fontSize: 12, fontFamily: 'monospace' }}>
-            <Typography.Text type="secondary">{(e.created_at ?? '').replace('T', ' ').slice(11, 19)}</Typography.Text>{' '}
-            <Badge status={e.kind === 'error' ? 'error' : 'processing'} /> {e.kind} {JSON.stringify(e.detail ?? {})}
+          <div key={e.id} style={{ fontSize: 12 }}>
+            <Typography.Text type="secondary" style={{ fontFamily: 'monospace' }}>
+              {(e.created_at ?? '').replace('T', ' ').slice(11, 19)}
+            </Typography.Text>{' '}
+            <Badge status={e.kind === 'step_failed' || e.kind === 'run_aborted' ? 'error'
+              : e.kind === 'progress' ? 'default' : 'processing'} />{' '}
+            <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(e.detail ?? {}, null, 1)}</span>}>
+              <span style={{ cursor: 'help' }}>
+                {eventText(e, toolNames ?? {}, run.summary?.steps_skipped ?? [])}
+              </span>
+            </Tooltip>
           </div>
         ))}
       </Card>

@@ -363,8 +363,9 @@ export function OcrStudio() {
       const created = await api.runPipeline(props.exportFlow!, {
         db: merging ? mergedPaths : (dbs.data?.dbs.find((x) => x.name === db)?.path ?? db),
         view_spec: viewSpec!,
-        name: merging ? `${t.mergedExportName(mergedPaths.length)}.xlsx`
-          : `${db?.replace(/\.db$/, '') ?? '视图导出'}.xlsx`,
+        // 名字不带 .xlsx（后端统一补后缀），并去掉库名的 .ocr_results.db 尾巴
+        name: merging ? t.mergedExportName(mergedPaths.length)
+          : (db?.replace(/\.(ocr_results\.)?db$/, '') ?? '视图导出'),
       } as Record<string, unknown>)
       return waitRunFile(api, created.run_id)
     },

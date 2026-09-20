@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Button, Card, Input, Modal, Popconfirm, Progress, Select, Space, Table, Tag, Tooltip, Typography,
-  message,
+  message, notification,
 } from 'antd'
 import {
   DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, RedoOutlined, ReloadOutlined,
@@ -118,12 +118,40 @@ export default function RunListPanel({
                        : runs),
     [runs, batchFilter, batchRuns.data])
 
+  function baseName(p?: unknown): string {
+    return String(p ?? '').split('/').pop() ?? ''
+  }
+
   const groups = useMemo(() => groupByFile(shown), [shown])
   const rows = useMemo(() => (showHistory ? shown : groups.map((g) => g.best)),
     [groups, shown, showHistory])
   const attemptsOf = useMemo(() => new Map(groups.map((g) => [g.best.id, g.attempts])), [groups])
   /** 行 id → 该文件全部 run id：删除按**整个文件**生效（不留历史失败记录） */
   const allIdsOf = useMemo(() => new Map(groups.map((g) => [g.best.id, g.all])), [groups])
+
+  // AF3：任务 running → 失败/中断终态时弹报错弹窗（用户裁定：报错要弹窗供排查）
+  const prevStatuses = useRef<Record<string, string>>({})
+  useEffect(() => {
+    const prev = prevStatuses.current
+    const next: Record<string, string> = {}
+    const newlyFailed: string[] = []
+    for (const r of shown) {
+      next[r.id] = r.status
+      if ((prev[r.id] === 'running' || prev[r.id] === 'queued')
+        && (r.status === 'failed' || r.status === 'failed_review' || r.status === 'interrupted'))
+        newlyFailed.push(baseName(r.input?.file) || r.id)
+    }
+    prevStatuses.current = next
+    if (newlyFailed.length) {
+      const head = newlyFailed.slice(0, 5).join('、')
+      const more = newlyFailed.length > 5 ? ` 等 ${newlyFailed.length} 个` : ''
+      notification.error({
+        message: `任务失败（${newlyFailed.length} 个）`,
+        description: `${head}${more}——点击任务行查看错误原因与日志`,
+        duration: 8,
+      })
+    }
+  }, [shown])
 
   /** 待重跑清单：**服务端按整批次聚合**（「从未成功过 + 最新一次失败」），
    *  不再用当前列表算——列表只加载最新 N 条，历史失败会把计数虚高（线上 42 全是噪声）。

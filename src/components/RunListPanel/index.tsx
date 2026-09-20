@@ -93,6 +93,10 @@ export default function RunListPanel({
   const [picked, setPicked] = useState<string[]>([])
   const [batchFilter, setBatchFilter] = useState<string>()
   const [packing, setPacking] = useState(false)
+  // AH1：失败项管理弹层——残留失败（含其它批次的窗口外 run）此前无处可删，
+  // 结果库被它们引用时还会挡住「删除库」（共享保护 409）
+  const [failOpen, setFailOpen] = useState(false)
+  const [failBusy, setFailBusy] = useState(false)
   /** 默认「一个文件一行」；打开后展开每个文件的历史尝试（审计记录不丢） */
   const [showHistory, setShowHistory] = useState(false)
   // N3：替换原件（.doc→.docx 等）/ 就地修正任务参数（密钥名、模型）
@@ -305,6 +309,25 @@ export default function RunListPanel({
     if (params.purgeFiles) {
       void qc.invalidateQueries({ queryKey: ['provider', pid, 'data-dbs'] })
       void qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-records'] })
+    }
+  }
+
+  /** AH1：清除失败项（逐文件删全部尝试+产物+库；结束后刷新清单与结果库面板）。 */
+  async function purgeFailed(ids: string[]) {
+    if (!ids.length) return
+    setFailBusy(true)
+    try {
+      const out = await runPool(ids, (id) => del.mutateAsync({ id, purgeFiles: true })
+        .then(() => ({ id, ok: true as const }))
+        .catch((e: Error) => ({ id, ok: false as const, error: e.message })), DELETE_CONCURRENCY)
+      const bad = out.filter((o) => !o.ok)
+      if (bad.length) message.warning(`清除完成：失败 ${bad.length} 个（${bad[0].error}）`)
+      else message.success(`已清除 ${out.length} 个失败项（含产物）`)
+      refreshAll()
+      void qc.invalidateQueries({ queryKey: ['provider', pid, 'data-dbs'] })
+      void qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-records'] })
+    } finally {
+      setFailBusy(false)
     }
   }
 
@@ -558,6 +581,11 @@ export default function RunListPanel({
               </Button>
             </Popconfirm>
           )}
+          {rerunCount > 0 && (
+            <Button size="small" danger ghost icon={<DeleteOutlined />} onClick={() => setFailOpen(true)}>
+              清除失败项（{rerunCount}）
+            </Button>
+          )}
         </Space>
       )}
       <input ref={replaceInput} type="file" style={{ display: 'none' }} onChange={(e) => {
@@ -566,6 +594,35 @@ export default function RunListPanel({
         if (f && runId) replaceFile.mutate({ runId, file: f })
         e.target.value = ''
       }} />
+      <Modal title={`失败项管理（${rerunQ.data?.files.length ?? 0} 个文件，含其它批次残留）`}
+        open={failOpen} footer={null} onCancel={() => setFailOpen(false)} width={680}>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          「从未成功过」且最新一次是失败/中断的文件（全批次口径）。删除将连带该文件的全部尝试与产物
+          （含 OCR 结果库）；结果库若因此不再被引用即可单独删除。
+        </Typography.Paragraph>
+        <Table size="small" rowKey="run_id" dataSource={rerunQ.data?.files ?? []}
+          pagination={{ pageSize: 10 }} loading={failBusy}>
+          <Table.Column title="文件" dataIndex="name" ellipsis
+            render={(_: unknown, r: { run_id: string; error?: string }) => (
+              <Tooltip title={r.error || ''}><span>{String(_)}</span></Tooltip>
+            )} />
+          <Table.Column title="状态" dataIndex="status" width={90}
+            render={(_: unknown) => <Tag color="orange">{String(_)}</Tag>} />
+          <Table.Column title="操作" key="op" width={90}
+            render={(_: unknown, r: { run_id: string }) => (
+              <Popconfirm title="删除该文件的全部尝试（含产物）？" onConfirm={() => purgeFailed([r.run_id])}>
+                <Button size="small" danger loading={failBusy}>删除</Button>
+              </Popconfirm>
+            )} />
+        </Table>
+        <Space style={{ marginTop: 12 }}>
+          <Button danger type="primary" loading={failBusy}
+            onClick={() => purgeFailed(rerunQ.data?.run_ids ?? [])}>
+            全部清除（含产物）
+          </Button>
+          <Button onClick={() => setFailOpen(false)}>关闭</Button>
+        </Space>
+      </Modal>
       <Modal title={`修改任务参数（${editRun?.id ?? ''}）`} open={Boolean(editRun)}
         okText="保存" cancelText="取消" confirmLoading={patchInput.isPending}
         onOk={submitEdit} onCancel={() => setEditRun(null)} width={560}>

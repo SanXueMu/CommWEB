@@ -255,20 +255,28 @@ export function OcrStudio() {
 
   // X6：任务详情抽屉 + 重跑/中止接线（与翻译工作台同一套组件）
   const [detailRun, setDetailRun] = useState<string | null>(null)
+  // AH4：详情抽屉实时化（对齐翻译台）——running 时 2s 轮询详情+日志；run 被删（404）自动关抽屉
   const detailDetail = useQuery({
     queryKey: ['provider', pid, 'run-detail', detailRun],
     queryFn: () => api.getPipelineRun(detailRun!),
     enabled: Boolean(detailRun),
+    refetchInterval: (q) => ((q.state.data?.run.status === 'running' || q.state.data?.run.status === 'queued') ? 2000 : false),
   })
   const detailLogs = useQuery({
     queryKey: ['provider', pid, 'run-logs', detailRun],
     queryFn: () => api.listRunEvents(detailRun!, 200),
     enabled: Boolean(detailRun),
+    refetchInterval: () => detailDetail.data && (detailDetail.data.run.status === 'running' || detailDetail.data.run.status === 'queued') ? 2000 : false,
   })
   const invalidateRuns = () => {
     void ocrRuns.refetch()
     qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-runs'] })
   }
+  // AH4：抽屉里的 run 已被删除 → 关抽屉（不再对着 404 空抽屉）
+  useEffect(() => {
+    const err = detailDetail.error as { status?: number } | null
+    if (err && err.status === 404) setDetailRun(null)
+  }, [detailDetail.error])
   const rerunMutation = useMutation({
     mutationFn: (id: string) => api.rerunRun(id),
     onSuccess: () => { message.success('已重新入队'); invalidateRuns() },

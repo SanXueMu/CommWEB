@@ -170,7 +170,9 @@ export function TranslateStudio() {
     queryKey: ['provider', pid, 'run-logs', detailRun],
     queryFn: () => api.listRunEvents(detailRun!, 200),
     enabled: Boolean(detailRun),
-    refetchInterval: (q) => (q.state.data?.events.length ? false : 2000),
+    // AH4：日志随任务推进滚动（running 时与详情同频轮询；已有事件即停）
+    refetchInterval: (q) => (detailDetail.data && RUNNING.has(detailDetail.data.run.status)
+      ? (q.state.data?.events.length ? false : 2000) : false),
   })
   const dict = useQuery({
     queryKey: ['provider', pid, 'translate-dict', dictQ, dictStatus, dictModel, dictPage],

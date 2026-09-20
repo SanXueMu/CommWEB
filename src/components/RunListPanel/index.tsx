@@ -267,6 +267,11 @@ export default function RunListPanel({
     else message.success(`已删除 ${out.length} 个任务${params.purgeFiles ? '（含产物）' : '（保留文件）'}`)
     setPicked([])
     refreshAll()
+    // AD2：含产物删除会清 OCR 结果库（AD1）——数据面列表即时失效，无需 F5
+    if (params.purgeFiles) {
+      void qc.invalidateQueries({ queryKey: ['provider', pid, 'data-dbs'] })
+      void qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-records'] })
+    }
   }
 
   async function packRuns(ids: string[]) {

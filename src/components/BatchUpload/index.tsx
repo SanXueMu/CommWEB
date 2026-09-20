@@ -30,6 +30,9 @@ export function BatchUpload({
   const [busy, setBusy] = useState(false)
   // AH2：上传进度（fetch 无进度事件 → XHR onUploadProgress；大小已知时显示百分比）
   const [uploadPct, setUploadPct] = useState<number | null>(null)
+  // 取消上传：持有当前 xhr 引用，abort 后 Promise 以「已取消上传」收场
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
+  const cancelUpload = () => xhrRef.current?.abort()
   const dirRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const extQuery = extensions.join(',')
@@ -69,7 +72,7 @@ export function BatchUpload({
     try {
       const result = await api.uploadFiles(picked, extQuery, skip, source, (loaded, total) => {
         setUploadPct(total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : null)
-      })
+      }, (x) => { xhrRef.current = x })
       const skippedByServer = result.skipped ?? []
       setSkipped(skippedByServer)
       // 空文件不进任务清单（连暂停记录都不建）；PPT 等「跳过类型」保留，
@@ -80,10 +83,13 @@ export function BatchUpload({
         + (skippedByServer.length ? `，跳过 ${skippedByServer.length} 条` : ''))
       setPicked([])
     } catch (error) {
-      message.error(`上传失败：${(error as Error).message}`)
+      const msg = (error as Error).message
+      if (msg.includes('已取消')) message.info(msg)
+      else message.error(`上传失败：${msg}`)
     } finally {
       setBusy(false)
       setUploadPct(null)
+      xhrRef.current = null
     }
   }
 
@@ -93,7 +99,7 @@ export function BatchUpload({
     try {
       const result = await api.uploadArchive(picked[0], extQuery, skip, source, (loaded, total) => {
         setUploadPct(total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : null)
-      })
+      }, (x) => { xhrRef.current = x })
       const skippedByServer = result.skipped ?? []
       setSkipped(skippedByServer)
       const usable = result.files.filter((f) => !f.empty)
@@ -102,10 +108,13 @@ export function BatchUpload({
         + (skippedByServer.length ? `，跳过 ${skippedByServer.length} 条` : ''))
       setPicked([])
     } catch (error) {
-      message.error(`解压失败：${(error as Error).message}`)
+      const msg = (error as Error).message
+      if (msg.includes('已取消')) message.info(msg)
+      else message.error(`解压失败：${msg}`)
     } finally {
       setBusy(false)
       setUploadPct(null)
+      xhrRef.current = null
     }
   }
 
@@ -159,6 +168,7 @@ export function BatchUpload({
                 <Tag>{picked.length} 个文件 · {humanSize(sizeOf(picked))}</Tag>
                 {uploadPct !== null && <Progress percent={uploadPct} size="small" style={{ width: 120, margin: 0 }} />}
                 <Button type="primary" loading={busy} onClick={uploadDir}>上传这批文件</Button>
+                {busy && <Button danger ghost onClick={cancelUpload}>取消上传</Button>}
                 <Button icon={<DeleteOutlined />} disabled={busy} onClick={() => setPicked([])}>清空</Button>
               </>
             )}
@@ -192,6 +202,7 @@ export function BatchUpload({
                 <Tag>{picked[0].name} · {humanSize(picked[0].size)}</Tag>
                 {uploadPct !== null && <Progress percent={uploadPct} size="small" style={{ width: 120, margin: 0 }} />}
                 <Button type="primary" loading={busy} onClick={uploadZip}>上传并解压</Button>
+                {busy && <Button danger ghost onClick={cancelUpload}>取消上传</Button>}
                 <Button icon={<DeleteOutlined />} disabled={busy} onClick={() => setPicked([])}>清空</Button>
               </>
             )}

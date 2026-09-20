@@ -16,6 +16,9 @@ export function baseName(p?: unknown): string {
   return String(p ?? '').split('/').pop() ?? ''
 }
 
+/** AF2：仍在推进的状态才画活跃进度条（终态一律徽标/文案，不画 0% 条） */
+const RUNNING_LIVE = new Set(['running', 'queued'])
+
 export function aggregate(run?: PipelineRun) {
   const byModel: Record<string, { calls: number; prompt_tokens: number; completion_tokens: number }> = {}
   let calls = 0, cache = 0, review = 0, ok = 0, overflow = 0
@@ -61,7 +64,17 @@ export function TaskFloat({ runs, onOpen, title }: { runs: RunSummary[]; onOpen:
                 <Typography.Text ellipsis style={{ maxWidth: 170, fontSize: 12 }}>{baseName(r.input?.file)}</Typography.Text>
                 <StatusBadge value={r.status} />
               </Flex>
-              <Progress percent={total ? Math.round((done / total) * 100) : undefined} size="small" status="active" />
+              {RUNNING_LIVE.has(r.status) && (
+                <Progress percent={total ? Math.round((done / total) * 100) : undefined} size="small" status="active" />
+              )}
+              {!RUNNING_LIVE.has(r.status) && (r.status === 'failed' || r.status === 'failed_review') && (
+                <Typography.Text type="danger" ellipsis style={{ fontSize: 12, display: 'block' }}>
+                  {r.error?.message || '任务失败，可重跑失败项'}
+                </Typography.Text>
+              )}
+              {!RUNNING_LIVE.has(r.status) && r.status === 'paused' && (
+                <Typography.Text type="warning" style={{ fontSize: 12 }}>已暂停 · 可继续</Typography.Text>
+              )}
               {s?.latest_note && (
                 <Typography.Text type="secondary" ellipsis style={{ fontSize: 12, display: 'block' }}>{s.latest_note}</Typography.Text>
               )}

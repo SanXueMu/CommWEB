@@ -389,6 +389,17 @@ export default function RunListPanel({
       render: (_: unknown, r: RunSummary) => {
         const done = r.summary?.steps_done ?? 0
         const total = r.summary?.steps_total ?? 0
+        // AF2：终态不画进度条（失败/中断显示徽标而非误导性的 0% 活跃条）
+        if (r.status === 'paused')
+          return <Tag color="warning">已暂停 · 可继续</Tag>
+        if (r.status === 'interrupted')
+          return <Tag color="orange">已中断 · 可重跑</Tag>
+        if (r.status === 'cancelled')
+          return <Tag>已取消</Tag>
+        if (r.status === 'failed' || r.status === 'failed_review')
+          return <Tooltip title={r.error?.message || '任务失败，可重跑失败项'}>
+            <Tag color="error">失败{total ? `（${done}/${total}）` : ''}</Tag>
+          </Tooltip>
         return (
           <Progress percent={total ? Math.round((done / total) * 100) : 0} size="small"
             status={RUNNING.has(r.status) ? 'active' : 'normal'}

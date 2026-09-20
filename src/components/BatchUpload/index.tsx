@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { CheckCircleOutlined, DeleteOutlined, FolderOpenOutlined, InboxOutlined } from '@ant-design/icons'
-import { Alert, Button, Flex, Input, Segmented, Space, Tag, Typography, message } from 'antd'
+import { Alert, Button, Flex, Input, Progress, Segmented, Space, Tag, Typography, message } from 'antd'
 import { api, type BatchFileEntry } from '@/api/client'
 import { humanSize } from '@/lib/size'
 
@@ -28,6 +28,8 @@ export function BatchUpload({
   const [serverFiles, setServerFiles] = useState<BatchFileEntry[]>([])
   const [skipped, setSkipped] = useState<{ name: string; reason: string }[]>([])
   const [busy, setBusy] = useState(false)
+  // AH2：上传进度（fetch 无进度事件 → XHR onUploadProgress；大小已知时显示百分比）
+  const [uploadPct, setUploadPct] = useState<number | null>(null)
   const dirRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const extQuery = extensions.join(',')
@@ -65,7 +67,9 @@ export function BatchUpload({
   const uploadDir = async () => {
     setBusy(true)
     try {
-      const result = await api.uploadFiles(picked, extQuery, skip, source)
+      const result = await api.uploadFiles(picked, extQuery, skip, source, (loaded, total) => {
+        setUploadPct(total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : null)
+      })
       const skippedByServer = result.skipped ?? []
       setSkipped(skippedByServer)
       // 空文件不进任务清单（连暂停记录都不建）；PPT 等「跳过类型」保留，
@@ -79,6 +83,7 @@ export function BatchUpload({
       message.error(`上传失败：${(error as Error).message}`)
     } finally {
       setBusy(false)
+      setUploadPct(null)
     }
   }
 
@@ -86,7 +91,9 @@ export function BatchUpload({
     if (!picked.length) return
     setBusy(true)
     try {
-      const result = await api.uploadArchive(picked[0], extQuery, skip, source)
+      const result = await api.uploadArchive(picked[0], extQuery, skip, source, (loaded, total) => {
+        setUploadPct(total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : null)
+      })
       const skippedByServer = result.skipped ?? []
       setSkipped(skippedByServer)
       const usable = result.files.filter((f) => !f.empty)
@@ -98,6 +105,7 @@ export function BatchUpload({
       message.error(`解压失败：${(error as Error).message}`)
     } finally {
       setBusy(false)
+      setUploadPct(null)
     }
   }
 
@@ -149,6 +157,7 @@ export function BatchUpload({
             {picked.length > 0 && (
               <>
                 <Tag>{picked.length} 个文件 · {humanSize(sizeOf(picked))}</Tag>
+                {uploadPct !== null && <Progress percent={uploadPct} size="small" style={{ width: 120, margin: 0 }} />}
                 <Button type="primary" loading={busy} onClick={uploadDir}>上传这批文件</Button>
                 <Button icon={<DeleteOutlined />} disabled={busy} onClick={() => setPicked([])}>清空</Button>
               </>
@@ -181,6 +190,7 @@ export function BatchUpload({
             {picked[0] && (
               <>
                 <Tag>{picked[0].name} · {humanSize(picked[0].size)}</Tag>
+                {uploadPct !== null && <Progress percent={uploadPct} size="small" style={{ width: 120, margin: 0 }} />}
                 <Button type="primary" loading={busy} onClick={uploadZip}>上传并解压</Button>
                 <Button icon={<DeleteOutlined />} disabled={busy} onClick={() => setPicked([])}>清空</Button>
               </>

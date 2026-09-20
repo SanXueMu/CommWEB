@@ -193,11 +193,13 @@ function createApi(pid?: string) {
     request<{ uploads: { dir: string; date: string; label: string; path: string; count: number; size: number; source: string; batch_id?: string; runs: { count: number; latest_status: string | null } }[] }>('/files/uploads'),
   deleteUploads: (roots: string[]) =>
     request<{ removed: string[] }>('/files/uploads', { method: 'DELETE', body: JSON.stringify({ roots }) }),
-  uploadFiles: (files: File[], extensions?: string, skip?: string[], source?: string): Promise<BatchUploaded> =>
-    apiUploadFiles(files, extensions, skip, pid, source),
+  uploadFiles: (files: File[], extensions?: string, skip?: string[], source?: string,
+    onProgress?: (loaded: number, total: number) => void): Promise<BatchUploaded> =>
+    apiUploadFiles(files, extensions, skip, pid, source, onProgress),
   /** 压缩包上传：服务端解压 → 批次目录 + 文件清单（含被跳过的条目与原因）。 */
-  uploadArchive: (file: File, extensions?: string, skip?: string[], source?: string): Promise<BatchUploaded> =>
-    apiUploadArchive(file, extensions, skip, pid, source),
+  uploadArchive: (file: File, extensions?: string, skip?: string[], source?: string,
+    onProgress?: (loaded: number, total: number) => void): Promise<BatchUploaded> =>
+    apiUploadArchive(file, extensions, skip, pid, source, onProgress),
   /** 列举服务器 DATA_DIR 内既有文件（「目录已在服务器上」形态）。 */
   listFiles: (path: string, extensions?: string, recursive = true): Promise<BatchUploaded> => {
     const params = new URLSearchParams({ path, recursive: String(recursive) })
@@ -306,6 +308,28 @@ export interface RunUsage {
   missing: string[]
 }
 
+/** AH2：带上传进度的 form POST（fetch 无上传进度事件，用 XHR）——仅上传类请求用。 */
+function _formPostProgress<T>(path: string, body: FormData, pid: string | undefined,
+                              onProgress?: (loaded: number, total: number) => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${apiBaseOf(pid)}${path}`)
+    xhr.responseType = 'json'
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => onProgress(e.loaded, e.total)
+    }
+    xhr.onerror = () => reject(new Error('网络错误（上传中断）'))
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as T)
+      else {
+        const detail = (xhr.response as { detail?: unknown } | null)?.detail
+        reject(new ApiError(xhr.status, formatDetail(detail) || String(xhr.status)))
+      }
+    }
+    xhr.send(body)
+  })
+}
+
 async function _formPost<T>(path: string, body: FormData, pid?: string): Promise<T> {
   const response = await fetch(`${apiBaseOf(pid)}${path}`, { method: 'POST', body })
   if (!response.ok) {
@@ -338,22 +362,24 @@ function _batchQuery2(extensions?: string, skip?: string[], source?: string): st
 
 function apiUploadFiles(files: File[], extensions: string | undefined,
                         skip: string[] | undefined, pid?: string,
-                        source?: string): Promise<BatchUploaded> {
+                        source?: string,
+                        onProgress?: (loaded: number, total: number) => void): Promise<BatchUploaded> {
   const body = new FormData()
   for (const file of files) {
     // 第三参 = multipart filename：目录上传时携带相对路径（后端据此还原目录结构）
     const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
     body.append('files', file, rel)
   }
-  return _formPost<BatchUploaded>(`/files/batch${_batchQuery2(extensions, skip, source)}`, body, pid)
+  return _formPostProgress<BatchUploaded>(`/files/batch${_batchQuery2(extensions, skip, source)}`, body, pid, onProgress)
 }
 
 function apiUploadArchive(file: File, extensions: string | undefined,
                           skip: string[] | undefined, pid?: string,
-                          source?: string): Promise<BatchUploaded> {
+                          source?: string,
+                          onProgress?: (loaded: number, total: number) => void): Promise<BatchUploaded> {
   const body = new FormData()
   body.append('file', file)
-  return _formPost<BatchUploaded>(`/files/archive${_batchQuery2(extensions, skip, source)}`, body, pid)
+  return _formPostProgress<BatchUploaded>(`/files/archive${_batchQuery2(extensions, skip, source)}`, body, pid, onProgress)
 }
 
 /** 活跃会员视图（页面级跟随切换）。 */

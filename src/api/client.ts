@@ -31,7 +31,7 @@ function apiBaseOf(pid?: string): string {
   return registry.baseUrlOf(pid ?? pid ?? registry.activeId() ?? 'default')
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
   }
@@ -171,8 +171,9 @@ function createApi(pid?: string) {
   deleteRun: (runId: string, purgeFiles = true) =>
     request<{ id: string; status: string; aborted?: boolean; files_removed?: number; bytes_freed?: number; removed_failed_attempts?: { id: string; status: string }[] }>(
       `/pipeline-runs/${runId}?purge_files=${purgeFiles}`, { method: 'DELETE' }),
-  deleteOcrDb: (path: string) =>
-    request<{ removed: string[] }>(`/data/dbs?path=${encodeURIComponent(path)}`, { method: 'DELETE' }),
+  deleteOcrDb: (path: string, force = false) =>
+    request<{ removed: string[]; forced?: boolean; references?: number }>(
+      `/data/dbs?path=${encodeURIComponent(path)}${force ? '&force=true' : ''}`, { method: 'DELETE' }),
   getRunSnapshot: (runId: string) => request<RunSnapshot>(`/pipeline-runs/${runId}/snapshot`),
   listRunEvents: (runId: string, limit = 200) =>
     request<{ events: RunEvent[] }>(`/pipeline-runs/${runId}/events?limit=${limit}`),

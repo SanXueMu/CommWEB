@@ -22,7 +22,7 @@ import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
 import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
-import { apiFor } from '@/api/client'
+import { ApiError, apiFor } from '@/api/client'
 import { useViewProps } from '@/protocol/ViewPropsContext'
 import type { PipelineRunCreated } from '@/api/types'
 import { TaskFloat, RunDetail } from '@/components/RunWidgets'
@@ -194,15 +194,28 @@ export function OcrStudio() {
   const [scope, setScope] = useState<string>()
   const [pageNum, setPageNum] = useState(1)
   // AD3：删除结果库（后端防呆：被任务引用时 409 报引用数，先删任务再删库）
+  // AP-D：409 时提供「强制删除」——引用它的任务详情会自动把该产物标为「已删除」
   const deleteDbMutation = useMutation({
-    mutationFn: (path: string) => api.deleteOcrDb(path),
+    mutationFn: (v: { path: string; force?: boolean }) => api.deleteOcrDb(v.path, v.force),
     onSuccess: (r) => {
-      message.success(`已删除结果库（${r.removed.length} 个文件）`)
+      message.success(`已删除结果库（${r.removed.length} 个文件${r.forced ? '，强制' : ''}）`)
       if (r.removed.some((p) => p.endsWith(`${db}.raw.json`) || p === db)) setDb(undefined)
       void qc.invalidateQueries({ queryKey: ['provider', pid, 'data-dbs'] })
       void qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-records'] })
     },
-    onError: (e: Error) => message.error(e.message),
+    onError: (e: Error, v) => {
+      const conflict = e instanceof ApiError && e.status === 409
+      if (conflict && !v.force) {
+        Modal.confirm({
+          title: '该结果库仍被任务引用',
+          content: `${e.message}。强制删除后，引用它的任务详情里该产物会显示「已删除」（任务记录本身保留）。`,
+          okText: '强制删除', okButtonProps: { danger: true }, cancelText: '取消',
+          onOk: () => deleteDbMutation.mutate({ path: v.path, force: true }),
+        })
+        return
+      }
+      message.error(e.message)
+    },
   })
   const records = useQuery({
     queryKey: ['provider', pid, 'ocr-records', db, scope, pageNum],
@@ -499,7 +512,7 @@ export function OcrStudio() {
                   title="删除该结果库？"
                   description="连同模型原文留痕一并删除，不可恢复"
                   okText="删除" okButtonProps={{ danger: true }} cancelText="取消"
-                  onConfirm={(e) => { e?.stopPropagation(); deleteDbMutation.mutate(item.path) }}
+                  onConfirm={(e) => { e?.stopPropagation(); deleteDbMutation.mutate({ path: item.path }) }}
                 >
                   <Button size="small" type="text" danger
                     onClick={(e) => e.stopPropagation()}>删除</Button>

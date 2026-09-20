@@ -211,9 +211,16 @@ export default function RunListPanel({
 
   const del = useMutation({
     mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles)
-      .then((r) => { removedFailed += (r as { removed_failed_attempts?: unknown[] }).removed_failed_attempts?.length ?? 0; return r }),
+      .then((r) => {
+        const resp = r as { removed_failed_attempts?: unknown[]; dbs_shared?: string[] }
+        removedFailed += resp.removed_failed_attempts?.length ?? 0
+        const shared = resp.dbs_shared ?? []
+        if (shared.length) sharedDbs = [...new Set([...sharedDbs, ...shared])]
+        return r
+      }),
   })
   let removedFailed = 0
+  let sharedDbs: string[] = []
 
   // 替换原件：把新文件写进同批次目录 + 更新清单 + 更新该 run 的 input.file
   const replaceFile = useMutation({
@@ -294,6 +301,7 @@ export default function RunListPanel({
     const params = deleteRunParams(mode ?? null)
     if (!params) return
     removedFailed = 0
+    sharedDbs = []
     const out = await runPool(ids, (id) => del.mutateAsync({ id, purgeFiles: params.purgeFiles })
       .then(() => ({ id, ok: true as const }))
       .catch((e: Error) => ({ id, ok: false as const, error: e.message })), DELETE_CONCURRENCY)
@@ -302,6 +310,12 @@ export default function RunListPanel({
     else {
       const extra = params.purgeFiles && removedFailed > 0 ? `，连带清理 ${removedFailed} 条失败尝试` : ''
       message.success(`已删除 ${out.length} 个任务${params.purgeFiles ? '（含产物）' : '（保留文件）'}${extra}`)
+    }
+    // AP-D：结果库因被其它任务（多为同文件在别批次的尝试）引用而未删除 → 明确告知，不再静默
+    if (sharedDbs.length) {
+      message.warning(
+        `有 ${sharedDbs.length} 个结果库因仍被其它任务引用而保留：${sharedDbs.map((p) => p.split('/').pop()).join('、')}。`
+        + '可到「结果库」面板删除（会提示引用数，可强制删除）。', 8)
     }
     setPicked([])
     refreshAll()

@@ -178,8 +178,10 @@ export default function RunListPanel({
   })
 
   const del = useMutation({
-    mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles),
+    mutationFn: (v: { id: string; purgeFiles: boolean }) => api.deleteRun(v.id, v.purgeFiles)
+      .then((r) => { removedFailed += (r as { removed_failed_attempts?: unknown[] }).removed_failed_attempts?.length ?? 0; return r }),
   })
+  let removedFailed = 0
 
   // 替换原件：把新文件写进同批次目录 + 更新清单 + 更新该 run 的 input.file
   const replaceFile = useMutation({
@@ -254,17 +256,21 @@ export default function RunListPanel({
         : undefined,
       options: deleteRunOptions({
         keep: '删除任务，保留文件', keepDesc: '产物文件保留在服务器（可再次下载）',
-        purge: '删除任务，并删除产物文件', purgeDesc: '连同该任务的全部产物（含中间产物）一起删除，不可恢复',
+        purge: '删除任务，并删除产物文件', purgeDesc: '连同该任务的全部产物、同文件的全部失败尝试一并删除（不可恢复）',
       }),
     })
     const params = deleteRunParams(mode ?? null)
     if (!params) return
+    removedFailed = 0
     const out = await runPool(ids, (id) => del.mutateAsync({ id, purgeFiles: params.purgeFiles })
       .then(() => ({ id, ok: true as const }))
       .catch((e: Error) => ({ id, ok: false as const, error: e.message })), DELETE_CONCURRENCY)
     const bad = out.filter((o) => !o.ok)
     if (bad.length) message.warning(`删除完成：失败 ${bad.length} 个（${bad[0].error}）`)
-    else message.success(`已删除 ${out.length} 个任务${params.purgeFiles ? '（含产物）' : '（保留文件）'}`)
+    else {
+      const extra = params.purgeFiles && removedFailed > 0 ? `，连带清理 ${removedFailed} 条失败尝试` : ''
+      message.success(`已删除 ${out.length} 个任务${params.purgeFiles ? '（含产物）' : '（保留文件）'}${extra}`)
+    }
     setPicked([])
     refreshAll()
     // AD2：含产物删除会清 OCR 结果库（AD1）——数据面列表即时失效，无需 F5

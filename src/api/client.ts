@@ -169,7 +169,7 @@ function createApi(pid?: string) {
     }>(`/pipeline-runs/rerunnable?${q.toString()}`)
   },
   deleteRun: (runId: string, purgeFiles = true) =>
-    request<{ id: string; status: string; aborted?: boolean; files_removed?: number; bytes_freed?: number }>(
+    request<{ id: string; status: string; aborted?: boolean; files_removed?: number; bytes_freed?: number; removed_failed_attempts?: { id: string; status: string }[] }>(
       `/pipeline-runs/${runId}?purge_files=${purgeFiles}`, { method: 'DELETE' }),
   deleteOcrDb: (path: string) =>
     request<{ removed: string[] }>(`/data/dbs?path=${encodeURIComponent(path)}`, { method: 'DELETE' }),

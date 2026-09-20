@@ -175,6 +175,8 @@ export interface PipelineRun {
   }
   tasks: Task[]
   summary?: RunSummary['summary']
+  /** AF4：任务输出里指向、但盘上已不存在的产物路径（前端标「已删除」） */
+  missing_artifacts?: string[]
 }
 
 export interface FileUploaded {

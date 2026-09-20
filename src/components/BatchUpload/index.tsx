@@ -9,7 +9,7 @@ import { humanSize } from '@/lib/size'
 export type BatchMode = 'dir' | 'zip' | 'server'
 
 export function BatchUpload({
-  extensions = [], skip = [], maxFiles = 200, maxTotalMB = 500, disabled, onPicked,
+  extensions = [], skip = [], maxFiles = 200, maxTotalMB = 500, disabled, onPicked, source,
 }: {
   /** 允许的扩展名（含点，如 ['.pdf', '.docx']）；空数组 = 不限制 */
   extensions?: string[]
@@ -17,6 +17,8 @@ export function BatchUpload({
   skip?: string[]
   maxFiles?: number
   maxTotalMB?: number
+  /** AF4：上传来源（写入批次清单，原件面板按工作台展示） */
+  source?: string
   disabled?: boolean
   onPicked: (files: BatchFileEntry[], label: string, batch?: { batch_id?: string; root?: string }) => void
 }) {
@@ -63,7 +65,7 @@ export function BatchUpload({
   const uploadDir = async () => {
     setBusy(true)
     try {
-      const result = await api.uploadFiles(picked, extQuery, skip)
+      const result = await api.uploadFiles(picked, extQuery, skip, source)
       const skippedByServer = result.skipped ?? []
       setSkipped(skippedByServer)
       // 空文件不进任务清单（连暂停记录都不建）；PPT 等「跳过类型」保留，
@@ -84,7 +86,7 @@ export function BatchUpload({
     if (!picked.length) return
     setBusy(true)
     try {
-      const result = await api.uploadArchive(picked[0], extQuery, skip)
+      const result = await api.uploadArchive(picked[0], extQuery, skip, source)
       const skippedByServer = result.skipped ?? []
       setSkipped(skippedByServer)
       const usable = result.files.filter((f) => !f.empty)

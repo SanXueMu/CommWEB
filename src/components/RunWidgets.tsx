@@ -119,7 +119,11 @@ export function RunDetail({ run, logs }: { run: PipelineRun; logs: RunEvent[] })
           <Space direction="vertical">
             {usage.artifacts.map((a) => (
               <Space key={a.path}>
-                <DownloadButton path={a.path} label={a.name} />
+                {run.missing_artifacts?.includes(a.path)
+                  ? <Tag color="default">已删除</Tag>
+                  : null}
+                <DownloadButton path={a.path} label={a.name}
+                  disabled={run.missing_artifacts?.includes(a.path)} />
               </Space>
             ))}
           </Space>

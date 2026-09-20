@@ -40,6 +40,7 @@ import type {
 } from '@/api/types'
 import { FileUpload } from '@/components/FileUpload'
 import { BatchUpload } from '@/components/BatchUpload'
+import { UploadsPanel } from '@/components/UploadsPanel'
 import RunListPanel from '@/components/RunListPanel'
 import { StepTrack } from '@/components/StepTrack'
 import { TaskFloat, RunDetail, UsagePanel, aggregate } from '@/components/RunWidgets'
@@ -497,7 +498,9 @@ export function TranslateStudio() {
                           maxTotalMB={batchSpec?.maxTotalMB}
                           disabled={batchRunning}
                           onPicked={batchAdd}
+                          source="translate"
                         />
+                        <UploadsPanel />
                         {pdfModes.length > 0 && (
                           <Space size={8} style={{ marginTop: 10 }} wrap>
                             <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.pdfMode}</Typography.Text>

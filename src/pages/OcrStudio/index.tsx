@@ -28,6 +28,7 @@ import type { PipelineRunCreated } from '@/api/types'
 import { TaskFloat, RunDetail } from '@/components/RunWidgets'
 import { FileUpload } from '@/components/FileUpload'
 import { BatchUpload } from '@/components/BatchUpload'
+import { UploadsPanel } from '@/components/UploadsPanel'
 import { runPool } from '@/protocol/pool'
 import { humanSize } from '@/lib/size'
 import type { BatchFileEntry } from '@/api/client'
@@ -521,7 +522,9 @@ export function OcrStudio() {
                             maxTotalMB={batchCfg.maxTotalMB}
                             disabled={batchRunning}
                             onPicked={(files) => { setBatchList(files); setBatchSel(files.map((f) => f.path)) }}
+                            source="ocr"
                           />
+                          <UploadsPanel />
                           {batchList.length > 0 && (
                             <Card
                               type="inner" size="small"

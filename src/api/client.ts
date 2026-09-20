@@ -189,11 +189,15 @@ function createApi(pid?: string) {
     }),
   uploadFile: (file: File): Promise<FileUploaded> => apiUpload(file, pid),
   /** 批量上传：目录形态（filename 携带相对路径）→ 服务端批次目录 + 文件清单。 */
-  uploadFiles: (files: File[], extensions?: string, skip?: string[]): Promise<BatchUploaded> =>
-    apiUploadFiles(files, extensions, skip, pid),
+  listUploads: () =>
+    request<{ uploads: { dir: string; date: string; label: string; path: string; count: number; size: number; source: string; batch_id?: string; runs: { count: number; latest_status: string | null } }[] }>('/files/uploads'),
+  deleteUploads: (roots: string[]) =>
+    request<{ removed: string[] }>('/files/uploads', { method: 'DELETE', body: JSON.stringify({ roots }) }),
+  uploadFiles: (files: File[], extensions?: string, skip?: string[], source?: string): Promise<BatchUploaded> =>
+    apiUploadFiles(files, extensions, skip, pid, source),
   /** 压缩包上传：服务端解压 → 批次目录 + 文件清单（含被跳过的条目与原因）。 */
-  uploadArchive: (file: File, extensions?: string, skip?: string[]): Promise<BatchUploaded> =>
-    apiUploadArchive(file, extensions, skip, pid),
+  uploadArchive: (file: File, extensions?: string, skip?: string[], source?: string): Promise<BatchUploaded> =>
+    apiUploadArchive(file, extensions, skip, pid, source),
   /** 列举服务器 DATA_DIR 内既有文件（「目录已在服务器上」形态）。 */
   listFiles: (path: string, extensions?: string, recursive = true): Promise<BatchUploaded> => {
     const params = new URLSearchParams({ path, recursive: String(recursive) })
@@ -326,22 +330,30 @@ function _batchQuery(extensions?: string, skip?: string[]): string {
   return qs ? `?${qs}` : ''
 }
 
+function _batchQuery2(extensions?: string, skip?: string[], source?: string): string {
+  const qs = _batchQuery(extensions, skip)
+  const extra = source ? (qs ? '&' : '?') + `source=${encodeURIComponent(source)}` : ''
+  return qs + extra
+}
+
 function apiUploadFiles(files: File[], extensions: string | undefined,
-                        skip: string[] | undefined, pid?: string): Promise<BatchUploaded> {
+                        skip: string[] | undefined, pid?: string,
+                        source?: string): Promise<BatchUploaded> {
   const body = new FormData()
   for (const file of files) {
     // 第三参 = multipart filename：目录上传时携带相对路径（后端据此还原目录结构）
     const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
     body.append('files', file, rel)
   }
-  return _formPost<BatchUploaded>(`/files/batch${_batchQuery(extensions, skip)}`, body, pid)
+  return _formPost<BatchUploaded>(`/files/batch${_batchQuery2(extensions, skip, source)}`, body, pid)
 }
 
 function apiUploadArchive(file: File, extensions: string | undefined,
-                          skip: string[] | undefined, pid?: string): Promise<BatchUploaded> {
+                          skip: string[] | undefined, pid?: string,
+                          source?: string): Promise<BatchUploaded> {
   const body = new FormData()
   body.append('file', file)
-  return _formPost<BatchUploaded>(`/files/archive${_batchQuery(extensions, skip)}`, body, pid)
+  return _formPost<BatchUploaded>(`/files/archive${_batchQuery2(extensions, skip, source)}`, body, pid)
 }
 
 /** 活跃会员视图（页面级跟随切换）。 */

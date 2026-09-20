@@ -39,6 +39,8 @@ export function aggregate(run?: PipelineRun) {
     if (Array.isArray(st)) ok += st.filter((s) => s === 'ok').length
     if (typeof out.file === 'string' && out.file) artifacts.push({ name: baseName(out.file), path: out.file })
     if (typeof out.path === 'string' && out.path) artifacts.push({ name: String(out.name ?? baseName(out.path)), path: out.path })
+    if (typeof out.db === 'string' && out.db) artifacts.push({ name: baseName(out.db), path: out.db })
+    if (typeof out.raw_file === 'string' && out.raw_file) artifacts.push({ name: `${baseName(out.raw_file)}（模型原文）`, path: out.raw_file })
   }
   return { byModel, calls, cache, review, ok, overflow, artifacts }
 }

@@ -181,6 +181,17 @@ export function OcrStudio() {
   const [db, setDb] = useState<string>()
   const [scope, setScope] = useState<string>()
   const [pageNum, setPageNum] = useState(1)
+  // AD3：删除结果库（后端防呆：被任务引用时 409 报引用数，先删任务再删库）
+  const deleteDbMutation = useMutation({
+    mutationFn: (path: string) => api.deleteOcrDb(path),
+    onSuccess: (r) => {
+      message.success(`已删除结果库（${r.removed.length} 个文件）`)
+      if (r.removed.some((p) => p.endsWith(`${db}.raw.json`) || p === db)) setDb(undefined)
+      void qc.invalidateQueries({ queryKey: ['provider', pid, 'data-dbs'] })
+      void qc.invalidateQueries({ queryKey: ['provider', pid, 'ocr-records'] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
   const records = useQuery({
     queryKey: ['provider', pid, 'ocr-records', db, scope, pageNum],
     queryFn: () => api.get<OcrRecordsResp>(`/ocr/records?db=${encodeURIComponent(db!)}&limit=50&offset=${(pageNum - 1) * 50}${scope ? `&path=${encodeURIComponent(scope)}` : ''}`),
@@ -434,9 +445,18 @@ export function OcrStudio() {
                 onClick={() => { setDb(item.name); setPageNum(1); setScope(undefined) }}
               >
                 <List.Item.Meta
-                  title={<Typography.Text ellipsis style={{ maxWidth: 190 }}>{item.name}</Typography.Text>}
+                  title={<Typography.Text ellipsis style={{ maxWidth: 150 }}>{item.name}</Typography.Text>}
                   description={<Typography.Text type="secondary" style={{ fontSize: 12 }}>{item.records} 条</Typography.Text>}
                 />
+                <Popconfirm
+                  title="删除该结果库？"
+                  description="连同模型原文留痕一并删除，不可恢复"
+                  okText="删除" okButtonProps={{ danger: true }} cancelText="取消"
+                  onConfirm={(e) => { e?.stopPropagation(); deleteDbMutation.mutate(item.path) }}
+                >
+                  <Button size="small" type="text" danger
+                    onClick={(e) => e.stopPropagation()}>删除</Button>
+                </Popconfirm>
               </List.Item>
             )}
           />

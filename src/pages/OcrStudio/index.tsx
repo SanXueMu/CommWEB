@@ -205,6 +205,13 @@ export function OcrStudio() {
     refetchInterval: (q) => pollIntervalFor((q.state.data?.runs ?? []).map((r) => r.status)),
     enabled: (props.flows?.length ?? 0) > 0,
   })
+  /** AG2：任务清单只认「识别任务」——视图导出（exportFlow）是秒级工具 run，
+   *  混进清单就成了"一个文件两个任务"的噪声（导出产物在视图/结果 tab 领取）。 */
+  const taskRuns = useMemo(
+    () => (ocrRuns.data?.runs ?? [])
+      .filter((r) => r.pipeline_id !== props.exportFlow)
+      .filter((r) => !props.flows?.length || props.flows.includes(r.pipeline_id ?? '')),
+    [ocrRuns.data, props.exportFlow, props.flows])
   const qc = useQueryClient()
   // Y5：任务 running → 终态时联动失效数据面查询（结果库计数/预览），不再需要 F5
   const prevStatusRef = useRef<Record<string, string>>({})
@@ -690,7 +697,7 @@ export function OcrStudio() {
               key: 'runs', label: t.tabRuns,
               children: (
                 <RunListPanel
-                  runs={(ocrRuns.data?.runs ?? []).filter((r) => !props.flows?.length || props.flows.includes(r.pipeline_id ?? ''))}
+                  runs={taskRuns}
                   flowIds={props.flows}
                   loading={ocrRuns.isLoading}
                   onRefresh={() => { void ocrRuns.refetch() }}
@@ -835,7 +842,7 @@ export function OcrStudio() {
         {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} />}
       </Drawer>
       <TaskFloat
-        runs={(ocrRuns.data?.runs ?? []).filter((r) => r.status === 'running' || r.status === 'queued')}
+        runs={taskRuns.filter((r) => r.status === 'running' || r.status === 'queued')}
         onOpen={setDetailRun}
         title="识别进行中"
       />

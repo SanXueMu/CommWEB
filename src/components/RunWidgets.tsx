@@ -100,7 +100,7 @@ const KIND_LABELS: Record<string, string> = {
 }
 
 function eventText(e: RunEvent, toolNames: Record<string, string>,
-                   skipped: { step_index?: number; reason: string }[]): string {
+                   skipped: { step_index?: number; reason?: string }[]): string {
   const d = (e.detail ?? {}) as Record<string, unknown>
   const tool = (tid: unknown) => toolNames[String(tid)] ?? String(tid ?? '')
   switch (e.kind) {

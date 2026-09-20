@@ -193,6 +193,10 @@ function createApi(pid?: string) {
     request<{ uploads: { dir: string; date: string; label: string; path: string; count: number; size: number; source: string; batch_id?: string; runs: { count: number; latest_status: string | null } }[] }>('/files/uploads'),
   deleteUploads: (roots: string[]) =>
     request<{ removed: string[] }>('/files/uploads', { method: 'DELETE', body: JSON.stringify({ roots }) }),
+  /** AN：某批次目录的文件明细——从「已上传原件」选文件复用，免重新上传。 */
+  listUploadFiles: (dir: string) =>
+    request<{ dir: string; root: string; count: number; files: UploadFileItem[] }>(
+      `/files/uploads/files?dir=${encodeURIComponent(dir)}`),
   uploadFiles: (files: File[], extensions?: string, skip?: string[], source?: string,
     onProgress?: (loaded: number, total: number) => void,
     registerXhr?: (xhr: XMLHttpRequest) => void): Promise<BatchUploaded> =>
@@ -303,9 +307,16 @@ export interface RunPackage {
   missing?: { rel: string; reason: string }[]
 }
 
+/** AN：上传批次目录内的单个文件（path 可直接作管线 file 入参）。 */
+export interface UploadFileItem {
+  rel: string
+  name: string
+  path: string
+  size: number
+}
+
 /** 任务产物占用（对应 CommAND POST /api/pipeline-runs/usage，只读）。 */
-export interface RunUsage {
-  runs: { run_id: string; pipeline_id: string; status: string; created_at?: string; files: number; bytes: number; dirs: number }[]
+export interface RunUsage {  runs: { run_id: string; pipeline_id: string; status: string; created_at?: string; files: number; bytes: number; dirs: number }[]
   total: { files: number; bytes: number; dirs: number }
   missing: string[]
 }

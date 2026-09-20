@@ -152,6 +152,15 @@ export function OcrStudio() {
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
   const [batchReport, setBatchReport] = useState<{ file: string; runId?: string; error?: string }[]>([])
 
+  // AN3：清单**合并去重**（分批上传/从「已上传原件」载入都追加，不覆盖前一批）
+  const batchAdd = (files: BatchFileEntry[]) => {
+    setBatchList((prev) => {
+      const seen = new Set(prev.map((f) => f.path))
+      return [...prev, ...files.filter((f) => !seen.has(f.path))]
+    })
+    setBatchSel((sel) => [...new Set([...sel, ...files.map((f) => f.path)])])
+  }
+
   // 已录入密钥（渲染密钥字段的下拉；避免手写错名）
   const keysQ = useQuery({
     queryKey: ['provider', pid, 'ocr-keys'],
@@ -557,10 +566,19 @@ export function OcrStudio() {
                             maxFiles={batchCfg.maxFiles}
                             maxTotalMB={batchCfg.maxTotalMB}
                             disabled={batchRunning}
-                            onPicked={(files) => { setBatchList(files); setBatchSel(files.map((f) => f.path)) }}
+                            onPicked={batchAdd}
                             source="ocr"
                           />
-                          <UploadsPanel />
+                          <UploadsPanel
+                            extensions={batchCfg.extensions}
+                            useLabel="用所选发起识别"
+                            onUseFiles={(paths) => {
+                              batchAdd(paths.map((p) => ({
+                                path: p, name: p.split('/').pop() ?? p, size: 0,
+                              })))
+                              message.success(`已载入 ${paths.length} 个已上传原件，配置模版后开始识别`)
+                            }}
+                          />
                           {batchList.length > 0 && (
                             <Card
                               type="inner" size="small"

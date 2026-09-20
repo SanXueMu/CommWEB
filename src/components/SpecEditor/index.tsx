@@ -11,12 +11,15 @@ export interface BuiltinView {
   spec: Record<string, unknown>
 }
 
-export function SpecEditor({ value, onChange, rows = 10, builtinViews = [], specLabel }: {
+export function SpecEditor({ value, onChange, rows = 10, builtinViews = [], specLabel,
+  hideQuickPick = false }: {
   value: string
   onChange: (next: string) => void
   rows?: number
   builtinViews?: BuiltinView[]
   specLabel?: string
+  /** AH3：视图 tab 有下拉（内置/我的视图/模板携带三组），快选 Tag 与其重复 → 隐藏 */
+  hideQuickPick?: boolean
 }) {
   const [error, setError] = useState<string | null>(null)
 
@@ -43,7 +46,7 @@ export function SpecEditor({ value, onChange, rows = 10, builtinViews = [], spec
     <Space direction="vertical" size={8} style={{ width: '100%' }}>
       <Space size={8} wrap>
         {status}
-        {builtinViews.length > 0 && (
+        {!hideQuickPick && builtinViews.length > 0 && (
           <>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>{specLabel ?? '快选'}：</Typography.Text>
             {builtinViews.map((v) => (

@@ -756,7 +756,7 @@ export function OcrStudio() {
                       : <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.previewHint}</Typography.Text>}
                   </Card>
                   <Card size="small" title={t.viewDefTitle}>
-                    <SpecEditor value={viewSpec ?? ''} onChange={(next) => { setViewSpec(next); setViewSel(undefined) }} builtinViews={props.builtinViews ?? []} />
+                    <SpecEditor value={viewSpec ?? ''} onChange={(next) => { setViewSpec(next); setViewSel(undefined) }} hideQuickPick />
                     <Flex gap={8} style={{ marginTop: 8 }} wrap="wrap">
                       {templateId && detail.data && (
                         <Button

@@ -580,7 +580,7 @@ export function OcrStudio() {
               searchPlaceholder={t.dbsTitle}
               pagination={{ pageSize: 8 }}
               emptyText={t.dbsEmpty}
-              selectable={{ selectedKeys: selNames, onChange: (keys, items) => {
+              selectable={{ selectedKeys: selNames, onChange: (keys) => {
                 const names = keys.map(String)
                 setSelNames(names)
                 // 勾选即聚焦：新勾上的库立即成为焦点库（勾除不动焦点）——

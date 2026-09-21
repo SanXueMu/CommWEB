@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Button, Card, Input, Modal, Popconfirm, Progress, Select, Space, Table, Tag, Tooltip, Typography,
+  Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography,
   message, notification,
 } from 'antd'
 import {
-  DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, RedoOutlined, ReloadOutlined,
-  UploadOutlined,
+  DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, PauseOutlined, PlayCircleOutlined,
+  RedoOutlined, ReloadOutlined, UploadOutlined,
 } from '@ant-design/icons'
+import { ProgressRing } from '@/components/ui/ProgressRing'
+import { useAdaptivePageSize } from '@/hooks/useAdaptivePageSize'
 import { apiFor } from '@/api/client'
 import type { BatchInfo, RunSummary } from '@/api/types'
 import { humanSize } from '@/lib/size'
@@ -91,6 +93,8 @@ export default function RunListPanel({
   const qc = useQueryClient()
   const { confirm } = useConfirm()
   const [picked, setPicked] = useState<string[]>([])
+  /** UI 原则①：分页行数按容器高度自适应（行高≈40，预留 Card 头/工具条/分页 ~150） */
+  const [tableBox, pageSize] = useAdaptivePageSize<HTMLDivElement>({ rowHeight: 40, min: 6, max: 40, reserve: 150 })
   const [batchFilter, setBatchFilter] = useState<string>()
   const [packing, setPacking] = useState(false)
   // AH1：失败项管理弹层——残留失败（含其它批次的窗口外 run）此前无处可删，
@@ -289,13 +293,10 @@ export default function RunListPanel({
     // 「一个文件一行」：删除作用于该文件的**全部 run**（否则会留下历史失败记录）
     const ids = [...new Set(pickedIds.flatMap((id) => allIdsOf.get(id) ?? [id]))]
     const mode = await confirm({
-      title: `删除 ${ids.length} 个任务？`,
-      content: usage.data
-        ? `所选任务产物合计 ${humanSize(usage.data.total.bytes ?? 0)}（选择「含产物」才会释放）。`
-        : undefined,
+      title: '删除',
       options: deleteRunOptions({
-        keep: '删除任务，保留文件', keepDesc: '产物文件保留在服务器（可再次下载）',
-        purge: '删除任务，并删除产物文件', purgeDesc: '连同该任务的全部产物、同文件的全部失败尝试一并删除（不可恢复）',
+        keep: '删除任务', keepDesc: '产物文件保留在服务器（可再次下载）',
+        purge: '全部删除', purgeDesc: '连同该任务的全部产物、同文件的全部失败尝试一并删除（不可恢复）',
       }),
     })
     const params = deleteRunParams(mode ?? null)
@@ -388,7 +389,6 @@ export default function RunListPanel({
         // X4：succeeded 但有失败页（未达熔断线）——徽标可见，操作列提供「重试失败页」
         const fp = r.summary?.failed_pages ?? 0
         const zero = r.status === 'succeeded' && r.summary?.records_count === 0
-        const skippedN = r.summary?.steps_skipped?.length ?? 0
         const wrapped = (
           <Space size={4}>
             {tag}
@@ -402,18 +402,8 @@ export default function RunListPanel({
                 <Tag color="orange">0 记录</Tag>
               </Tooltip>
             )}
-            {(r.summary?.review_notes_count ?? 0) > 0 && (
-              <Tooltip title="hook 勾稽校验有告警（如借贷不平/金额歧义）——多半是缺行或金额误读，详情日志可看明细">
-                <Tag color="orange">勾稽告警（{(r.summary?.review_notes_count ?? 0)}）</Tag>
-              </Tooltip>
-            )}
             {r.status === 'running' && r.summary?.latest_note && (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.summary.latest_note}</Typography.Text>
-            )}
-            {skippedN > 0 && (
-              <Tooltip title={(r.summary?.steps_skipped ?? []).map((x) => `第 ${(x.step_index ?? 0) + 1} 步：${x.reason}`).join('\n')}>
-                <Tag>{skippedN} 步跳过</Tag>
-              </Tooltip>
             )}
           </Space>
         )
@@ -424,25 +414,15 @@ export default function RunListPanel({
       title: '文件', key: 'file', ellipsis: true,
       render: (_: unknown, r: RunSummary) => {
         const name = String(r.input?.file ?? r.input?.name ?? r.id).split('/').pop()
-        const n = attemptsOf.get(r.id) ?? 1
-        return (
-          <Space size={4}>
-            <Typography.Text ellipsis style={{ maxWidth: 260 }}>{name}</Typography.Text>
-            {n > 1 && !showHistory && (
-              <Tooltip title="该文件有多次尝试（含自动降级/重跑）；点这里查看全部记录">
-                <Tag color="blue" style={{ cursor: 'pointer' }} onClick={() => setShowHistory(true)}>
-                  {n} 次尝试 ›
-                </Tag>
-              </Tooltip>
-            )}
-          </Space>
-        )
+        return <Typography.Text ellipsis style={{ maxWidth: 260 }}>{name}</Typography.Text>
       },
     },
-    {
-      title: '流', key: 'flow', width: 170, ellipsis: true,
-      render: (_: unknown, r: RunSummary) => flowLabels?.[r.pipeline_id ?? ''] ?? r.pipeline_id,
-    },
+    ...(flowLabels && Object.keys(flowLabels).length > 0
+      ? [{
+        title: '流', key: 'flow', width: 170, ellipsis: true,
+        render: (_: unknown, r: RunSummary) => flowLabels?.[r.pipeline_id ?? ''] ?? r.pipeline_id,
+      }]
+      : []),
     ...(batches.length > 0
       ? [{
         title: '批次', key: 'batch', width: 130, ellipsis: true,
@@ -450,11 +430,12 @@ export default function RunListPanel({
       }]
       : []),
     {
-      title: '进度', key: 'progress', width: 130,
+      title: '进度', key: 'progress', width: 76,
       render: (_: unknown, r: RunSummary) => {
         const done = r.summary?.steps_done ?? 0
         const total = r.summary?.steps_total ?? 0
-        // AF2：终态不画进度条（失败/中断显示徽标而非误导性的 0% 活跃条）
+        const tries = attemptsOf.get(r.id) ?? 1
+        // AF2：终态不画进度环（失败/中断显示徽标而非误导性的 0% 活跃环）
         if (r.status === 'paused')
           return <Tag color="warning">已暂停 · 可继续</Tag>
         if (r.status === 'interrupted')
@@ -466,9 +447,13 @@ export default function RunListPanel({
             <Tag color="error">失败{total ? `（${done}/${total}）` : ''}</Tag>
           </Tooltip>
         return (
-          <Progress percent={total ? Math.round((done / total) * 100) : 0} size="small"
-            status={RUNNING.has(r.status) ? 'active' : 'normal'}
-            format={() => (total ? `${done}/${total}` : '')} />
+          <ProgressRing
+            percent={total ? Math.round((done / total) * 100) : 0}
+            center={tries}
+            status={RUNNING.has(r.status) ? 'active' : 'success'}
+            title={`进度 ${done}/${total} · 尝试 ${tries} 次${tries > 1 ? '（点击查看历史）' : ''}`}
+            onClick={tries > 1 ? () => setShowHistory(true) : undefined}
+          />
         )
       },
     },
@@ -493,29 +478,25 @@ export default function RunListPanel({
       render: (_: unknown, r: RunSummary) => (r.created_at ? r.created_at.replace('T', ' ').slice(0, 19) : '—'),
     },
     {
-      title: '操作', key: 'actions', width: 210, fixed: 'right' as const,
+      title: '操作', key: 'actions', width: 96, fixed: 'right' as const,
       render: (_: unknown, r: RunSummary) => (
         <Space size={4}>
           {onOpenRun && (
-            <Button size="small" type="link" icon={<EyeOutlined />} onClick={() => onOpenRun(r.id)}>详情</Button>
+            <Tooltip title="详情"><Button size="small" type="text" icon={<EyeOutlined />} onClick={() => onOpenRun(r.id)} /></Tooltip>
           )}
           {r.status === 'paused' && (
-            <Button size="small" type="link" icon={<RedoOutlined />} loading={resume.isPending}
-              onClick={() => resume.mutate(r.id)}>继续</Button>
+            <Tooltip title="继续"><Button size="small" type="text" icon={<PlayCircleOutlined />} loading={resume.isPending}
+              onClick={() => resume.mutate(r.id)} /></Tooltip>
           )}
           {!RUNNING.has(r.status) && (
-            <Tooltip title="把新文件传上来替换原件（如旧版 .doc 另存为 .docx），随后点「继续」">
-              <Button size="small" type="link" icon={<UploadOutlined />}
-                onClick={() => { replaceTarget.current = r.id; replaceInput.current?.click() }}>
-                替换原件
-              </Button>
+            <Tooltip title="替换原件：把新文件传上来替换原件（如旧版 .doc 另存为 .docx），随后点「继续」">
+              <Button size="small" type="text" icon={<UploadOutlined />}
+                onClick={() => { replaceTarget.current = r.id; replaceInput.current?.click() }} />
             </Tooltip>
           )}
           {!RUNNING.has(r.status) && (
-            <Tooltip title="就地修改密钥名/模型等参数（JSON），随后点「继续」或「重跑」">
-              <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openEdit(r)}>
-                改参数
-              </Button>
+            <Tooltip title="改参数：就地修改密钥名/模型等参数（JSON），随后点「继续」或「重跑」">
+              <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEdit(r)} />
             </Tooltip>
           )}
           {onRerun && (() => {
@@ -523,8 +504,8 @@ export default function RunListPanel({
             const partial = r.status === 'succeeded' && (r.summary?.failed_pages ?? 0) > 0
             if (partial) {
               return (
-                <Tooltip title="只补失败页：已成功页走页级缓存，不重复计费">
-                  <Button size="small" type="link" onClick={() => onRerun(r.id)}>重试失败页</Button>
+                <Tooltip title="重试失败页：只补失败页，已成功页走页级缓存不重复计费">
+                  <Button size="small" type="text" icon={<RedoOutlined />} onClick={() => onRerun(r.id)} />
                 </Tooltip>
               )
             }
@@ -532,19 +513,15 @@ export default function RunListPanel({
             const file = String(r.input?.file ?? '')
             const done = RERUNNABLE.has(r.status) && file !== '' && doneFiles.has(file)
             return (
-              <Tooltip title={done ? '该文件已有成功译文，无需重跑' : undefined}>
-                <Button size="small" type="link" disabled={done}
-                  onClick={() => onRerun(r.id)}>重跑</Button>
+              <Tooltip title={done ? '该文件已有成功译文，无需重跑' : '重跑'}>
+                <Button size="small" type="text" icon={<RedoOutlined />} disabled={done}
+                  onClick={() => onRerun(r.id)} />
               </Tooltip>
             )
           })()}
           {(onAbort && RUNNING.has(r.status))
-            ? <Button size="small" type="link" danger onClick={() => onAbort(r.id)}>中止</Button>
-            : (
-              <Popconfirm title="删除该任务？" onConfirm={() => askDelete([r.id])}>
-                <Button size="small" type="link" danger>删除</Button>
-              </Popconfirm>
-            )}
+            ? <Tooltip title="中止"><Button size="small" type="text" danger onClick={() => onAbort(r.id)}><PauseOutlined /></Button></Tooltip>
+            : <Tooltip title="删除"><Button size="small" type="text" danger onClick={() => askDelete([r.id])}><DeleteOutlined /></Button></Tooltip>}
         </Space>
       ),
     },
@@ -555,7 +532,7 @@ export default function RunListPanel({
       extra={(
         <Space>
           {batches.length > 0 && (
-            <Select size="small" allowClear placeholder="按批次筛选" style={{ width: 150 }}
+            <Select size="small" allowClear placeholder="按批次筛选" style={{ width: 'min(150px, 40vw)' }}
               value={batchFilter} onChange={setBatchFilter}
               options={batches.map((b) => ({ value: b.id, label: `${b.label}（${b.n}）` }))} />
           )}
@@ -637,23 +614,22 @@ export default function RunListPanel({
           <Button onClick={() => setFailOpen(false)}>关闭</Button>
         </Space>
       </Modal>
-      <Modal title={`修改任务参数（${editRun?.id ?? ''}）`} open={Boolean(editRun)}
+      <Modal title="修改任务参数" open={Boolean(editRun)}
         okText="保存" cancelText="取消" confirmLoading={patchInput.isPending}
-        onOk={submitEdit} onCancel={() => setEditRun(null)} width={560}>
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-          只改参数（密钥名/模型/术语等）；换文件请用「替换原件」。保存后点「继续」或「重跑」生效。
-        </Typography.Paragraph>
+        onOk={submitEdit} onCancel={() => setEditRun(null)} width={520}>
         <Input.TextArea rows={10} value={editText} onChange={(e) => setEditText(e.target.value)}
           style={{ fontFamily: 'monospace', fontSize: 12 }} />
       </Modal>
+      <div ref={tableBox as React.Ref<HTMLDivElement>}>
       <Table<RunSummary>
         rowKey="id" size="small" loading={loading} dataSource={rows}
-        pagination={{ size: 'small', pageSize: 20, showSizeChanger: false }}
+        pagination={{ size: 'small', pageSize, showSizeChanger: false }}
         scroll={{ x: 'max-content' }}
         locale={{ emptyText: emptyText ?? '暂无任务' }}
         rowSelection={{ selectedRowKeys: picked, onChange: (keys) => setPicked(keys as string[]) }}
         columns={columns}
       />
+      </div>
     </Card>
   )
 }

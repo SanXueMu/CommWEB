@@ -4,8 +4,9 @@
  * 可配置（默认行为不变）：分页 / 搜索开关 / 多选 / 行内动作 / 密度 / 边框 / 卡片间隔 / 长宽（style）。
  */
 
-import { BarsOutlined, AppstoreOutlined, SearchOutlined } from '@ant-design/icons'
-import { Checkbox, Col, Empty, Input, List, Pagination, Row, Segmented, Spin } from 'antd'
+import { BarsOutlined, AppstoreOutlined, DownOutlined, RightOutlined, SearchOutlined } from '@ant-design/icons'
+import { Checkbox, Col, Empty, Input, List, Popover, Row, Segmented, Spin } from 'antd'
+import { SimplePager } from '@/components/ui/SimplePager'
 import { getViewPrefs, setViewProp } from '@/transfer/preferences'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -38,6 +39,12 @@ export interface DataListPanelProps<T> {
   cardGutter?: [number, number]
   /** 面板整体长宽 */
   style?: React.CSSProperties
+  /** 收纳（UI 原则①）：面板可折叠，defaultCollapsed=true 初始收起（如「已上传原件」列表） */
+  collapsible?: { label?: string; defaultCollapsed?: boolean }
+  /** 行 hover 详情（UI 原则①）：返回内容以 Popover 浮层展示，行内不再挤详情 */
+  hoverDetail?: (item: T) => ReactNode
+  /** 多选框与行内容的间距 px（默认 8） */
+  checkboxGap?: number
 }
 
 export function DataListPanel<T>({
@@ -61,6 +68,9 @@ export function DataListPanel<T>({
   bordered,
   cardGutter = [12, 12],
   style,
+  collapsible,
+  hoverDetail,
+  checkboxGap = 8,
 }: DataListPanelProps<T>) {
 /** 布局偏好收编（蓝图03 §4.4）：有 providerId 时走 preferences（按会员隔离），否则回落旧 localStorage 键。 */
   const readLayout = (): 'card' | 'list' => {
@@ -77,6 +87,7 @@ export function DataListPanel<T>({
   const [checked, setChecked] = useState<React.Key[]>([])
   const timer = useRef<number>()
   const pageSize = typeof pagination === 'object' ? (pagination.pageSize ?? 10) : 10
+  const [collapsed, setCollapsed] = useState<boolean>(Boolean(collapsible?.defaultCollapsed))
 
   useEffect(() => {
     if (!onSearch) return
@@ -108,6 +119,18 @@ export function DataListPanel<T>({
 
   return (
     <div style={style}>
+      {collapsible && (
+        <div
+          onClick={() => setCollapsed((v) => !v)}
+          style={{ cursor: 'pointer', userSelect: 'none', color: 'var(--cw-text)', marginBottom: collapsed ? 0 : 8 }}
+        >
+          {collapsed ? <RightOutlined style={{ fontSize: 11, marginRight: 6 }} /> : <DownOutlined style={{ fontSize: 11, marginRight: 6 }} />}
+          <span style={{ fontSize: 13 }}>{collapsible.label ?? '列表'}</span>
+          <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--cw-text-muted)' }}>({items.length})</span>
+        </div>
+      )}
+      {!collapsed && (
+      <>
       <div
         style={{
           display: 'flex',
@@ -125,7 +148,7 @@ export function DataListPanel<T>({
             placeholder={searchPlaceholder}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            style={{ maxWidth: 320 }}
+            style={{ maxWidth: 'min(320px, 60%)' }}
           />
         )}
         <div style={{ flex: 1 }} />
@@ -159,7 +182,7 @@ export function DataListPanel<T>({
             split={bordered}
             renderItem={(item) => {
               const key = rowKey(item)
-              return (
+              const rowBody = (
                 <div
                   className="commweb-list-row"
                   onClick={() => onItemClick?.(item)}
@@ -179,6 +202,7 @@ export function DataListPanel<T>({
                       checked={checked.includes(key)}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => toggle(key)}
+                      style={{ marginRight: checkboxGap - 8 > 0 ? checkboxGap - 8 : 0 }}
                     />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>{renderRow?.(item)}</div>
@@ -187,21 +211,29 @@ export function DataListPanel<T>({
                   )}
                 </div>
               )
+              return hoverDetail ? (
+                <Popover content={hoverDetail(item)} placement="right" mouseEnterDelay={0.4} destroyTooltipOnHide>
+                  {rowBody}
+                </Popover>
+              ) : (
+                rowBody
+              )
             }}
           />
           {paged && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 12 }}>
-              <Pagination
-                size={density === 'compact' ? 'small' : undefined}
-                current={page}
+              <SimplePager
+                size={density === 'compact' ? 'small' : 'middle'}
+                page={page}
                 pageSize={pageSize}
                 total={items.length}
                 onChange={setPage}
-                showSizeChanger={false}
               />
             </div>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   )

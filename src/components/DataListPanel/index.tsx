@@ -27,8 +27,10 @@ export interface DataListPanelProps<T> {
   emptyText?: string
   /** 分页：true=默认每页 10；对象可指定 pageSize；仅列表形态生效 */
   pagination?: boolean | { pageSize?: number }
-  /** 多选：列表形态每行前置 Checkbox，变化即回调 */
-  selectable?: { onChange: (keys: React.Key[], items: T[]) => void }
+  /** 多选：列表形态每行前置 Checkbox，变化即回调。
+   *  selectedKeys（受控）：由父组件持有勾选集——侧栏「清空」等操作改父状态即可同步勾选框，
+   *  非受控用法（不传）保持组件内部自理。 */
+  selectable?: { onChange: (keys: React.Key[], items: T[]) => void; selectedKeys?: React.Key[] }
   /** 行内动作（编辑/删除等维护入口），渲染在行尾 */
   rowActions?: (item: T) => ReactNode
   /** 列表密度：compact 收紧行距 */
@@ -84,7 +86,7 @@ export function DataListPanel<T>({
   const [view, setView] = useState<'card' | 'list'>(() => readLayout())
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
-  const [checked, setChecked] = useState<React.Key[]>([])
+  const [checkedInternal, setCheckedInternal] = useState<React.Key[]>([])
   const timer = useRef<number>()
   const pageSize = typeof pagination === 'object' ? (pagination.pageSize ?? 10) : 10
   const [collapsed, setCollapsed] = useState<boolean>(Boolean(collapsible?.defaultCollapsed))
@@ -113,9 +115,11 @@ export function DataListPanel<T>({
     ? items.slice((page - 1) * pageSize, page * pageSize)
     : items
 
+  // 受控勾选集优先（父组件持有）；未传时回落内部状态
+  const checked = selectable?.selectedKeys ?? checkedInternal
   const toggle = (key: React.Key) => {
     const next = checked.includes(key) ? checked.filter((k) => k !== key) : [...checked, key]
-    setChecked(next)
+    if (selectable?.selectedKeys === undefined) setCheckedInternal(next)
     selectable?.onChange(next, items.filter((it) => next.includes(rowKey(it))))
   }
 

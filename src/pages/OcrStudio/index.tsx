@@ -14,8 +14,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, AutoComplete, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd'
-import { DeleteOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons'
+import { Alert, AutoComplete, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Tooltip, Typography, message, theme } from 'antd'
+import { DeleteOutlined, EyeOutlined, HistoryOutlined, ScanOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons'
 import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
@@ -200,7 +200,8 @@ export function OcrStudio() {
   })
   const [db, setDb] = useState<string>()
   // AJ2：结果库多选（合并导出用；存库 path）。焦点库 db 仍单选——预览/结果 tab 不受影响
-  const [mergedPaths, setMergedPaths] = useState<string[]>([])
+  // 勾选集受控化（selNames 持有名字）——「清空」改这里，DataListPanel 勾选框同步复位
+  const [selNames, setSelNames] = useState<string[]>([])
   const [scope, setScope] = useState<string>()
   const [pageNum, setPageNum] = useState(1)
   // AD3：删除结果库（后端防呆：被任务引用时 409 报引用数，先删任务再删库）
@@ -478,7 +479,42 @@ export function OcrStudio() {
   // 视图定义未就绪时按钮置灰（此前空 spec 会悄悄提交一个必然失败的任务）
   const specReady = Boolean(viewSpec?.trim())
 
+  // —— 选中结果库即自动就绪：装载默认视图（模版视图优先→回落第一个内置视图）——
+  // 修复：此前必须先在「视图」页手动选一次视图，否则 specReady=false，预览/导出按钮全部不可点
+  const autoViewRef = useRef<string>()
+  useEffect(() => {
+    if (!db || viewSpec || !props.viewTool) return
+    if (autoViewRef.current === db) return
+    autoViewRef.current = db
+    const tplSpec = detail.data?.view_spec
+    if (tplSpec) {
+      setViewSpec(JSON.stringify(tplSpec, null, 2))
+      setViewSel('template')
+      return
+    }
+    const first = (props.builtinViews ?? [])[0]
+    if (first) {
+      setViewSpec(JSON.stringify(first.spec, null, 2))
+      setViewSel(`builtin:${first.id}`)
+    }
+  }, [db, viewSpec, props.viewTool, props.builtinViews, detail.data])
+
+  // —— 记录到达后自动跑一次视图预览（所见即所得，进「视图」页直接有结果）——
+  const autoPreviewRef = useRef<string>()
+  useEffect(() => {
+    if (!db || !specReady || !props.viewTool) return
+    if (!(records.data?.rows ?? []).length) return
+    if (autoPreviewRef.current === db || previewMutation.data || previewMutation.isPending) return
+    autoPreviewRef.current = db
+    previewMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, specReady, records.data, props.viewTool])
+
   const dbsAll = dbs.data?.dbs ?? []
+  const mergedPaths = useMemo(
+    () => dbsAll.filter((d: { name: string; path: string }) => selNames.includes(d.name)).map((d: { path: string }) => d.path),
+    [dbsAll, selNames],
+  )
   const [dbsKw, setDbsKw] = useState('')
   const dbsFiltered = dbsKw
     ? dbsAll.filter((d: { name: string }) => d.name.toLowerCase().includes(dbsKw.toLowerCase()))
@@ -487,6 +523,19 @@ export function OcrStudio() {
   const tabLabels: Record<string, string> = {
     recognize: t.tabRecognize, records: t.tabRecords, runs: t.tabRuns, views: t.tabViews,
   }
+  // Tab 导航样式对齐最外层 CommWEB 页眉（14px + 图标，激活主色/600 字重），底部指示条强化当前位置
+  const { token } = theme.useToken()
+  const TAB_ICONS: Record<string, React.ReactNode> = {
+    recognize: <ScanOutlined />, records: <TableOutlined />, runs: <HistoryOutlined />, views: <EyeOutlined />,
+  }
+  const tabNavStyle = (active: boolean): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    fontSize: 14, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+    color: active ? token.colorPrimary : token.colorTextSecondary,
+    fontWeight: active ? 600 : 400,
+    borderBottom: `2px solid ${active ? token.colorPrimary : 'transparent'}`,
+    paddingBottom: 4, lineHeight: '22px',
+  })
 
   return (
     <div>
@@ -494,12 +543,13 @@ export function OcrStudio() {
       <Card
         title={studioTitle}
         extra={(
-          <Segmented
-            size="small"
-            value={tab}
-            onChange={(k) => setTab(String(k))}
-            options={Object.entries(tabLabels).map(([key, label]) => ({ value: key, label }))}
-          />
+          <nav style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+            {Object.entries(tabLabels).map(([key, label]) => (
+              <span key={key} style={tabNavStyle(tab === key)} onClick={() => setTab(key)}>
+                {TAB_ICONS[key]}{label}
+              </span>
+            ))}
+          </nav>
         )}
       >
       <Flex gap={16} align="stretch" style={{ minHeight: 460 }}>
@@ -508,7 +558,7 @@ export function OcrStudio() {
             extra={mergedPaths.length >= 2 ? (
               <Flex gap={6} align="center">
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.mergedSelected(mergedPaths.length)}</Typography.Text>
-                <Button size="small" type="text" onClick={() => setMergedPaths([])}>{t.mergedClear}</Button>
+                <Button size="small" type="text" onClick={() => setSelNames([])}>{t.mergedClear}</Button>
               </Flex>
             ) : undefined}
           >
@@ -524,9 +574,7 @@ export function OcrStudio() {
               searchPlaceholder={t.dbsTitle}
               pagination={{ pageSize: 8 }}
               emptyText={t.dbsEmpty}
-              selectable={{ onChange: (keys) => {
-                setMergedPaths(dbsAll.filter((d: { name: string; path: string }) => keys.includes(d.name)).map((d: { path: string }) => d.path))
-              } }}
+              selectable={{ selectedKeys: selNames, onChange: (keys) => setSelNames(keys.map(String)) }}
               checkboxGap={12}
               hoverDetail={(d) => (
                 <div style={{ maxWidth: 280 }}>
@@ -537,7 +585,12 @@ export function OcrStudio() {
                 </div>
               )}
               renderRow={(d) => (
-                <div onClick={() => { setDb(d.name); setPageNum(1); setScope(undefined) }}
+                <div onClick={() => {
+                  if (d.name === db) return
+                  setDb(d.name); setPageNum(1); setScope(undefined)
+                  // 切库清旧态：预览结果/导出产物不跨库复用（也解除自动预览的 data 拦截）
+                  previewMutation.reset(); setExportFile(undefined)
+                }}
                   style={{ background: d.name === db ? 'rgba(91,141,239,0.10)' : undefined, padding: '4px 8px', borderRadius: 6 }}>
                   <Typography.Text ellipsis style={{ maxWidth: 130, fontSize: 13 }}>{d.name}</Typography.Text>
                   <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>{d.records} 条</Typography.Text>

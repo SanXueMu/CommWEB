@@ -493,9 +493,14 @@ export function OcrStudio() {
       <PortraitHint />
       <Card
         title={studioTitle}
-        tabList={Object.entries(tabLabels).map(([key, label]) => ({ key, tab: label }))}
-        activeTabKey={tab}
-        onTabChange={(k) => setTab(k)}
+        extra={(
+          <Segmented
+            size="small"
+            value={tab}
+            onChange={(k) => setTab(String(k))}
+            options={Object.entries(tabLabels).map(([key, label]) => ({ value: key, label }))}
+          />
+        )}
       >
       <Flex gap={16} align="stretch" style={{ minHeight: 460 }}>
         <SidebarShell label={t.dbsTitle} width={250}>
@@ -511,6 +516,7 @@ export function OcrStudio() {
               panelKey={`ocr-dbs-${pid}`}
               providerId={pid}
               density="compact"
+              defaultView="list"
               loading={dbs.isLoading}
               items={dbsFiltered as { name: string; path: string; records: number }[]}
               rowKey={(d) => d.name}
@@ -634,26 +640,28 @@ export function OcrStudio() {
                                 </Space>
                               )}
                             >
-                              <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                                {batchList.slice((listPage - 1) * 8, listPage * 8).map((f) => (
-                                  <Checkbox
-                                    key={f.path}
-                                    checked={batchSel.includes(f.path)}
-                                    onChange={(e) => setBatchSel((sel) => (e.target.checked ? [...sel, f.path] : sel.filter((p) => p !== f.path)))}
-                                  >
-                                    <Space>
-                                      <Typography.Text style={{ fontSize: 13 }}>{f.rel || f.name}</Typography.Text>
-                                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{humanSize(f.size || 0)}</Typography.Text>
-                                    </Space>
-                                  </Checkbox>
-                                ))}
-                                {batchList.length > 8 && (
-                                  <Flex justify="flex-end">
-                                    <SimplePager page={listPage} pageSize={8} total={batchList.length}
-                                      onChange={(pg) => setListPage(Math.max(1, Math.min(pg, Math.ceil(batchList.length / 8))))} />
-                                  </Flex>
-                                )}
-                              </Space>
+                              <div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: 4 }}>
+                                <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                  {batchList.slice((listPage - 1) * 8, listPage * 8).map((f) => (
+                                    <Checkbox
+                                      key={f.path}
+                                      checked={batchSel.includes(f.path)}
+                                      onChange={(e) => setBatchSel((sel) => (e.target.checked ? [...sel, f.path] : sel.filter((p) => p !== f.path)))}
+                                    >
+                                      <Space>
+                                        <Typography.Text style={{ fontSize: 13 }}>{f.rel || f.name}</Typography.Text>
+                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{humanSize(f.size || 0)}</Typography.Text>
+                                      </Space>
+                                    </Checkbox>
+                                  ))}
+                                  {batchList.length > 8 && (
+                                    <Flex justify="flex-end">
+                                      <SimplePager page={listPage} pageSize={8} total={batchList.length}
+                                        onChange={(pg) => setListPage(Math.max(1, Math.min(pg, Math.ceil(batchList.length / 8))))} />
+                                    </Flex>
+                                  )}
+                                </Space>
+                              </div>
                             </Card>
                           )}
                         </>

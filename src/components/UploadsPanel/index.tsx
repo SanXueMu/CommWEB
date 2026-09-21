@@ -133,7 +133,8 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
             已选本目录 {selInDir.length} 个
           </Typography.Text>
         </Space>
-        <div>
+        {/* 展开区限高（UI 原则②）：长目录不再把整页拉长，列表在容器内滚动 */}
+        <div style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
           {files.slice(((filePage[r.dir] ?? 1) - 1) * 30, (filePage[r.dir] ?? 1) * 30).map((f) => (
             <div key={f.path} style={{ padding: '2px 0' }}>
               <Checkbox

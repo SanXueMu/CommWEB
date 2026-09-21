@@ -33,7 +33,8 @@ export function ProgressRing({ percent, center, title, onClick, size = 34, statu
         percent={percent ?? 0}
         status={percent === null ? 'normal' : status}
         showInfo={false}
-        strokeWidth={10}
+        strokeWidth={Math.max(3, Math.round(size * 0.08))}
+        strokeLinecap="round"
       />
       {center !== undefined && (
         <div

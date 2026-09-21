@@ -106,7 +106,10 @@ export function DataListPanel<T>({
     setView(next)
   }
 
-  const paged = pagination && view === 'list'
+  // 无 renderCard 的面板（如结果库侧栏）只提供列表形态——卡片视图没有渲染实现，
+  // 切过去是空栅格；同时隐藏切换钮，避免误切。
+  const effectiveView: 'card' | 'list' = renderCard && view === 'card' ? 'card' : 'list'
+  const paged = pagination && effectiveView === 'list'
     ? items.slice((page - 1) * pageSize, page * pageSize)
     : items
 
@@ -136,8 +139,8 @@ export function DataListPanel<T>({
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          paddingBottom: 12,
-          marginBottom: 16,
+          padding: '8px 12px 10px',
+          marginBottom: 14,
           borderBottom: '1px solid var(--cw-border)',
         }}
       >
@@ -153,21 +156,23 @@ export function DataListPanel<T>({
         )}
         <div style={{ flex: 1 }} />
         {extraActions}
-        <Segmented
-          value={view}
-          onChange={(v) => switchView(v as 'card' | 'list')}
-          options={[
-            { value: 'card', icon: <AppstoreOutlined />, title: '卡片式' },
-            { value: 'list', icon: <BarsOutlined />, title: '列表式' },
-          ]}
-        />
+        {renderCard && (
+          <Segmented
+            value={view}
+            onChange={(v) => switchView(v as 'card' | 'list')}
+            options={[
+              { value: 'card', icon: <AppstoreOutlined />, title: '卡片式' },
+              { value: 'list', icon: <BarsOutlined />, title: '列表式' },
+            ]}
+          />
+        )}
       </div>
 
       {loading ? (
         <Spin style={{ display: 'block', margin: '60px auto' }} />
       ) : items.length === 0 ? (
         <Empty description={emptyText} style={{ margin: '60px 0' }} />
-      ) : view === 'card' ? (
+      ) : effectiveView === 'card' ? (
         <Row gutter={cardGutter}>
           {items.map((item) => (
             <Col key={rowKey(item)} xs={24} sm={12} lg={8} xl={6}>
@@ -176,7 +181,7 @@ export function DataListPanel<T>({
           ))}
         </Row>
       ) : (
-        <>
+        <div style={{ padding: '0 12px' }}>
           <List
             dataSource={paged}
             split={bordered}
@@ -231,7 +236,7 @@ export function DataListPanel<T>({
               />
             </div>
           )}
-        </>
+        </div>
       )}
       </>
       )}

@@ -380,6 +380,12 @@ export function OcrStudio() {
     onError: (err) => message.error(`视图预览失败：${errMsg(err)}`),
   })
   const [exportFile, setExportFile] = useState<string>()
+  /** 聚焦某结果库：行点击与勾选共用——切库即重置分页/范围/预览/导出产物（不跨库复用旧态）。 */
+  const focusDb = (name: string) => {
+    if (name === db) return
+    setDb(name); setPageNum(1); setScope(undefined)
+    previewMutation.reset(); setExportFile(undefined)
+  }
   const exportMutation = useMutation({
     mutationFn: async () => {
       // AJ2：多选 ≥2 库 → 合并导出（后端逐库读取按来源分组排序）；否则单库现行为
@@ -574,7 +580,15 @@ export function OcrStudio() {
               searchPlaceholder={t.dbsTitle}
               pagination={{ pageSize: 8 }}
               emptyText={t.dbsEmpty}
-              selectable={{ selectedKeys: selNames, onChange: (keys) => setSelNames(keys.map(String)) }}
+              selectable={{ selectedKeys: selNames, onChange: (keys, items) => {
+                const names = keys.map(String)
+                setSelNames(names)
+                // 勾选即聚焦：新勾上的库立即成为焦点库（勾除不动焦点）——
+                // 修复「勾选后仍似未选择」：勾选框 stopPropagation 不触发行点击，db 一直为空，
+                // 结果页下拉无文件、视图页预览/导出全灰
+                const added = names.find((n) => !selNames.includes(n))
+                if (added) focusDb(added)
+              } }}
               checkboxGap={12}
               hoverDetail={(d) => (
                 <div style={{ maxWidth: 280 }}>
@@ -585,12 +599,7 @@ export function OcrStudio() {
                 </div>
               )}
               renderRow={(d) => (
-                <div onClick={() => {
-                  if (d.name === db) return
-                  setDb(d.name); setPageNum(1); setScope(undefined)
-                  // 切库清旧态：预览结果/导出产物不跨库复用（也解除自动预览的 data 拦截）
-                  previewMutation.reset(); setExportFile(undefined)
-                }}
+                <div onClick={() => focusDb(d.name)}
                   style={{ background: d.name === db ? 'rgba(91,141,239,0.10)' : undefined, padding: '4px 8px', borderRadius: 6 }}>
                   <Typography.Text ellipsis style={{ maxWidth: 130, fontSize: 13 }}>{d.name}</Typography.Text>
                   <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>{d.records} 条</Typography.Text>

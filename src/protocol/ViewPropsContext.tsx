@@ -6,7 +6,7 @@ import { mergedViewProps, type SiteViewDecl } from '@/transfer/siteManifest'
 const ViewPropsContext = createContext<Record<string, unknown>>({})
 
 export function ViewScope({ decl, pid, children }: { decl: SiteViewDecl; pid: string; children: ReactNode }) {
-  return <ViewPropsContext.Provider value={mergedViewProps(decl, pid)}>{children}</ViewPropsContext.Provider>
+  return <ViewPropsContext.Provider value={{ ...mergedViewProps(decl, pid), __viewTitle: decl?.title }}>{children}</ViewPropsContext.Provider>
 }
 
 export function useViewProps<T extends Record<string, unknown>>(): T {

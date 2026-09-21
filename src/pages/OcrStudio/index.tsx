@@ -14,11 +14,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Alert, AutoComplete, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber,
-  List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Typography, message,
-} from 'antd'
-import { EyeOutlined, SettingOutlined } from '@ant-design/icons'
+import { Alert, AutoComplete, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd'
+import { DeleteOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons'
 import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
@@ -37,6 +34,10 @@ import { ResultRenderer } from '@/components/ResultRenderer'
 import RunListPanel from '@/components/RunListPanel'
 import { pollIntervalFor } from '@/protocol/polling'
 import { SpecEditor, type BuiltinView } from '@/components/SpecEditor'
+import { PortraitHint } from '@/components/ui/PortraitHint'
+import { SidebarShell } from '@/components/ui/SidebarShell'
+import { SimplePager } from '@/components/ui/SimplePager'
+import { DataListPanel } from '@/components/DataListPanel'
 import { StepTrack } from '@/components/StepTrack'
 
 /** 通用错误描述（与 PipelineStudio 同式）。 */
@@ -127,6 +128,12 @@ interface OcrStudioProps {
   flows?: string[]
   description?: string
   builtinViews?: BuiltinView[]
+  /** 声明下发：数据端点路径（缺省回落内置默认——v1 会员兼容） */
+  templatesPath?: string
+  recordsPath?: string
+  dbsPath?: string
+  /** 结果区行为声明：export:false 隐藏结果 Tab 导出（仅展示） */
+  records?: { export?: boolean }
 }
 
 export function OcrStudio() {
@@ -137,6 +144,8 @@ export function OcrStudio() {
   const t = useOcrText()
 
   const [templateId, setTemplateId] = useState<string>()
+  const [tab, setTab] = useState('recognize')
+  const [listPage, setListPage] = useState(1)
   const [file, setFile] = useState<string>()
   const [runId, setRunId] = useState<string | null>(null)
   const [detailTpl, setDetailTpl] = useState<string | null>(null)
@@ -173,19 +182,20 @@ export function OcrStudio() {
   )
   const templates = useQuery({
     queryKey: ['provider', pid, 'ocr-templates'],
-    queryFn: () => api.get<{ templates: TplSummary[] }>('/ocr/templates?limit=200'),
+    queryFn: () => api.get<{ templates: TplSummary[] }>(`${props.templatesPath ?? '/ocr/templates'}?limit=200`),
   })
   const detail = useQuery({
     queryKey: ['provider', pid, 'ocr-template', detailTpl],
-    queryFn: () => api.get<TplDetail>(`/ocr/templates/${encodeURIComponent(detailTpl!)}`),
+    queryFn: () => api.get<TplDetail>(`${props.templatesPath ?? '/ocr/templates'}/${encodeURIComponent(detailTpl!)}`),
     enabled: Boolean(detailTpl),
   })
   const dbs = useQuery({
     queryKey: ['provider', pid, 'data-dbs'],
     // 只列 OCR 结果库（data/dbs 列全 DATA_DIR，含翻译字典库等非本域库）；records 端点吃 ocr 目录裸名
     queryFn: async () => {
-      const d = await api.get<{ dbs: { name: string; path: string; records: number }[] }>('/data/dbs')
-      return { dbs: d.dbs.filter((x) => x.name.endsWith('.ocr_results.db')) }
+      const d = await api.get<{ dbs: { name: string; path: string; records: number }[] }>(props.dbsPath ?? '/data/dbs')
+      // 声明 dbsPath（服务端已按域过滤）直用；回落 /data/dbs 时前端过滤本域库
+      return { dbs: props.dbsPath ? d.dbs : d.dbs.filter((x) => x.name.endsWith('.ocr_results.db')) }
     },
   })
   const [db, setDb] = useState<string>()
@@ -219,7 +229,7 @@ export function OcrStudio() {
   })
   const records = useQuery({
     queryKey: ['provider', pid, 'ocr-records', db, scope, pageNum],
-    queryFn: () => api.get<OcrRecordsResp>(`/ocr/records?db=${encodeURIComponent(db!)}&limit=50&offset=${(pageNum - 1) * 50}${scope ? `&path=${encodeURIComponent(scope)}` : ''}`),
+    queryFn: () => api.get<OcrRecordsResp>(`${props.recordsPath ?? '/ocr/records'}?db=${encodeURIComponent(db!)}&limit=50&offset=${(pageNum - 1) * 50}${scope ? `&path=${encodeURIComponent(scope)}` : ''}`),
     enabled: Boolean(db),
   })
 
@@ -467,99 +477,88 @@ export function OcrStudio() {
   const canRecognize = Boolean(templateId && file) && !busy && !runMutation.isPending
   // 视图定义未就绪时按钮置灰（此前空 spec 会悄悄提交一个必然失败的任务）
   const specReady = Boolean(viewSpec?.trim())
-  const selectedTemplate = (templates.data?.templates ?? []).find((x: TplSummary) => x.id === templateId)
+
+  const dbsAll = dbs.data?.dbs ?? []
+  const [dbsKw, setDbsKw] = useState('')
+  const dbsFiltered = dbsKw
+    ? dbsAll.filter((d: { name: string }) => d.name.toLowerCase().includes(dbsKw.toLowerCase()))
+    : dbsAll
+  const studioTitle = (props as { __viewTitle?: string }).__viewTitle ?? t.title
+  const tabLabels: Record<string, string> = {
+    recognize: t.tabRecognize, records: t.tabRecords, runs: t.tabRuns, views: t.tabViews,
+  }
 
   return (
-    <Card title={t.title}>
-      {props.description && (
-        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-          {props.description}
-        </Typography.Paragraph>
-      )}
+    <div>
+      <PortraitHint />
+      <Card
+        title={studioTitle}
+        tabList={Object.entries(tabLabels).map(([key, label]) => ({ key, tab: label }))}
+        activeTabKey={tab}
+        onTabChange={(k) => setTab(k)}
+      >
       <Flex gap={16} align="stretch" style={{ minHeight: 460 }}>
-        <Card size="small" title={t.dbsTitle} style={{ width: 240, flexShrink: 0 }} styles={{ body: { padding: 0 } }}
-          extra={mergedPaths.length >= 2 ? (
-            <Flex gap={6} align="center">
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.mergedSelected(mergedPaths.length)}</Typography.Text>
-              <Button size="small" type="text" onClick={() => setMergedPaths([])}>{t.mergedClear}</Button>
-            </Flex>
-          ) : undefined}
-        >
-          <List
-            size="small"
-            loading={dbs.isLoading}
-            dataSource={dbs.data?.dbs ?? []}
-            locale={{ emptyText: t.dbsEmpty }}
-            renderItem={(item: { name: string; path: string; records: number }) => (
-              <List.Item
-                style={{ cursor: 'pointer', padding: '8px 12px', background: item.name === db ? 'rgba(91,141,239,0.10)' : undefined }}
-                onClick={() => { setDb(item.name); setPageNum(1); setScope(undefined) }}
-              >
-                <Checkbox
-                  checked={mergedPaths.includes(item.path)}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setMergedPaths((prev) => prev.includes(item.path)
-                      ? prev.filter((x) => x !== item.path) : [...prev, item.path])
-                  }}
-                  title={t.mergedHint}
-                />
-                <List.Item.Meta
-                  title={<Typography.Text ellipsis style={{ maxWidth: 150 }}>{item.name}</Typography.Text>}
-                  description={<Typography.Text type="secondary" style={{ fontSize: 12 }}>{item.records} 条</Typography.Text>}
-                />
+        <SidebarShell label={t.dbsTitle} width={250}>
+          <Card size="small" title={t.dbsTitle} styles={{ body: { padding: 0 } }}
+            extra={mergedPaths.length >= 2 ? (
+              <Flex gap={6} align="center">
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.mergedSelected(mergedPaths.length)}</Typography.Text>
+                <Button size="small" type="text" onClick={() => setMergedPaths([])}>{t.mergedClear}</Button>
+              </Flex>
+            ) : undefined}
+          >
+            <DataListPanel
+              panelKey={`ocr-dbs-${pid}`}
+              providerId={pid}
+              density="compact"
+              loading={dbs.isLoading}
+              items={dbsFiltered as { name: string; path: string; records: number }[]}
+              rowKey={(d) => d.name}
+              onSearch={setDbsKw}
+              searchPlaceholder={t.dbsTitle}
+              pagination={{ pageSize: 8 }}
+              emptyText={t.dbsEmpty}
+              selectable={{ onChange: (keys) => {
+                setMergedPaths(dbsAll.filter((d: { name: string; path: string }) => keys.includes(d.name)).map((d: { path: string }) => d.path))
+              } }}
+              checkboxGap={12}
+              hoverDetail={(d) => (
+                <div style={{ maxWidth: 280 }}>
+                  <Typography.Text strong>{d.name}</Typography.Text>
+                  <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>
+                    {d.records} 条记录<br />{d.path}
+                  </Typography.Paragraph>
+                </div>
+              )}
+              renderRow={(d) => (
+                <div onClick={() => { setDb(d.name); setPageNum(1); setScope(undefined) }}
+                  style={{ background: d.name === db ? 'rgba(91,141,239,0.10)' : undefined, padding: '4px 8px', borderRadius: 6 }}>
+                  <Typography.Text ellipsis style={{ maxWidth: 130, fontSize: 13 }}>{d.name}</Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>{d.records} 条</Typography.Text>
+                </div>
+              )}
+              rowActions={(d) => (
                 <Popconfirm
                   title="删除该结果库？"
                   description="连同模型原文留痕一并删除，不可恢复"
                   okText="删除" okButtonProps={{ danger: true }} cancelText="取消"
-                  onConfirm={(e) => { e?.stopPropagation(); deleteDbMutation.mutate({ path: item.path }) }}
+                  onConfirm={() => deleteDbMutation.mutate({ path: d.path })}
                 >
-                  <Button size="small" type="text" danger
-                    onClick={(e) => e.stopPropagation()}>删除</Button>
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
-              </List.Item>
-            )}
-          />
-        </Card>
-
+              )}
+            />
+          </Card>
+        </SidebarShell>
         <Tabs
           style={{ flex: 1, minWidth: 0 }}
+          activeKey={tab}
+          renderTabBar={() => <noscript />}
           items={[
             {
               key: 'recognize', label: t.tabRecognize,
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <Card size="small" title={t.templateLabel}>
-                    <Flex gap={12} align="center" wrap="wrap">
-                      <Select
-                        style={{ minWidth: 220 }}
-                        placeholder={t.templatePlaceholder}
-                        value={templateId}
-                        onChange={(id) => { setTemplateId(id); setDetailTpl(id); extraForm.resetFields() }}
-                        loading={templates.isLoading}
-                        options={(templates.data?.templates ?? []).map((x) => ({ value: x.id, label: x.name ?? x.id }))}
-                      />
-                      {templateId && (
-                        <Popover
-                          trigger="click"
-                          content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
-                        >
-                          <Button size="small" icon={<EyeOutlined />}>{t.detail}</Button>
-                        </Popover>
-                      )}
-                      <Button
-                        size="small"
-                        icon={<SettingOutlined />}
-                        onClick={() => dialog.openView(props.manageView ?? 'templates', {
-                          title: t.manage,
-                          size: 'lg',
-                          onClose: () => templates.refetch(),
-                        })}
-                      >
-                        {t.manage}
-                      </Button>
-                    </Flex>
-                  </Card>
                   <Card
                     size="small"
                     title={t.uploadTitle}
@@ -572,7 +571,36 @@ export function OcrStudio() {
                       />
                     ) : undefined}
                   >
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                      <Flex gap={8} align="center" wrap="wrap">
+                        <Select
+                          style={{ minWidth: 'min(260px, 100%)', flex: 1 }}
+                          placeholder={t.templatePlaceholder}
+                          value={templateId}
+                          onChange={(id) => { setTemplateId(id); setDetailTpl(id); extraForm.resetFields() }}
+                          loading={templates.isLoading}
+                          options={(templates.data?.templates ?? []).map((x) => ({ value: x.id, label: x.name ?? x.id }))}
+                        />
+                        {templateId && (
+                          <Popover
+                            trigger="click"
+                            content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
+                          >
+                            <Tooltip title={t.detail}><Button size="small" icon={<EyeOutlined />} /></Tooltip>
+                          </Popover>
+                        )}
+                        <Tooltip title={t.manage}>
+                          <Button
+                            size="small"
+                            icon={<SettingOutlined />}
+                            onClick={() => dialog.openView(props.manageView ?? 'templates', {
+                              title: t.manage,
+                              size: 'lg',
+                              onClose: () => templates.refetch(),
+                            })}
+                          />
+                        </Tooltip>
+                      </Flex>
                       {batchOn && batchCfg ? (
                         <>
                           <BatchUpload
@@ -585,6 +613,7 @@ export function OcrStudio() {
                           />
                           <UploadsPanel
                             extensions={batchCfg.extensions}
+                            defaultCollapsed
                             useLabel="用所选发起识别"
                             onUseFiles={(paths) => {
                               batchAdd(paths.map((p) => ({
@@ -601,12 +630,12 @@ export function OcrStudio() {
                                 <Space>
                                   <Button size="small" onClick={() => setBatchSel(batchList.map((f) => f.path))}>{t.selectAll}</Button>
                                   <Button size="small" onClick={() => setBatchSel([])}>{t.selectNone}</Button>
-                                  <Button size="small" onClick={() => { setBatchList([]); setBatchSel([]); setBatchReport([]) }}>{t.clearList}</Button>
+                                  <Button size="small" onClick={() => { setBatchList([]); setBatchSel([]); setBatchReport([]); setListPage(1) }}>{t.clearList}</Button>
                                 </Space>
                               )}
                             >
-                              <Space direction="vertical" size={4} style={{ width: '100%', maxHeight: 220, overflow: 'auto' }}>
-                                {batchList.map((f) => (
+                              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                {batchList.slice((listPage - 1) * 8, listPage * 8).map((f) => (
                                   <Checkbox
                                     key={f.path}
                                     checked={batchSel.includes(f.path)}
@@ -618,6 +647,12 @@ export function OcrStudio() {
                                     </Space>
                                   </Checkbox>
                                 ))}
+                                {batchList.length > 8 && (
+                                  <Flex justify="flex-end">
+                                    <SimplePager page={listPage} pageSize={8} total={batchList.length}
+                                      onChange={(pg) => setListPage(Math.max(1, Math.min(pg, Math.ceil(batchList.length / 8))))} />
+                                  </Flex>
+                                )}
                               </Space>
                             </Card>
                           )}
@@ -626,19 +661,19 @@ export function OcrStudio() {
                         <FileUpload value={file ?? undefined} onChange={setFile} />
                       )}
                       {Object.keys(extraProperties).length > 0 && (
-                        <Card type="inner" size="small" title={`${t.tplExtraForm}（${selectedTemplate?.name ?? templateId}）`}>
-                          <Form form={extraForm} layout="vertical" initialValues={Object.fromEntries(
-                            Object.entries(extraProperties).map(([k, v]) => [k, v.default]),
-                          )}>
-                            <Flex gap={12} wrap="wrap">
-                              {Object.entries(extraProperties).map(([key, schema]) => (
-                                <Form.Item key={key} name={key} label={(schema.title as string) ?? key} style={{ minWidth: 220 }} valuePropName={Array.isArray(schema.type) && schema.type.includes('boolean') || schema.type === 'boolean' ? 'checked' : undefined}>
-                                  {renderExtraControl(schema, keyOptions)}
-                                </Form.Item>
-                              ))}
-                            </Flex>
-                          </Form>
-                        </Card>
+                        <Form form={extraForm} layout="vertical" initialValues={Object.fromEntries(
+                          Object.entries(extraProperties).map(([k, v]) => [k, v.default]),
+                        )} style={{ borderTop: '1px solid var(--cw-border)', paddingTop: 8 }}>
+                          <Flex gap={8} wrap="wrap" align="flex-end">
+                            {Object.entries(extraProperties).map(([key, schema]) => (
+                              <Form.Item key={key} name={key} label={(schema.title as string) ?? key}
+                                style={{ minWidth: 'min(200px, 100%)', marginBottom: 8 }}
+                                valuePropName={Array.isArray(schema.type) && schema.type.includes('boolean') || schema.type === 'boolean' ? 'checked' : undefined}>
+                                {renderExtraControl(schema, keyOptions)}
+                              </Form.Item>
+                            ))}
+                          </Flex>
+                        </Form>
                       )}
                       <Space wrap>
                         {batchOn && batchCfg ? (
@@ -702,7 +737,7 @@ export function OcrStudio() {
                         value={scope} options={fileOptions.map((f) => ({ value: f, label: f }))}
                         onChange={(v) => { setScope(v); setPageNum(1) }}
                       />
-                      {db && props.exportFlow && (
+                      {db && props.exportFlow && props.records?.export !== false && (
                         <Button size="small" loading={exportMutation.isPending} disabled={!specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>
                       )}
                       {exportFile && <DownloadButton path={exportFile} label={t.download} />}
@@ -908,6 +943,7 @@ export function OcrStudio() {
         title="识别进行中"
       />
     </Card>
+    </div>
   )
 }
 

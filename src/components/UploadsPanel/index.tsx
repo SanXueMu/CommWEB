@@ -9,7 +9,8 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Checkbox, message, Popconfirm, Space, Table, Tag, Tooltip, Typography } from 'antd'
-import { DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownOutlined, PlayCircleOutlined, RightOutlined } from '@ant-design/icons'
+import { SimplePager } from '@/components/ui/SimplePager'
 import { apiFor, type UploadFileItem } from '@/api/client'
 import { useActivePid } from '@/transfer/context'
 import { humanSize } from '@/lib/size'
@@ -23,13 +24,15 @@ interface UploadRow {
   source: string; batch_id?: string; runs: { count: number; latest_status: string | null }
 }
 
-export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles, useLabel = '发起识别' }: {
+export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles, useLabel = '发起识别', defaultCollapsed = false }: {
   title?: string
   /** 可复用后缀（如 ['.pdf', '.png']）：不在列表内的文件禁选并提示；不传则全可选 */
   extensions?: string[]
   /** 复用回调：把所选文件的绝对路径交给工作台（走现有批量入队管线） */
   onUseFiles?: (paths: string[]) => void
   useLabel?: string
+  /** UI 原则①：面板默认收纳（标题行展开/收起），避免批量模式整屏被占 */
+  defaultCollapsed?: boolean
 }) {
   const pid = useActivePid()
   const api = apiFor(pid)
@@ -40,6 +43,8 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
   const [filesByDir, setFilesByDir] = useState<Record<string, UploadFileItem[]>>({})
   const [loadingDir, setLoadingDir] = useState<string | null>(null)
   const [fileSel, setFileSel] = useState<string[]>([])
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const [filePage, setFilePage] = useState<Record<string, number>>({})
   const uploads = useQuery({
     queryKey: ['provider', pid, 'uploads'],
     queryFn: () => api.listUploads(),
@@ -128,8 +133,8 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
             已选本目录 {selInDir.length} 个
           </Typography.Text>
         </Space>
-        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-          {files.map((f) => (
+        <div>
+          {files.slice(((filePage[r.dir] ?? 1) - 1) * 30, (filePage[r.dir] ?? 1) * 30).map((f) => (
             <div key={f.path} style={{ padding: '2px 0' }}>
               <Checkbox
                 checked={fileSel.includes(f.path)}
@@ -142,20 +147,33 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
               </Checkbox>
             </div>
           ))}
+          {files.length > 30 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+              <SimplePager page={filePage[r.dir] ?? 1} pageSize={30} total={files.length}
+                onChange={(pg) => setFilePage((prev) => ({ ...prev, [r.dir]: pg }))} />
+            </div>
+          )}
         </div>
       </Space>
     )
   }
 
   return (
-    <Card size="small" title={title} styles={{ body: { padding: 0 } }}
+    <Card size="small" styles={{ body: { padding: 0 } }}
+      title={(
+        <span style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCollapsed((v) => !v)}>
+          {collapsed ? <RightOutlined style={{ fontSize: 11, marginRight: 6 }} /> : <DownOutlined style={{ fontSize: 11, marginRight: 6 }} />}
+          {title}
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>({rows.length})</Typography.Text>
+        </span>
+      ) }
       extra={picked.length > 0 ? (
         <Popconfirm title={`批量删除 ${picked.length} 个无引用原件？`}
           onConfirm={() => del.mutate(picked)}>
           <Button size="small" danger icon={<DeleteOutlined />}>批量删除（{picked.length}）</Button>
         </Popconfirm>
       ) : undefined}>
-      <Table size="small" rowKey="dir" columns={cols} dataSource={rows}
+      <Table size="small" rowKey="dir" columns={cols} dataSource={rows} style={{ display: collapsed ? 'none' : undefined }}
         loading={uploads.isLoading} pagination={{ pageSize: 10, showSizeChanger: false }}
         expandable={{
           expandedRowKeys: expanded,

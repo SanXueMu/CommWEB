@@ -70,7 +70,7 @@ function SiteFrame() {
       <main
         style={{
           padding: isDetail ? '24px' : '24px 24px 48px',
-          maxWidth: 1200,
+          maxWidth: '90%',
           margin: '0 auto',
         }}
       >

@@ -2,7 +2,6 @@
  *  纯壳准则：内置视图由声明 props 全量下发（名 + 完整 spec），本组件零业务知识。 */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Input, Space, Tag, Typography } from 'antd'
 
 /** 内置视图快选项：名与完整 spec 一并下发，点选即得可直接使用的视图定义。 */
 export interface BuiltinView {
@@ -37,20 +36,20 @@ export function SpecEditor({ value, onChange, rows = 10, builtinViews = [], spec
   }, [value])
 
   const status = useMemo(() => {
-    if (error) return <Tag color="orange">JSON 无效</Tag>
-    if (value.trim()) return <Tag color="green">JSON 有效</Tag>
-    return <Tag>空</Tag>
+    if (error) return <Chip color="warning">JSON 无效</Chip>
+    if (value.trim()) return <Chip color="success">JSON 有效</Chip>
+    return <Chip>空</Chip>
   }, [error, value])
 
   return (
-    <Space direction="vertical" size={8} style={{ width: '100%' }}>
-      <Space size={8} wrap>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {status}
         {!hideQuickPick && builtinViews.length > 0 && (
           <>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{specLabel ?? '快选'}：</Typography.Text>
+            <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>{specLabel ?? '快选'}：</span>
             {builtinViews.map((v) => (
-              <Tag
+              <Chip
                 key={v.id}
                 style={{ cursor: 'pointer' }}
                 // 写入完整 spec 而非视图名：records.view.query 直接可用
@@ -58,19 +57,20 @@ export function SpecEditor({ value, onChange, rows = 10, builtinViews = [], spec
                 onClick={() => onChange(JSON.stringify(v.spec, null, 2))}
               >
                 {v.name}
-              </Tag>
+              </Chip>
             ))}
           </>
         )}
-      </Space>
-      <Input.TextArea
+      </div>
+      <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
         placeholder='输入 JSON（对象/数组），或点击上方快选'
-        style={{ fontFamily: 'monospace', fontSize: 12 }}
+        style={{ fontFamily: 'monospace', fontSize: 12, width: '100%', boxSizing: 'border-box' }}
       />
-      {error && <Alert type="warning" showIcon message={error} />}
-    </Space>
+      {error && <div role="alert" style={{ color: 'var(--cw-warning)' }}>{error}</div>}
+    </div>
   )
 }
+import { Chip } from '@/ui'

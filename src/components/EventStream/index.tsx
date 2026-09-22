@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Card, Progress, Space, Tag, Typography } from 'antd'
 import { streamTaskEvents } from '@/api/client'
 import type { TaskEvent } from '@/api/types'
+import { Card, Chip } from '@/ui'
 
 interface ArtifactInfo {
   name?: string
@@ -53,29 +53,26 @@ export function EventStream({
   }, [logs])
 
   return (
-    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
       {progress && (
-        <Progress
-          percent={Math.round((progress.done / Math.max(progress.total, 1)) * 100)}
-          size="small"
-          format={() => `${progress.done}/${progress.total}`}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <progress style={{ flex: 1 }} value={progress.done} max={progress.total} />
+          <span>{progress.done}/{progress.total}</span>
+        </div>
       )}
       {artifacts.length > 0 && (
-        <Space wrap>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {artifacts.map((a, i) => (
-            <Card key={i} size="small" style={{ background: 'rgba(59,176,147,0.08)' }}>
-              <Typography.Text copyable={{ text: a.path }}>
-                {a.name ?? `产物 ${i + 1}`}
-              </Typography.Text>
+            <Card key={i} style={{ background: 'rgba(59,176,147,0.08)' }}>
+              <span title={a.path}>{a.name ?? `产物 ${i + 1}`}</span>
               {a.path && (
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+                <div style={{ marginBottom: 0, fontSize: 12, color: 'var(--cw-text-secondary)' }}>
                   {a.path}
-                </Typography.Paragraph>
+                </div>
               )}
             </Card>
           ))}
-        </Space>
+        </div>
       )}
       <pre
         ref={terminalRef}
@@ -92,10 +89,10 @@ export function EventStream({
       >
         {logs.length === 0 ? '（等待事件…）' : logs.map((l) => JSON.stringify(l.data)).join('\n')}
       </pre>
-      <Space size={4}>
-        <Tag>handle: {handle.slice(0, 14)}…</Tag>
-        <Tag color="blue">SSE</Tag>
-      </Space>
-    </Space>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <Chip>handle: {handle.slice(0, 14)}…</Chip>
+        <Chip color="accent">SSE</Chip>
+      </div>
+    </div>
   )
 }

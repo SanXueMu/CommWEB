@@ -2,7 +2,6 @@
  *  页面（FlowDetail）与工作区（FlowSession）共用，禁止再自绘流运行 UI。 */
 
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
@@ -18,7 +17,7 @@ import type { FlowField } from '@/protocol/flow'
 import type { FormField } from '@/protocol/resolver'
 import { resolveForm } from '@/protocol/resolver'
 import { useActivePid } from '@/transfer/context'
-import { Modal } from '@/ui'
+import { Button, Card, Modal } from '@/ui'
 import { Form, useForm } from '@/ui/form'
 
 interface FlowLike {
@@ -119,10 +118,10 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
   const rerunnable = status !== 'running' && status !== 'paused'
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-      <Space direction="vertical" size={12} style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minWidth: 0 }}>
         <RunControlBar runId={runId} status={status} onNewRound={() => onRunIdChange(null)} />
         <div>
-          <Button size="small" disabled={!rerunnable} onClick={() => setRerunOpen(true)}>
+          <Button size="sm" isDisabled={!rerunnable} onClick={() => setRerunOpen(true)}>
             {PORTAL.workspace.rerunFlowFull}
           </Button>
         </div>
@@ -137,25 +136,26 @@ export function FlowRunner({ flow, runId, onRunIdChange, providerId }: {
           onRerun={(newRunId) => { setRerunOpen(false); onRunIdChange(newRunId) }}
         />
         {status === 'paused' && (
-          <Typography.Text type="warning" style={{ fontSize: 12 }}>
+          <span style={{ color: 'var(--cw-warning)', fontSize: 12 }}>
             {PORTAL.workspace.pausedHint}
-          </Typography.Text>
+          </span>
         )}
         {snap?.run.status === 'failed' && snap.run.error != null ? (
-          <Alert type="error" showIcon message={`${PORTAL.flowFailedPrefix}${String((snap.run.error as { message?: unknown })?.message ?? '')}`} />
+          <div role="alert" style={{ color: 'var(--cw-danger)', padding: 8 }}>{PORTAL.flowFailedPrefix}{String((snap.run.error as { message?: unknown })?.message ?? '')}</div>
         ) : null}
         {snap && <StepTrack runId={runId} steps={snap.steps} runStatus={status} />}
         {snap?.run.status === 'succeeded' && snap.steps.at(-1)?.latest?.output != null && (
-          <Card size="small" title="最终输出">
+          <Card>
+            <strong style={{ display: 'block', marginBottom: 8 }}>最终输出</strong>
             <ResultRenderer output={snap.steps.at(-1)!.latest!.output!} />
           </Card>
         )}
         <AuditTimeline runId={runId} />
-      </Space>
+      </div>
       <aside style={{ width: 220, flexShrink: 0, position: 'sticky', top: 76, borderLeft: '1px solid var(--cw-border)', paddingLeft: 16 }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           {PORTAL.workspace.flowOutline}
-        </Typography.Text>
+        </span>
         <div style={{ marginTop: 12 }}>
           <LifeFlow nodes={flowNodes} direction="vertical" size="md" />
         </div>
@@ -207,8 +207,8 @@ function RerunFlowModal({ open, fields, inputSchema, lastInput, providerId, runI
       </Form>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="outlined" onClick={onClose}>取消</Button>
-            <Button variant="solid" disabled={submitting} onClick={() => form.submit()}>{PORTAL.workspace.rerunFlowOk}</Button>
+            <Button variant="outline" onClick={onClose}>取消</Button>
+            <Button variant="primary" isDisabled={submitting} onClick={() => form.submit()}>{PORTAL.workspace.rerunFlowOk}</Button>
           </Modal.Footer>
           <Modal.CloseTrigger />
         </Modal.Dialog>
@@ -216,4 +216,3 @@ function RerunFlowModal({ open, fields, inputSchema, lastInput, providerId, runI
     </Modal>
   )
 }
-

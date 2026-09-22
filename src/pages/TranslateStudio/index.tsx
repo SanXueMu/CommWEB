@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AutoComplete, Button, Checkbox, Empty, Flex, Form, Input,
-  Select, Space, Tabs, Tag, Typography,
+  Select, Space, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
@@ -51,6 +51,14 @@ function Panel({ title, extra, children, style, bodyStyle }: { title?: ReactNode
     {(title || extra) && <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--cw-border)', fontWeight: 600 }}>{title}<span>{extra}</span></header>}
     <div style={{ padding: 12, ...bodyStyle }}>{children}</div>
   </section>
+}
+
+function TabsShim({ items, activeKey, onChange, style }: { items: { key: string; label: ReactNode; children: ReactNode }[]; activeKey?: string; onChange?: (key: string) => void; style?: React.CSSProperties }) {
+  const [internalKey, setInternalKey] = useState(activeKey ?? items[0]?.key ?? '')
+  const selectedKey = activeKey ?? internalKey
+  const select = (key: string) => { setInternalKey(key); onChange?.(key) }
+  const current = items.find((item) => item.key === selectedKey) ?? items[0]
+  return <div style={style}><div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--cw-border)', marginBottom: 12 }}>{items.map((item) => <button key={item.key} type="button" role="tab" aria-selected={item.key === selectedKey} onClick={() => select(item.key)}>{item.label}</button>)}</div>{current?.children}</div>
 }
 
 function errMsg(e: unknown): string {
@@ -459,7 +467,7 @@ export function TranslateStudio() {
           </div>
          </Panel>
 
-        <Tabs
+        <TabsShim
           style={{ flex: 1, minWidth: 0 }}
           items={[
             {
@@ -633,8 +641,8 @@ export function TranslateStudio() {
             {
               key: 'library', label: t.tabLibrary,
               children: (
-                <Tabs
-                  activeKey={libTab} onChange={setLibTab} size="small"
+                <TabsShim
+                  activeKey={libTab} onChange={setLibTab}
                   items={[
                     {
                       key: 'glossary', label: t.libGlossary,

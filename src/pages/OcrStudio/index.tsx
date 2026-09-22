@@ -487,7 +487,7 @@ export function OcrStudio() {
 
   // —— 选中结果库即自动就绪：装载默认视图（模版视图优先→回落第一个内置视图）——
   // 修复：此前必须先在「视图」页手动选一次视图，否则 specReady=false，预览/导出按钮全部不可点
-  const autoViewRef = useRef<string>()
+  const autoViewRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (!db || viewSpec || !props.viewTool) return
     if (autoViewRef.current === db) return
@@ -506,7 +506,7 @@ export function OcrStudio() {
   }, [db, viewSpec, props.viewTool, props.builtinViews, detail.data])
 
   // —— 记录到达后自动跑一次视图预览（所见即所得，进「视图」页直接有结果）——
-  const autoPreviewRef = useRef<string>()
+  const autoPreviewRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (!db || !specReady || !props.viewTool) return
     if (!(records.data?.rows ?? []).length) return

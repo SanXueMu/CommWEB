@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
 
 // 唯一出站通道：/api 经 proxy 到 CommAND，页面永不直连工具或数据库
@@ -13,7 +14,7 @@ export default defineConfig(({ mode }) => {
     .map(([id, url]) => [id.trim(), url.trim()] as const)
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },

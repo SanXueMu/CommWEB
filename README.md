@@ -15,6 +15,16 @@ npm test           # protocol 层纯函数测试
 
 CommAND 侧需先 `uv run main.py serve` 并 `uv run main.py register` 注册工具。
 
+## 技术栈迁移
+
+CommWEB 正在从 Ant Design 迁移到免费的 HeroUI OSS：
+
+```text
+React 19 + Vite 6 + HeroUI OSS 3 + Tailwind CSS 4
+```
+
+迁移期间暂时保留 Ant Design 依赖，按基础控件、业务组件、页面的顺序逐步替换。协议层只使用 CommWEB 自有的组件 ID，不直接依赖 HeroUI；最终 UI 库由渲染层适配。
+
 ## 架构（四层单向）
 
 ```
@@ -30,7 +40,8 @@ src/
 ├── protocol/     # ToolFace：resolver / widgets / renderers（纯函数，可单测）
 ├── components/   # AppHeader / DataListPanel（通用列表）/ HelpCardModal / ToolForm / EventStream / ResultRenderer / TaskDrawer
 ├── pages/        # ToolsHub（工具库）/ Tasks / ToolDetail（薄装配）
-└── theme/        # design tokens 三预设 + localStorage 持久化
+├── theme/        # design tokens 三预设 + localStorage 持久化
+└── ui/           # HeroUI 基础适配层（迁移中）
 ```
 
 ## 状态色板（与任务生命周期严格一致）

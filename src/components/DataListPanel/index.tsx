@@ -87,7 +87,7 @@ export function DataListPanel<T>({
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [checkedInternal, setCheckedInternal] = useState<React.Key[]>([])
-  const timer = useRef<number>()
+  const timer = useRef<number | undefined>(undefined)
   const pageSize = typeof pagination === 'object' ? (pagination.pageSize ?? 10) : 10
   const [collapsed, setCollapsed] = useState<boolean>(Boolean(collapsible?.defaultCollapsed))
 

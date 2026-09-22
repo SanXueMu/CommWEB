@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AutoComplete, Button, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message, theme } from 'antd'
+import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message, theme } from 'antd'
 import { DeleteOutlined, EyeOutlined, HistoryOutlined, ScanOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons'
 import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -64,8 +64,10 @@ function Alert({ message, type = 'info' }: { message: ReactNode; type?: string; 
   return <div role="alert" style={{ color: type === 'error' ? 'var(--cw-danger)' : 'var(--cw-text)', padding: '8px 10px', border: '1px solid currentColor', borderRadius: 6 }}>{message}</div>
 }
 
-function Table({ columns, dataSource = [], rowKey, loading, locale, rowClassName }: any) {
-  return <div style={{ overflowX: 'auto' }}>{loading ? <div style={{ padding: 24, textAlign: 'center' }}>加载中...</div> : <table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{columns.map((column: any) => <th key={String(column.key ?? column.dataIndex ?? column.title)} style={{ textAlign: 'left', padding: 8 }}>{column.title}</th>)}</tr></thead><tbody>{dataSource.map((row: any, index: number) => <tr key={String(typeof rowKey === 'function' ? rowKey(row) : row[rowKey ?? 'id'] ?? index)} className={rowClassName?.(row)}>{columns.map((column: any) => <td key={String(column.key ?? column.dataIndex ?? column.title)} style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{column.render ? column.render(column.dataIndex ? row[column.dataIndex] : undefined, row, index) : column.dataIndex ? row[column.dataIndex] as ReactNode : null}</td>)}</tr>)}</tbody>{dataSource.length === 0 && <tfoot><tr><td colSpan={columns.length} style={{ padding: 24, textAlign: 'center' }}>{locale?.emptyText ?? '暂无数据'}</td></tr></tfoot>}</table>}</div>
+const Empty = Object.assign(({ description, image: _image }: { description?: ReactNode; image?: unknown }) => <div style={{ padding: 24, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{description}</div>, { PRESENTED_IMAGE_SIMPLE: null })
+
+function Table({ columns, dataSource = [], rowKey, loading, locale, rowClassName, pagination }: any) {
+  return <div style={{ overflowX: 'auto' }}>{loading ? <div style={{ padding: 24, textAlign: 'center' }}>加载中...</div> : <><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{columns.map((column: any) => <th key={String(column.key ?? column.dataIndex ?? column.title)} style={{ textAlign: 'left', padding: 8 }}>{column.title}</th>)}</tr></thead><tbody>{dataSource.map((row: any, index: number) => <tr key={String(typeof rowKey === 'function' ? rowKey(row, index) : row[rowKey ?? 'id'] ?? index)} className={rowClassName?.(row)}>{columns.map((column: any) => <td key={String(column.key ?? column.dataIndex ?? column.title)} style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{column.render ? column.render(column.dataIndex ? row[column.dataIndex] : undefined, row, index) : column.dataIndex ? row[column.dataIndex] as ReactNode : null}</td>)}</tr>)}</tbody>{dataSource.length === 0 && <tfoot><tr><td colSpan={columns.length} style={{ padding: 24, textAlign: 'center' }}>{locale?.emptyText ?? '暂无数据'}</td></tr></tfoot>}</table>{pagination && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: 10, alignItems: 'center' }}><button type="button" disabled={pagination.current <= 1} onClick={() => pagination.onChange?.(pagination.current - 1)}>{'<'}</button><span>{pagination.showTotal?.(pagination.total ?? dataSource.length) ?? `${pagination.current}`}</span><button type="button" disabled={pagination.current * pagination.pageSize >= (pagination.total ?? dataSource.length)} onClick={() => pagination.onChange?.(pagination.current + 1)}>{'>'}</button></div>}</>}</div>
 }
 
 const RUNNING = new Set(['running', 'pending', 'queued'])

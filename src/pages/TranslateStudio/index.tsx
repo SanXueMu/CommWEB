@@ -17,10 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AutoComplete, Button, Checkbox, Empty, Flex, Form, Input,
-  Select, Space, Tag, Typography,
-} from 'antd'
+import { AutoComplete, Button, Checkbox, Empty, Form, Input, Select, Tag } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import type { BatchFileEntry } from '@/api/client'
@@ -60,6 +57,16 @@ function TabsShim({ items, activeKey, onChange, style }: { items: { key: string;
   const current = items.find((item) => item.key === selectedKey) ?? items[0]
   return <div style={style}><div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--cw-border)', marginBottom: 12 }}>{items.map((item) => <button key={item.key} type="button" role="tab" aria-selected={item.key === selectedKey} onClick={() => select(item.key)}>{item.label}</button>)}</div>{current?.children}</div>
 }
+
+function Space({ children, direction = 'horizontal', size = 8, style, wrap }: { children: ReactNode; direction?: 'horizontal' | 'vertical'; size?: number; style?: React.CSSProperties; wrap?: boolean }) {
+  return <div style={{ display: 'flex', flexDirection: direction === 'vertical' ? 'column' : 'row', gap: size, flexWrap: wrap ? 'wrap' : undefined, ...style }}>{children}</div>
+}
+
+function Flex({ children, gap = 8, justify, align, style, wrap }: { children: ReactNode; gap?: number; justify?: React.CSSProperties['justifyContent']; align?: React.CSSProperties['alignItems']; style?: React.CSSProperties; wrap?: boolean | string }) {
+  return <div style={{ display: 'flex', gap, justifyContent: justify, alignItems: align, flexWrap: wrap ? 'wrap' : undefined, ...style }}>{children}</div>
+}
+
+const Typography = { Text: ({ children, type, style, ...props }: { children: ReactNode; type?: string; style?: React.CSSProperties; [key: string]: unknown }) => <span style={{ color: type === 'secondary' ? 'var(--cw-text-secondary)' : type === 'danger' ? 'var(--cw-danger)' : type === 'warning' ? 'var(--cw-warning)' : undefined, ...style }} {...props}>{children}</span> }
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)

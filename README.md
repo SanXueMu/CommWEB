@@ -15,15 +15,15 @@ npm test           # protocol 层纯函数测试
 
 CommAND 侧需先 `uv run main.py serve` 并 `uv run main.py register` 注册工具。
 
-## 技术栈迁移
+## 技术栈
 
-CommWEB 正在从 Ant Design 迁移到免费的 HeroUI OSS：
+CommWEB 已完成从 Ant Design 到 HeroUI OSS 的整体迁移：
 
 ```text
 React 19 + Vite 6 + HeroUI OSS 3 + Tailwind CSS 4
 ```
 
-迁移期间暂时保留 Ant Design 依赖，按基础控件、业务组件、页面的顺序逐步替换。协议层只使用 CommWEB 自有的组件 ID，不直接依赖 HeroUI；最终 UI 库由渲染层适配。
+`antd` 与 `@ant-design/icons` 已彻底移除。业务组件经 `src/ui/`（HeroUI 适配入口）与 `src/ui/form.tsx`（表单适配层）使用 UI 库；协议层只使用 CommWEB 自有组件 ID，不直接依赖 HeroUI，UI 库由渲染层适配。
 
 ## 架构（四层单向）
 

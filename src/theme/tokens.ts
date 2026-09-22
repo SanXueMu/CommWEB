@@ -1,9 +1,9 @@
 /** design tokens：亮 / 暗 / 品牌三预设。品牌 = 公司深蓝 #202753 + 青绿 #3bb093。 */
 
-import { theme } from 'antd'
-import type { ThemeConfig } from 'antd'
-
 export type ThemeName = 'light' | 'dark' | 'brand'
+
+/** 合法主题名（主题偏好持久化校验用）。 */
+export const THEME_NAMES: ThemeName[] = ['light', 'dark', 'brand']
 
 /** 状态色板——组级基色（组语义由 CommAND /api/meta/statuses 下发）+ 值级覆盖（审美留前端）。 */
 export const STATUS_GROUP_COLORS: Record<string, string> = {
@@ -29,17 +29,3 @@ export const BRAND_INK: Record<ThemeName, string> = {
 
 /** 品牌青绿（徽标/流程类型）：三主题通用，深底浅底均可读。 */
 export const BRAND_TEAL = '#3bb093'
-
-const base: ThemeConfig = {
-  token: { borderRadius: 6, fontSize: 14 },
-}
-
-export const THEMES: Record<ThemeName, ThemeConfig> = {
-  light: { ...base, algorithm: theme.defaultAlgorithm },
-  dark: { ...base, algorithm: theme.darkAlgorithm },
-  brand: {
-    ...base,
-    algorithm: theme.defaultAlgorithm,
-    token: { ...base.token, colorPrimary: '#3bb093', colorInfo: '#202753' },
-  },
-}

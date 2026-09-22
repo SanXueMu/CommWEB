@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react'
-import { App as AntApp, ConfigProvider, theme as antdTheme, Typography } from 'antd'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppHeader } from '@/components/AppHeader'
 import { ConfirmProvider } from '@/components/ConfirmDialog'
 import { DialogProvider } from '@/components/DialogLayer'
 import { PORTAL } from '@/config/portal'
-import { useTheme } from '@/theme/store'
 import { WorkspaceProvider } from '@/workspace/store'
 import { TransferProvider, useProviders } from '@/transfer/context'
 import { Home } from '@/pages/Home'
@@ -17,35 +15,29 @@ import { viewComponent, viewDetailRoutes } from '@/protocol/views'
 function AppShell({ children }: { children: React.ReactNode }) {
   const { activeId } = useProviders()
   const location = useLocation()
-  const { message } = AntApp.useApp()
 
   useEffect(() => {
     const onRemoved = (e: Event) => {
       const id = (e as CustomEvent<{ id: string }>).detail?.id
-      message.warning(`所选会员已被移除${id ? `（${id}）` : ''}，请重新选择`)
+      console.warn(`所选会员已被移除${id ? `（${id}）` : ''}，请重新选择`)
     }
     window.addEventListener('commweb:member-removed', onRemoved)
     return () => window.removeEventListener('commweb:member-removed', onRemoved)
-  }, [message])
+  }, [])
 
   if (!activeId && location.pathname !== '/home') return <Navigate to="/home" replace />
   return <>{children}</>
 }
 
 function App() {
-  const { config } = useTheme()
   return (
-    <ConfigProvider theme={config}>
-      <AntApp>
-        <ConfirmProvider>
-          <TransferProvider>
-            <DialogProvider>
-              <SiteFrame />
-            </DialogProvider>
-          </TransferProvider>
-        </ConfirmProvider>
-      </AntApp>
-    </ConfigProvider>
+    <ConfirmProvider>
+      <TransferProvider>
+        <DialogProvider>
+          <SiteFrame />
+        </DialogProvider>
+      </TransferProvider>
+    </ConfirmProvider>
   )
 }
 
@@ -53,7 +45,6 @@ function App() {
 function SiteFrame() {
   const location = useLocation()
   const { site } = useSiteCatalog()
-  const { token } = antdTheme.useToken()
   const { activeId: activePid } = useProviders()
   const pidForViews = activePid ?? ''
   const detailPrefixes = site.navItems
@@ -65,7 +56,7 @@ function SiteFrame() {
   return (
     <AppShell>
     <WorkspaceProvider>
-    <div style={{ minHeight: '100vh', background: token.colorBgLayout }}>
+    <div style={{ minHeight: '100vh', background: 'var(--cw-fill)' }}>
       <AppHeader />
       <main
         style={{
@@ -98,9 +89,9 @@ function SiteFrame() {
           <Route path="*" element={<Navigate to={site.landing} replace />} />
         </Routes>
         {!isDetail && (
-          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 32 }}>
+          <span style={{ color: 'var(--cw-text-muted)', fontSize: 12, display: 'block', marginTop: 32 }}>
             {PORTAL.footer}
-          </Typography.Text>
+          </span>
         )}
       </main>
     </div>
@@ -114,11 +105,11 @@ export { App }
 function EmptySiteGuide() {
   return (
     <div style={{ textAlign: 'center', padding: '80px 0' }}>
-      <Typography.Title level={3} style={{ marginBottom: 8 }}>该会员尚未声明站点视图</Typography.Title>
-      <Typography.Text type="secondary">
-        CommWEB 不内置任何业务内容。视图集由会员经 <Typography.Text code>/meta/site</Typography.Text> 声明
+      <h3 style={{ marginBottom: 8 }}>该会员尚未声明站点视图</h3>
+      <span style={{ color: 'var(--cw-text-muted)' }}>
+        CommWEB 不内置任何业务内容。视图集由会员经 <code>/meta/site</code> 声明
         （存于会员的数据库，注册与每次热部署后生效）。
-      </Typography.Text>
+      </span>
     </div>
   )
 }

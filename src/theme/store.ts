@@ -1,19 +1,19 @@
 /** 主题偏好持久化（localStorage）——本项目唯一的 UI 态 store。
  *
- *  模块级单例 + useSyncExternalStore：App（ConfigProvider.theme）与 AppHeader（切换入口）
+ *  模块级单例 + useSyncExternalStore：App（根容器）与 AppHeader（切换入口）
  *  共享同一份状态。此前各组件各自 useState，点主题只改了切换器那份 → 视觉无反应。
  *  同时把主题名写到 <html data-theme>，供 index.css 中的暗色规则与原生控件取用。
  */
 
 import { useCallback, useSyncExternalStore } from 'react'
-import { THEMES, type ThemeName } from './tokens'
+import { THEME_NAMES, type ThemeName } from './tokens'
 
 const KEY = 'commweb.theme'
 
 function load(): ThemeName {
   try {
     const saved = localStorage.getItem(KEY)
-    return saved && saved in THEMES ? (saved as ThemeName) : 'light'
+    return saved && THEME_NAMES.includes(saved as ThemeName) ? (saved as ThemeName) : 'light'
   } catch {
     return 'light'
   }
@@ -48,7 +48,7 @@ function subscribe(listener: () => void): () => void {
 if (typeof window !== 'undefined') {
   // 多标签页同步：另一个标签改了主题，本标签跟随
   window.addEventListener('storage', (event) => {
-    if (event.key === KEY && event.newValue && event.newValue in THEMES && event.newValue !== current) {
+    if (event.key === KEY && event.newValue && THEME_NAMES.includes(event.newValue as ThemeName) && event.newValue !== current) {
       apply(event.newValue as ThemeName, false)
     }
   })
@@ -57,5 +57,5 @@ if (typeof window !== 'undefined') {
 export function useTheme() {
   const name = useSyncExternalStore(subscribe, () => current, () => current)
   const setTheme = useCallback((next: ThemeName) => apply(next), [])
-  return { name, setTheme, config: THEMES[name] }
+  return { name, setTheme }
 }

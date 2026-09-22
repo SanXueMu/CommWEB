@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography,
-  message, notification,
-} from 'antd'
-import {
-  DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, PauseOutlined, PlayCircleOutlined,
-  RedoOutlined, ReloadOutlined, UploadOutlined,
-} from '@ant-design/icons'
+import type { CSSProperties, ReactNode } from 'react'
+import { Button as HeroButton, Card as HeroCard, Input as HeroInput, Modal as HeroModal, Chip } from '@/ui'
 import { ProgressRing } from '@/components/ui/ProgressRing'
 import { useAdaptivePageSize } from '@/hooks/useAdaptivePageSize'
 import { apiFor } from '@/api/client'
@@ -18,6 +12,30 @@ import { runPool } from '@/protocol/pool'
 import { pollIntervalFor } from '@/protocol/polling'
 import { deleteRunOptions, deleteRunParams } from '@/protocol/confirm'
 import { useConfirm } from '@/components/ConfirmDialog'
+
+const DeleteOutlined = () => <>删除</>
+const DownloadOutlined = () => <>下载</>
+const EditOutlined = () => <>编辑</>
+const EyeOutlined = () => <>查看</>
+const PauseOutlined = () => <>暂停</>
+const PlayCircleOutlined = () => <>继续</>
+const RedoOutlined = () => <>重跑</>
+const ReloadOutlined = () => <>刷新</>
+const UploadOutlined = () => <>上传</>
+const message = { success: (text: string, ..._args: unknown[]) => console.info(text), error: (text: string, ..._args: unknown[]) => console.error(text), warning: (text: string, ..._args: unknown[]) => console.warn(text) }
+const notification = { error: ({ message: title, description }: { message: string; description: string; duration?: number }) => console.error(`${title}: ${description}`) }
+function Button({ children, onClick, disabled, loading, danger, type, icon, size }: any) { return <HeroButton size={size === 'small' ? 'sm' : undefined} variant={danger ? 'danger' : type === 'primary' ? 'primary' : undefined} isDisabled={disabled || loading} onClick={onClick}>{icon}{children}</HeroButton> }
+function Card({ title, extra, children }: any) { return <HeroCard><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><strong>{title}</strong>{extra}</div>{children}</HeroCard> }
+function Space({ children, size = 8, style, wrap }: { children: ReactNode; size?: number; style?: CSSProperties; wrap?: boolean }) { return <div style={{ display: 'flex', flexWrap: wrap ? 'wrap' : undefined, alignItems: 'center', gap: size, ...style }}>{children}</div> }
+function Select({ value, onChange, options, placeholder, style }: any) { return <select value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)} style={style}><option value="">{placeholder}</option>{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }
+function Tag({ children, color }: any) { return <Chip color={color === 'green' ? 'success' : color === 'red' || color === 'error' ? 'danger' : color === 'orange' || color === 'warning' ? 'warning' : color === 'blue' ? 'accent' : undefined}>{children}</Chip> }
+function Tooltip({ children, title }: any) { return <span title={typeof title === 'string' ? title : undefined}>{children}</span> }
+const Typography = { Text: ({ children, style }: any) => <span style={style}>{children}</span>, Paragraph: ({ children, style }: any) => <p style={style}>{children}</p> }
+function Popconfirm({ children, onConfirm }: any) { return <span onClick={(e) => { e.stopPropagation(); if (window.confirm('确认此操作？')) onConfirm() }}>{children}</span> }
+function Modal({ open, title, children, footer, onCancel, onOk, confirmLoading }: any) { if (!open) return null; return <HeroModal isOpen onOpenChange={(v) => !v && onCancel?.()}><HeroModal.Backdrop /><HeroModal.Container><HeroModal.Dialog><HeroModal.Header>{title}</HeroModal.Header><HeroModal.Body>{children}</HeroModal.Body><HeroModal.Footer>{footer ?? <><Button onClick={onCancel}>取消</Button><Button type="primary" loading={confirmLoading} onClick={onOk}>保存</Button></>}</HeroModal.Footer><HeroModal.CloseTrigger /></HeroModal.Dialog></HeroModal.Container></HeroModal> }
+function Table({ dataSource = [], columns, children, rowSelection, loading, pagination }: any) { const cols = columns ?? []; const childCols = children ? ([] as any[]).concat(children).filter(Boolean).map((c: any) => ({ title: c.props.title, dataIndex: c.props.dataIndex ?? c.key, render: c.props.render })) : cols; const pageSize = pagination?.pageSize ?? dataSource.length; return <div>{loading && <div>加载中...</div>}<table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{rowSelection && <th />}{childCols.map((c: any) => <th key={c.key ?? c.dataIndex} style={{ textAlign: 'left', padding: 6 }}>{c.title}</th>)}</tr></thead><tbody>{dataSource.slice(0, pageSize).map((row: any, i: number) => <tr key={row.id ?? row.run_id ?? i}>{rowSelection && <td><input type="checkbox" checked={rowSelection.selectedRowKeys?.includes(row.id)} onChange={() => rowSelection.onChange?.([row.id])} /></td>}{childCols.map((c: any) => <td key={c.key ?? c.dataIndex} style={{ padding: 6 }}>{c.render ? c.render(row[c.dataIndex], row) : String(row[c.dataIndex] ?? '')}</td>)}</tr>)}</tbody></table></div> }
+Table.Column = (_props: any) => null
+const Input = Object.assign(HeroInput, { TextArea: ({ value, onChange, style }: any) => <textarea rows={10} value={value} onChange={onChange} style={{ width: '100%', ...style }} /> })
 
 const RUNNING = new Set(['running', 'queued'])
 /** 可批量重跑的失败态（与服务端 PipelineService.RERUNNABLE_STATUSES 对齐；paused 走「继续」） */
@@ -617,16 +635,16 @@ export default function RunListPanel({
       <Modal title="修改任务参数" open={Boolean(editRun)}
         okText="保存" cancelText="取消" confirmLoading={patchInput.isPending}
         onOk={submitEdit} onCancel={() => setEditRun(null)} width={520}>
-        <Input.TextArea rows={10} value={editText} onChange={(e) => setEditText(e.target.value)}
+        <Input.TextArea rows={10} value={editText} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditText(e.target.value)}
           style={{ fontFamily: 'monospace', fontSize: 12 }} />
       </Modal>
       <div ref={tableBox as React.Ref<HTMLDivElement>}>
-      <Table<RunSummary>
+      <Table
         rowKey="id" size="small" loading={loading} dataSource={rows}
         pagination={{ size: 'small', pageSize, showSizeChanger: false }}
         scroll={{ x: 'max-content' }}
         locale={{ emptyText: emptyText ?? '暂无任务' }}
-        rowSelection={{ selectedRowKeys: picked, onChange: (keys) => setPicked(keys as string[]) }}
+        rowSelection={{ selectedRowKeys: picked, onChange: (keys: React.Key[]) => setPicked(keys as string[]) }}
         columns={columns}
       />
       </div>

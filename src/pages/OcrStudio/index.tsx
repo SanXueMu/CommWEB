@@ -15,7 +15,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Flex, Form, Image, List, Popconfirm, Popover, Segmented, Space, Spin, Tag, Tooltip, Typography, theme } from 'antd'
+import { Chip } from '@/ui'
+import { Form, useForm } from '@/ui/form'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { ApiError, apiFor } from '@/api/client'
@@ -71,6 +72,49 @@ function Select({ value, onChange, options = [], placeholder, style, disabled }:
 function AutoComplete({ value, onChange, options = [], placeholder, style }: any) { const id = `ocr-options-${options.length}`; return <><input list={id} value={value ?? ''} placeholder={placeholder} style={style} onChange={(e) => onChange?.(e.target.value)} /><datalist id={id}>{options.map((option: any) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</datalist></> }
 function Input({ value, onChange, placeholder, style }: any) { return <input value={value ?? ''} placeholder={placeholder} style={style} onChange={onChange} /> }
 Input.TextArea = function TextArea({ value, onChange, rows = 3, placeholder }: any) { return <textarea value={value ?? ''} rows={rows} placeholder={placeholder} onChange={onChange} style={{ width: '100%', resize: 'vertical' }} /> }
+
+function Button({ type, size, danger, loading, disabled, onClick, children, style, title }: { type?: string; size?: string; danger?: boolean; loading?: boolean; disabled?: boolean; onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void; children?: ReactNode; style?: React.CSSProperties; title?: string }) {
+  const base: React.CSSProperties = { border: 'none', background: 'transparent', cursor: disabled || loading ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, fontSize: size === 'small' ? 12 : 14, padding: 0, font: 'inherit', color: danger ? 'var(--cw-danger)' : undefined, ...style }
+  if (type === 'primary') return <button type="button" title={title} disabled={disabled || loading} onClick={onClick} style={{ padding: size === 'small' ? '3px 10px' : '6px 14px', borderRadius: 6, background: 'var(--cw-brand)', color: '#fff', border: 'none', cursor: disabled || loading ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, fontSize: size === 'small' ? 12 : 14, font: 'inherit', ...style }}>{loading ? '处理中...' : children}</button>
+  if (type === 'text' || type === 'link') return <button type="button" title={title} disabled={disabled || loading} onClick={onClick} style={base}>{loading ? '处理中...' : children}</button>
+  return <button type="button" title={title} disabled={disabled || loading} onClick={onClick} style={{ padding: size === 'small' ? '3px 10px' : '6px 14px', borderRadius: 6, border: '1px solid var(--cw-border)', background: 'transparent', color: danger ? 'var(--cw-danger)' : 'inherit', cursor: disabled || loading ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, fontSize: size === 'small' ? 12 : 14, font: 'inherit', ...style }}>{loading ? '处理中...' : children}</button>
+}
+
+function Space({ direction = 'horizontal', size = 8, wrap, style, children }: { direction?: string; size?: number; wrap?: boolean; style?: React.CSSProperties; children?: ReactNode }) {
+  return <div style={{ display: 'flex', flexDirection: direction === 'vertical' ? 'column' : 'row', gap: size, flexWrap: wrap ? 'wrap' : undefined, alignItems: direction === 'vertical' ? 'stretch' : 'center', ...style }}>{children}</div>
+}
+
+function Flex({ gap = 8, justify, align, wrap, style, children }: { gap?: number; justify?: string; align?: string; wrap?: boolean | string; style?: React.CSSProperties; children?: ReactNode }) {
+  return <div style={{ display: 'flex', gap, justifyContent: justify, alignItems: align, flexWrap: wrap ? 'wrap' : undefined, ...style }}>{children}</div>
+}
+
+const Typography = {
+  Text: ({ type, strong, ellipsis, style, children }: { type?: string; strong?: boolean; ellipsis?: boolean; style?: React.CSSProperties; children?: ReactNode }) => <span style={{ fontWeight: strong ? 600 : undefined, color: type === 'secondary' ? 'var(--cw-text-secondary)' : type === 'danger' ? 'var(--cw-danger)' : undefined, overflow: ellipsis ? 'hidden' : undefined, textOverflow: ellipsis ? 'ellipsis' : undefined, whiteSpace: ellipsis ? 'nowrap' : undefined, display: ellipsis ? 'inline-block' : undefined, verticalAlign: 'bottom', ...style }}>{children}</span>,
+  Paragraph: ({ type, style, children }: { type?: string; style?: React.CSSProperties; children?: ReactNode }) => <p style={{ color: type === 'secondary' ? 'var(--cw-text-secondary)' : undefined, margin: 0, ...style }}>{children}</p>,
+}
+
+function Spin({ size: _size }: { size?: string }) { return <span role="status">加载中...</span> }
+
+function Tooltip({ title, children }: { title?: ReactNode; children: ReactNode }) { return <span title={typeof title === 'string' ? title : undefined} style={{ display: 'inline-flex' }}>{children}</span> }
+
+function Segmented({ value, onChange, options, size: _size }: { value?: string; onChange?: (value: string) => void; options: { value: string; label: ReactNode }[]; size?: string }) {
+  return <span style={{ display: 'inline-flex', border: '1px solid var(--cw-border)', borderRadius: 6, overflow: 'hidden' }}>{options.map((option) => <button key={option.value} type="button" aria-pressed={value === option.value} onClick={() => onChange?.(option.value)} style={{ padding: '3px 10px', fontSize: 12, border: 'none', background: value === option.value ? 'var(--cw-brand)' : 'transparent', color: value === option.value ? '#fff' : 'inherit', cursor: 'pointer', font: 'inherit' }}>{option.label}</button>)}</span>
+}
+
+function Popconfirm({ title, onConfirm, children }: { title?: ReactNode; onConfirm?: () => void; children: ReactNode }) {
+  return <span onClick={() => { if (window.confirm(String(title ?? '确认操作？'))) onConfirm?.() }}>{children}</span>
+}
+
+function Popover({ title, content, children }: { title?: ReactNode; content?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return <span style={{ position: 'relative', display: 'inline-flex' }}>
+    <span onClick={() => setOpen((v) => !v)} style={{ display: 'inline-flex' }}>{children}</span>
+    {open && <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 100, background: 'var(--cw-surface)', border: '1px solid var(--cw-border)', borderRadius: 8, padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,.12)', minWidth: 240, maxWidth: 340 }}>
+      {title && <div style={{ fontWeight: 600, marginBottom: 8 }}>{title}</div>}
+      {content}
+    </div>}
+  </span>
+}
 
 function Modal({ title, open, onCancel, footer, width = 520, children }: { title?: ReactNode; open?: boolean; onCancel?: () => void; footer?: ReactNode; width?: number; children?: ReactNode }) {
   if (!open) return null
@@ -198,7 +242,7 @@ export function OcrStudio() {
   const [detailTpl, setDetailTpl] = useState<string | null>(null)
   const [pageView, setPageView] = useState<{ path: string; page: number } | null>(null)
   const [viewSpec, setViewSpec] = useState<string>()
-  const [extraForm] = Form.useForm()
+  const [extraForm] = useForm()
   // 批量识别：勾选清单逐文件各起一条识别任务（与单文件同模版、同级联参数）
   const batchCfg = props.batch
   const [batchOn, setBatchOn] = useState(false)
@@ -577,16 +621,15 @@ export function OcrStudio() {
     recognize: t.tabRecognize, records: t.tabRecords, runs: t.tabRuns, views: t.tabViews,
   }
   // Tab 导航样式对齐最外层 CommWEB 页眉（14px + 图标，激活主色/600 字重），底部指示条强化当前位置
-  const { token } = theme.useToken()
   const TAB_ICONS: Record<string, React.ReactNode> = {
     recognize: '识别', records: '记录', runs: '运行', views: '视图',
   }
   const tabNavStyle = (active: boolean): React.CSSProperties => ({
     display: 'inline-flex', alignItems: 'center', gap: 6,
     fontSize: 14, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
-    color: active ? token.colorPrimary : token.colorTextSecondary,
+    color: active ? 'var(--cw-brand)' : 'var(--cw-text-secondary)',
     fontWeight: active ? 600 : 400,
-    borderBottom: `2px solid ${active ? token.colorPrimary : 'transparent'}`,
+    borderBottom: `2px solid ${active ? 'var(--cw-brand)' : 'transparent'}`,
     paddingBottom: 4, lineHeight: '22px',
   })
 
@@ -654,9 +697,7 @@ export function OcrStudio() {
               )}
               rowActions={(d) => (
                 <Popconfirm
-                  title="删除该结果库？"
-                  description="连同模型原文留痕一并删除，不可恢复"
-                  okText="删除" okButtonProps={{ danger: true }} cancelText="取消"
+                  title="删除该结果库？连同模型原文留痕一并删除，不可恢复"
                   onConfirm={() => deleteDbMutation.mutate({ path: d.path })}
                 >
                   <Button size="small" type="text" danger>删除</Button>
@@ -697,13 +738,12 @@ export function OcrStudio() {
                           options={(templates.data?.templates ?? []).map((x) => ({ value: x.id, label: x.name ?? x.id }))}
                         />
                         {templateId && (
-                          <Popover
-                            trigger="click"
-                            content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
-                          >
-                            <Tooltip title={t.detail}><Button size="small">查看</Button></Tooltip>
-                          </Popover>
-                        )}
+                        <Popover
+                          content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
+                        >
+                          <Tooltip title={t.detail}><Button size="small">查看</Button></Tooltip>
+                        </Popover>
+                      )}
                         <Tooltip title={t.manage}>
                           <Button
                             size="small"
@@ -777,16 +817,17 @@ export function OcrStudio() {
                         <FileUpload value={file ?? undefined} onChange={setFile} />
                       )}
                       {Object.keys(extraProperties).length > 0 && (
-                        <Form form={extraForm} layout="vertical" initialValues={Object.fromEntries(
+                        <Form form={extraForm} initialValues={Object.fromEntries(
                           Object.entries(extraProperties).map(([k, v]) => [k, v.default]),
                         )} style={{ borderTop: '1px solid var(--cw-border)', paddingTop: 8 }}>
                           <Flex gap={8} wrap="wrap" align="flex-end">
                             {Object.entries(extraProperties).map(([key, schema]) => (
-                              <Form.Item key={key} name={key} label={(schema.title as string) ?? key}
-                                style={{ minWidth: 'min(200px, 100%)', marginBottom: 8 }}
-                                valuePropName={Array.isArray(schema.type) && schema.type.includes('boolean') || schema.type === 'boolean' ? 'checked' : undefined}>
-                                {renderExtraControl(schema, keyOptions)}
-                              </Form.Item>
+                              <div key={key} style={{ minWidth: 'min(200px, 100%)' }}>
+                                <Form.Item name={key} label={(schema.title as string) ?? key}
+                                  valuePropName={Array.isArray(schema.type) && schema.type.includes('boolean') || schema.type === 'boolean' ? 'checked' : undefined}>
+                                  {renderExtraControl(schema, keyOptions)}
+                                </Form.Item>
+                              </div>
                             ))}
                           </Flex>
                         </Form>
@@ -938,26 +979,18 @@ export function OcrStudio() {
                       {exportFile && <DownloadButton path={exportFile} label={t.download} />}
                       <Button size="small" disabled={!specReady} onClick={() => setSaveViewOpen(true)}>{t.saveMyView}</Button>
                       <Popover
-                        trigger="click"
                         title={t.myViews}
                         content={(
-                          <List
-                            size="small" style={{ width: 300 }}
-                            loading={myViews.isLoading}
-                            dataSource={myViews.data?.views ?? []}
-                            locale={{ emptyText: t.myViewsEmpty }}
-                            renderItem={(v: { id: string; name: string }) => (
-                              <List.Item
-                                actions={[
-                                  <Popconfirm key="del" title={t.myViewDelConfirm} onConfirm={() => deleteViewMutation.mutate(v.id)}>
-                                    <Button size="small" type="link" danger>{t.myViewDel}</Button>
-                                  </Popconfirm>,
-                                ]}
-                              >
+                          <div style={{ width: 300 }}>
+                            {myViews.isLoading ? <div role="status">加载中...</div> : (myViews.data?.views ?? []).length === 0 ? <div style={{ padding: 12, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{t.myViewsEmpty}</div> : (myViews.data?.views ?? []).map((v: { id: string; name: string }) => (
+                              <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid var(--cw-border)' }}>
                                 <Typography.Text ellipsis style={{ maxWidth: 200 }}>{v.name}</Typography.Text>
-                              </List.Item>
-                            )}
-                          />
+                                <Popconfirm title={t.myViewDelConfirm} onConfirm={() => deleteViewMutation.mutate(v.id)}>
+                                  <Button size="small" type="link" danger>{t.myViewDel}</Button>
+                                </Popconfirm>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       >
                         <Button size="small">{t.manageMyViews}</Button>
@@ -1013,10 +1046,10 @@ export function OcrStudio() {
         width={720}
       >
         {pageView && (
-          <Image
+          <img
             src={api.pageUrl(pageView.path, pageView.page)}
-            fallback="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=="
-            style={{ maxHeight: 520, objectFit: 'contain' }}
+            alt={`p.${pageView.page}`}
+            style={{ maxHeight: 520, objectFit: 'contain', maxWidth: '100%' }}
           />
         )}
       </Modal>
@@ -1063,7 +1096,7 @@ export function OcrStudio() {
   )
 }
 
-/** 模板增量输入控件（JSON Schema → antd 控件的最小映射）。 */
+/** 模板增量输入控件（JSON Schema → 页面控件的最小映射）。 */
 function renderExtraControl(schema: Record<string, unknown>, keyOptions?: { value: string; label: string }[]) {
   // 密钥类字段：**只能从已录入的密钥里选**（手写错名会让任务白白重试后失败）
   if ((schema.format as string) === 'keys' || (schema.title as string)?.includes('密钥')) {
@@ -1093,14 +1126,14 @@ function TemplateDetailPanel({ detail, loading }: { detail?: TplDetail; loading:
       <div style={{ marginTop: 8 }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.fieldsLabel}</Typography.Text>
         <div style={{ marginTop: 4 }}>
-          {(detail.fields ?? []).map((f) => <Tag key={f} style={{ marginBottom: 4 }}>{f}</Tag>)}
+          {(detail.fields ?? []).map((f) => <Chip key={f} style={{ marginBottom: 4 }}>{f}</Chip>)}
           {(detail.fields ?? []).length === 0 && <Typography.Text type="secondary">—</Typography.Text>}
         </div>
       </div>
       {(detail.hooks?.length ?? 0) > 0 && (
         <div style={{ marginTop: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.hooksLabel}</Typography.Text>
-          <div>{detail.hooks!.map((h) => <Tag key={h.name} color="blue" style={{ marginBottom: 4 }}>{h.name}</Tag>)}</div>
+          <div>{detail.hooks!.map((h) => <Chip key={h.name} style={{ marginBottom: 4 }}>{h.name}</Chip>)}</div>
         </div>
       )}
       {detail.prompt_template && (

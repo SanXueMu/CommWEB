@@ -2,7 +2,6 @@
  *  「点进详情先看介绍」的标准装配——ToolDetail / FlowDetail 共用，禁止再手搓详情头。
  *  sections 支持标题/正文分级，content 可嵌套 LifeFlow / 表格等小页面组件（组件嵌套复用）。 */
 
-import { Space, Typography } from 'antd'
 import type { ReactNode } from 'react'
 import { PanelCard } from '@/components/ui/PanelCard'
 
@@ -33,35 +32,31 @@ export function EntityDetailLayout({
   children?: ReactNode
 }) {
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
       <PanelCard>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <Space size={8}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+          <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {workspaceAction}
-            <Typography.Title level={4} style={{ margin: 0 }}>{title}</Typography.Title>
+            <h4 style={{ fontSize: 20, lineHeight: 1.4, margin: 0 }}>{title}</h4>
             {tags}
-          </Space>
-          {description && <Typography.Text type="secondary">{description}</Typography.Text>}
+          </div>
+          {description && <div style={{ color: 'var(--cw-text-secondary)' }}>{description}</div>}
           {meta}
-        </Space>
+        </div>
       </PanelCard>
       {sections?.map((s, i) => (
-        <Space direction="vertical" size={8} style={{ width: '100%' }} key={s.heading ?? i}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }} key={s.heading ?? i}>
           {s.heading &&
             (s.level === 1 ? (
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                {s.heading}
-              </Typography.Title>
+              <h5 style={{ fontSize: 16, lineHeight: 1.4, margin: 0 }}>{s.heading}</h5>
             ) : (
-              <Typography.Text type="secondary" strong>
-                {s.heading}
-              </Typography.Text>
+              <strong style={{ color: 'var(--cw-text-secondary)' }}>{s.heading}</strong>
             ))}
           {s.content}
-        </Space>
+        </div>
       ))}
       {docs}
       {children}
-    </Space>
+    </div>
   )
 }

@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, List, Popconfirm, Popover, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, theme } from 'antd'
+import { Button, Descriptions, Flex, Form, Image, Input, List, Popconfirm, Popover, Segmented, Space, Spin, Tag, Tooltip, Typography, theme } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { ApiError, apiFor } from '@/api/client'
@@ -66,6 +66,9 @@ const Empty = Object.assign(({ description, image: _image }: { description?: Rea
 const message = { success: (text: string) => console.info(text), error: (text: string) => console.error(text), warning: (text: string) => console.warn(text) }
 function Switch({ checked, onChange }: { checked?: boolean; onChange?: (checked: boolean) => void }) { return <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange?.(e.target.checked)} /> }
 function InputNumber({ value, onChange, style }: { value?: number; onChange?: (value: number | null) => void; style?: React.CSSProperties }) { return <input type="number" value={value ?? ''} style={style} onChange={(e) => onChange?.(e.target.value === '' ? null : Number(e.target.value))} /> }
+function Checkbox({ checked, onChange, children }: { checked?: boolean; onChange?: (event: { target: { checked: boolean } }) => void; children?: ReactNode }) { return <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={checked} onChange={(e) => onChange?.({ target: { checked: e.target.checked } })} />{children}</label> }
+function Select({ value, onChange, options = [], placeholder, style, disabled }: any) { return <select value={value ?? ''} disabled={disabled} style={style} onChange={(e) => onChange?.(e.target.value)}><option value="">{placeholder ?? '请选择'}</option>{options.map((option: any) => <option key={String(option.value ?? option.label)} value={String(option.value ?? '')}>{option.label}</option>)}</select> }
+function AutoComplete({ value, onChange, options = [], placeholder, style }: any) { const id = `ocr-options-${options.length}`; return <><input list={id} value={value ?? ''} placeholder={placeholder} style={style} onChange={(e) => onChange?.(e.target.value)} /><datalist id={id}>{options.map((option: any) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</datalist></> }
 
 function Modal({ title, open, onCancel, footer, width = 520, children }: { title?: ReactNode; open?: boolean; onCancel?: () => void; footer?: ReactNode; width?: number; children?: ReactNode }) {
   if (!open) return null
@@ -687,7 +690,7 @@ export function OcrStudio() {
                           style={{ minWidth: 'min(260px, 100%)', flex: 1 }}
                           placeholder={t.templatePlaceholder}
                           value={templateId}
-                          onChange={(id) => { setTemplateId(id); setDetailTpl(id); extraForm.resetFields() }}
+                           onChange={(id: string) => { setTemplateId(id); setDetailTpl(id); extraForm.resetFields() }}
                           loading={templates.isLoading}
                           options={(templates.data?.templates ?? []).map((x) => ({ value: x.id, label: x.name ?? x.id }))}
                         />
@@ -846,7 +849,7 @@ export function OcrStudio() {
                       <Select
                         allowClear size="small" style={{ minWidth: 160 }} placeholder={t.scopeAll}
                         value={scope} options={fileOptions.map((f) => ({ value: f, label: f }))}
-                        onChange={(v) => { setScope(v); setPageNum(1) }}
+                         onChange={(v: string) => { setScope(v); setPageNum(1) }}
                       />
                       {db && props.exportFlow && props.records?.export !== false && (
                         <Button size="small" loading={exportMutation.isPending} disabled={!specReady} onClick={() => exportMutation.mutate()}>{t.export}</Button>

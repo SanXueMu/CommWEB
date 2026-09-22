@@ -664,11 +664,9 @@ export function TranslateStudio() {
                       children: (
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
                           <Space wrap>
-                            <Input.Search style={{ width: 260 }} placeholder={t.dictSearch} allowClear onSearch={(v) => { setDictQ(v); setDictPage(1) }} />
-                            <Select allowClear style={{ width: 140 }} placeholder={t.colStatus} value={dictStatus} onChange={(v) => { setDictStatus(v); setDictPage(1) }}
-                              options={[{ value: 'ok', label: t.statOk }, { value: 'review', label: t.statReview }]} />
-                            <Select allowClear style={{ width: 160 }} placeholder={t.colModel} value={dictModel} onChange={(v) => { setDictModel(v); setDictPage(1) }}
-                              options={dictModels.map((m) => ({ value: m, label: m }))} />
+                            <input style={{ width: 260 }} placeholder={t.dictSearch} value={dictQ} onChange={(e) => { setDictQ(e.target.value); setDictPage(1) }} />
+                            <select style={{ width: 140 }} value={dictStatus} onChange={(e) => { setDictStatus(e.target.value); setDictPage(1) }}><option value="">{t.colStatus}</option><option value="ok">{t.statOk}</option><option value="review">{t.statReview}</option></select>
+                            <select style={{ width: 160 }} value={dictModel} onChange={(e) => { setDictModel(e.target.value); setDictPage(1) }}><option value="">{t.colModel}</option>{dictModels.map((model) => <option key={model} value={model}>{model}</option>)}</select>
                             {dict.data?.stats && <Typography.Text type="secondary">{t.statOk} {dict.data.stats.ok} · {t.statReview} {dict.data.stats.review}</Typography.Text>}
                           </Space>
                            {dict.isLoading ? <div role="status">加载中...</div> : (dict.data?.rows ?? []).length === 0 ? <div style={{ padding: 16, color: 'var(--cw-text-secondary)' }}>{t.dictEmpty}</div> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{[t.colSource, t.colTarget, t.colModel, t.colStatus].map((title) => <th key={title} style={{ textAlign: 'left', padding: 8 }}>{title}</th>)}</tr></thead><tbody>{(dict.data?.rows ?? []).map((row, index) => <tr key={`${row.source}-${index}`}><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{row.source}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{row.translated}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{row.model}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}><span className="cw-chip">{row.status}</span></td></tr>)}</tbody></table></div>}

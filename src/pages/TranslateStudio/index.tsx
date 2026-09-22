@@ -17,7 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AutoComplete, Button, Checkbox, Empty, Form, Input, Select, Tag } from 'antd'
+import { AutoComplete, Form, Input, Select, Tag } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import type { BatchFileEntry } from '@/api/client'
@@ -67,6 +67,16 @@ function Flex({ children, gap = 8, justify, align, style, wrap }: { children: Re
 }
 
 const Typography = { Text: ({ children, type, style, ...props }: { children: ReactNode; type?: string; style?: React.CSSProperties; [key: string]: unknown }) => <span style={{ color: type === 'secondary' ? 'var(--cw-text-secondary)' : type === 'danger' ? 'var(--cw-danger)' : type === 'warning' ? 'var(--cw-warning)' : undefined, ...style }} {...props}>{children}</span> }
+
+function Button({ children, type, size, danger, loading, disabled, onClick, style }: { children: ReactNode; type?: string; size?: string; danger?: boolean; loading?: boolean; disabled?: boolean; onClick?: React.MouseEventHandler<HTMLButtonElement>; style?: React.CSSProperties }) {
+  return <button type="button" disabled={disabled || loading} onClick={onClick} style={{ color: danger ? 'var(--cw-danger)' : type === 'primary' ? 'var(--cw-brand)' : undefined, fontSize: size === 'large' ? 16 : undefined, ...style }}>{loading ? '处理中...' : children}</button>
+}
+
+function Checkbox({ checked, disabled, onChange, children }: { checked?: boolean; disabled?: boolean; onChange?: (event: { target: { checked: boolean } }) => void; children?: ReactNode }) {
+  return <label><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange?.({ target: { checked: event.target.checked } })} /> {children}</label>
+}
+
+const Empty = Object.assign(({ description, image: _image }: { description?: ReactNode; image?: unknown }) => <div style={{ padding: 24, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{description}</div>, { PRESENTED_IMAGE_SIMPLE: null })
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)

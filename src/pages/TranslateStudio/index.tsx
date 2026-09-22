@@ -15,10 +15,10 @@
  *  languages?: { value: string; label: string }[]
  *  description?: string
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Button, Card, Checkbox, Empty, Flex, Form, Input, Tooltip,
+  Alert, AutoComplete, Button, Checkbox, Empty, Flex, Form, Input, Tooltip,
   Progress, Segmented, Select, Space, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -45,6 +45,13 @@ import { StepTrack } from '@/components/StepTrack'
 import { TaskFloat, RunDetail, UsagePanel, aggregate } from '@/components/RunWidgets'
 import { SettingsKeys } from '@/components/SettingsKeys'
 import { Button as UiButton, Modal } from '@/ui'
+
+function Panel({ title, extra, children, style, bodyStyle }: { title?: ReactNode; extra?: ReactNode; children: ReactNode; style?: React.CSSProperties; bodyStyle?: React.CSSProperties }) {
+  return <section style={{ border: '1px solid var(--cw-border)', borderRadius: 8, background: 'var(--cw-surface)', overflow: 'hidden', ...style }}>
+    {(title || extra) && <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--cw-border)', fontWeight: 600 }}>{title}<span>{extra}</span></header>}
+    <div style={{ padding: 12, ...bodyStyle }}>{children}</div>
+  </section>
+}
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -425,7 +432,7 @@ export function TranslateStudio() {
   }
 
   return (
-    <Card
+    <Panel
       title={t.title}
       extra={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -441,7 +448,7 @@ export function TranslateStudio() {
       )}
       <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', minHeight: 480 }}>
         {/* 模板侧栏 */}
-        <Card size="small" title={t.sidebar} style={{ width: 260, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
+         <Panel title={t.sidebar} style={{ width: 260, flexShrink: 0 }} bodyStyle={{ padding: 0 }}>
           <div style={{ minHeight: 120 }}>
             {templates.isLoading ? <div role="status">加载中...</div> : tplList.length === 0 ? <div style={{ padding: 16, color: 'var(--cw-text-secondary)' }}>{t.sidebarEmpty}</div> : tplList.map((tpl) => (
               <div key={tpl.id} style={{ cursor: 'pointer', padding: '8px 12px', background: tpl.id === templateId ? 'rgba(91,141,239,0.10)' : undefined, display: 'flex', justifyContent: 'space-between', gap: 8 }} onClick={() => selectTemplate(tpl)}>
@@ -450,7 +457,7 @@ export function TranslateStudio() {
               </div>
             ))}
           </div>
-        </Card>
+         </Panel>
 
         <Tabs
           style={{ flex: 1, minWidth: 0 }}
@@ -459,7 +466,7 @@ export function TranslateStudio() {
               key: 'translate', label: t.tabTranslate,
               children: (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <Card size="small" title={t.runConfig}>
+                  <Panel title={t.runConfig}>
                     {batchSpec && (
                       <Segmented
                         block style={{ marginBottom: 12 }}
@@ -610,16 +617,16 @@ export function TranslateStudio() {
                         </div>
                       )}
                     </div>
-                  </Card>
+                  </Panel>
                   {activeRun && activeStatus && (
-                    <Card size="small" title={t.runStatus}>
+                    <Panel title={t.runStatus}>
                       <StepTrack runId={activeRun} steps={steps} runStatus={activeStatus} />
                       {activeStatus === 'failed' && (
                         <Alert type="error" showIcon style={{ marginTop: 8 }}
                           message={(activeDetail.data?.run.error as { message?: string } | null)?.message ?? t.runFailed} />
                       )}
                       <UsagePanel usage={activeUsage} />
-                    </Card>
+                    </Panel>
                   )}
                 </Space>
               ),
@@ -672,9 +679,9 @@ export function TranslateStudio() {
                     {
                       key: 'templates', label: t.libTemplates,
                       children: (
-                        <Card size="small" extra={<Button size="small" onClick={() => openEditor(null)}>＋ {t.newTemplate}</Button>}>
+                        <Panel extra={<Button size="small" onClick={() => openEditor(null)}>＋ {t.newTemplate}</Button>}>
                           <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{[t.colName, t.colLangPair, t.colTermsCount, t.colModel, t.colActions].map((title) => <th key={title} style={{ textAlign: 'left', padding: 8 }}>{title}</th>)}</tr></thead><tbody>{tplList.map((r) => <tr key={r.id}><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.name}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.source_lang}→{r.target_lang}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.terms_count ?? r.terms?.length ?? 0}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.model ?? '—'}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}><button type="button" onClick={() => openEditor(r)}>{t.edit}</button> <button type="button" onClick={() => { if (window.confirm(t.confirmDeleteTpl)) delTplMutation.mutate(r.id) }}>{t.remove}</button></td></tr>)}</tbody></table></div>
-                        </Card>
+                        </Panel>
                       ),
                     },
                   ]}
@@ -731,7 +738,7 @@ export function TranslateStudio() {
       </aside>}
 
       <TaskFloat runs={runningRuns} onOpen={setDetailRun} title="翻译进行中" />
-    </Card>
+    </Panel>
   )
 }
 

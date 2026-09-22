@@ -1,8 +1,8 @@
 /** 通用筛选侧栏：分组数据驱动，CheckableTag 云形态 + 清空入口。
  *  ToolsHub / Tasks 等列表页共用，禁止再手搓 aside。 */
 
-import { Tag, Typography } from 'antd'
 import { PORTAL } from '@/config/portal'
+import { Button } from '@/ui'
 
 /** 标签归一：trim 去空、大小写变体聚合保首个、中文拼音序。 */
 export function normalizeTags(tags: string[]): string[] {
@@ -43,34 +43,32 @@ export function FilterSidebar({ groups, onClear, width = 168 }: {
     >
       {groups.map((group, gi) => (
         <div key={group.title} style={{ marginBottom: gi < groups.length - 1 ? 16 : 0 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          <div style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
             {group.title}
-          </Typography.Text>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
             {group.items.map((tag) => (
-              <Tag.CheckableTag
+              <Button
                 key={tag}
-                checked={group.selected.includes(tag)}
-                onChange={() => group.onToggle(tag)}
+                size="sm"
+                variant={group.selected.includes(tag) ? 'primary' : 'tertiary'}
+                onClick={() => group.onToggle(tag)}
               >
                 {tag}
-              </Tag.CheckableTag>
+              </Button>
             ))}
             {group.items.length === 0 && (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              <div style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
                 {group.emptyText ?? PORTAL.empty.noTags}
-              </Typography.Text>
+              </div>
             )}
           </div>
         </div>
       ))}
       {hasSelection && onClear && (
-        <Typography.Link
-          style={{ fontSize: 12, marginTop: 8, display: 'inline-block' }}
-          onClick={onClear}
-        >
+        <button type="button" style={{ background: 'none', border: 0, color: 'var(--cw-primary)', cursor: 'pointer', fontSize: 12, marginTop: 8, padding: 0 }} onClick={onClear}>
           {PORTAL.sidebar.clear}
-        </Typography.Link>
+        </button>
       )}
     </aside>
   )

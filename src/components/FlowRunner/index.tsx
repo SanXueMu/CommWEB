@@ -2,7 +2,7 @@
  *  页面（FlowDetail）与工作区（FlowSession）共用，禁止再自绘流运行 UI。 */
 
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Alert, Button, Card, Form, Modal, Space, Typography } from 'antd'
+import { Alert, Button, Card, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { AuditTimeline } from '@/components/AuditTimeline'
@@ -18,6 +18,8 @@ import type { FlowField } from '@/protocol/flow'
 import type { FormField } from '@/protocol/resolver'
 import { resolveForm } from '@/protocol/resolver'
 import { useActivePid } from '@/transfer/context'
+import { Modal } from '@/ui'
+import { Form, useForm } from '@/ui/form'
 
 interface FlowLike {
   id: string
@@ -172,8 +174,7 @@ function RerunFlowModal({ open, fields, inputSchema, lastInput, providerId, runI
   onClose: () => void
   onRerun: (newRunId: string) => void
 }) {
-  const [form] = Form.useForm()
-  const { message } = AntApp.useApp()
+  const [form] = useForm()
   const [submitting, setSubmitting] = useState(false)
   const queryClient = useQueryClient()
 
@@ -182,36 +183,37 @@ function RerunFlowModal({ open, fields, inputSchema, lastInput, providerId, runI
     try {
       const created = await apiFor(providerId).rerunRun(runId, values)
       queryClient.invalidateQueries({ queryKey: ['provider', providerId, 'runSnapshot', created.run_id] })
-      message.success(`${PORTAL.workspace.rerunFlowSuccessPrefix}${created.run_id.slice(0, 14)}…`)
+      console.info(`${PORTAL.workspace.rerunFlowSuccessPrefix}${created.run_id.slice(0, 14)}…`)
       onRerun(created.run_id)
     } catch (err) {
-      message.error(`重跑失败：${(err as Error).message ?? err}`)
+      console.error(`重跑失败：${(err as Error).message ?? err}`)
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Modal
-      title={PORTAL.workspace.rerunFlowTitle}
-      open={open}
-      onCancel={onClose}
-      onOk={() => form.submit()}
-      confirmLoading={submitting}
-      okText={PORTAL.workspace.rerunFlowOk}
-      destroyOnHidden
-    >
-      <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+    <Modal isOpen={open}>
+      <Modal.Backdrop />
+      <Modal.Container>
+        <Modal.Dialog>
+          <Modal.Header>{PORTAL.workspace.rerunFlowTitle}</Modal.Header>
+          <Modal.Body>
+      <p style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
         {PORTAL.workspace.rerunFlowHint}
-      </Typography.Paragraph>
-      <Form form={form} layout="vertical" initialValues={lastInput} onFinish={submit}>
+      </p>
+      <Form form={form} initialValues={lastInput} onFinish={submit}>
         <FormBody fields={fields} cascade={cascadeOf(inputSchema)} providerId={providerId} />
       </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outlined" onClick={onClose}>取消</Button>
+            <Button variant="solid" disabled={submitting} onClick={() => form.submit()}>{PORTAL.workspace.rerunFlowOk}</Button>
+          </Modal.Footer>
+          <Modal.CloseTrigger />
+        </Modal.Dialog>
+      </Modal.Container>
     </Modal>
   )
 }
-
-
-
-
 

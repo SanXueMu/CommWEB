@@ -62,15 +62,19 @@ export function useWatch(name: FieldName, form: FormInstance = useFormInstance()
   return form._getField(name)
 }
 
-export function Form({ form: externalForm, onFinish, children, style }: {
+export function Form({ form: externalForm, onFinish, initialValues, children, style }: {
   form?: FormInstance
   onFinish?: (values: Record<string, unknown>) => void | Promise<void>
   children: ReactNode
   style?: React.CSSProperties
   layout?: 'vertical' | 'horizontal'
+  initialValues?: Record<string, unknown>
 }) {
   const [internalForm] = useForm()
   const form = externalForm ?? internalForm
+  useEffect(() => {
+    if (initialValues) form.setFieldsValue(initialValues)
+  }, [form, initialValues])
   const context = useMemo<FormContextValue>(() => ({
     form,
     setSubmitHandler: (handler) => { (form as FormInstance & { _submitHandler?: () => void })._submitHandler = handler },

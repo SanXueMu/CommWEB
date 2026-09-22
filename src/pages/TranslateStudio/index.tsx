@@ -428,23 +428,18 @@ export function TranslateStudio() {
     <Card
       title={t.title}
       extra={
-        <Space>
-          <Typography.Text type="secondary">{t.topTemplate}</Typography.Text>
-          <Select
-            style={{ minWidth: 220 }} placeholder={t.templatePlaceholder} value={templateId}
-            loading={templates.isLoading}
-            options={tplList.map((x) => ({ value: x.id, label: `${x.name}${x.builtin ? t.builtinTag : ''}` }))}
-            onChange={(id) => { const tpl = tplList.find((x) => x.id === id); if (tpl) selectTemplate(tpl) }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ color: 'var(--cw-text-secondary)' }}>{t.topTemplate}</span>
+          <select style={{ minWidth: 220 }} value={templateId} onChange={(e) => { const tpl = tplList.find((x) => x.id === e.target.value); if (tpl) selectTemplate(tpl) }}><option value="">{t.templatePlaceholder}</option>{tplList.map((x) => <option key={x.id} value={x.id}>{x.name}{x.builtin ? t.builtinTag : ''}</option>)}</select>
            <Button size="small" onClick={() => openEditor(null)}>＋ {t.newTemplate}</Button>
            {settingsPath && <Button size="small" onClick={() => setKeysOpen(true)}>密钥：{t.keys}</Button>}
-        </Space>
+        </div>
       }
     >
       {props.description && (
-        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>{props.description}</Typography.Paragraph>
+        <p style={{ color: 'var(--cw-text-secondary)', marginTop: 0 }}>{props.description}</p>
       )}
-      <Flex gap={16} align="stretch" style={{ minHeight: 480 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', minHeight: 480 }}>
         {/* 模板侧栏 */}
         <Card size="small" title={t.sidebar} style={{ width: 260, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
           <div style={{ minHeight: 120 }}>
@@ -688,7 +683,7 @@ export function TranslateStudio() {
             },
           ]}
         />
-      </Flex>
+      </div>
 
       {/* 任务详情抽屉 */}
       {detailRun && <aside role="dialog" aria-label={t.detailTitle} style={{ position: 'fixed', zIndex: 30, inset: '0 0 0 auto', width: 'min(720px, 100vw)', overflow: 'auto', background: 'var(--cw-surface)', borderLeft: '1px solid var(--cw-border)', padding: 20, boxShadow: '-8px 0 24px rgba(0,0,0,.16)' }}>

@@ -18,8 +18,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Button, Checkbox, Empty, Flex, Form, Input, Tooltip,
-  Progress, Segmented, Select, Space, Tabs, Tag, Typography,
+  Alert, AutoComplete, Button, Checkbox, Empty, Flex, Form, Input,
+  Progress, Select, Space, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
@@ -468,12 +468,7 @@ export function TranslateStudio() {
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                   <Panel title={t.runConfig}>
                     {batchSpec && (
-                      <Segmented
-                        block style={{ marginBottom: 12 }}
-                        value={batchOn ? 'batch' : 'single'}
-                        onChange={(v) => setBatchOn(v === 'batch')}
-                        options={[{ value: 'single', label: t.modeSingle }, { value: 'batch', label: t.modeBatch }]}
-                      />
+                      <div role="group" aria-label="翻译模式" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 12 }}><button type="button" aria-pressed={!batchOn} onClick={() => setBatchOn(false)}>{t.modeSingle}</button><button type="button" aria-pressed={batchOn} onClick={() => setBatchOn(true)}>{t.modeBatch}</button></div>
                     )}
                     {batchOn ? (
                       <>
@@ -490,14 +485,7 @@ export function TranslateStudio() {
                         {pdfModes.length > 0 && (
                           <Space size={8} style={{ marginTop: 10 }} wrap>
                             <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.pdfMode}</Typography.Text>
-                            <Segmented
-                              size="small" value={pdfMode}
-                              onChange={(v) => setPdfMode(v as 'auto' | 'text' | 'image')}
-                              options={pdfModes.map((m) => ({
-                                value: m.value,
-                                label: <Tooltip title={m.hint}>{m.label}</Tooltip>,
-                              }))}
-                            />
+                            <span role="group" aria-label={t.pdfMode} style={{ display: 'flex', gap: 4 }}>{pdfModes.map((mode) => <button key={mode.value} type="button" title={mode.hint} aria-pressed={pdfMode === mode.value} onClick={() => setPdfMode(mode.value)}>{mode.label}</button>)}</span>
                           </Space>
                         )}
                         {batchList.length > 0 && (

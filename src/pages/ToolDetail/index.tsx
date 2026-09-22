@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Card, Descriptions, Spin, Table, Tag, Typography } from 'antd'
+import { Card, Chip } from '@/ui'
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { apiFor } from '@/api/client'
@@ -28,8 +28,8 @@ export function ToolDetail() {
     refetchInterval: 5000,
   })
 
-  if (isLoading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
-  if (error || !tool) return <Typography.Text type="danger">工具加载失败：{(error as Error)?.message ?? id}</Typography.Text>
+  if (isLoading) return <div role="status" style={{ textAlign: 'center', padding: 80 }}>加载中...</div>
+  if (error || !tool) return <div role="alert" style={{ color: 'var(--cw-danger)' }}>工具加载失败：{(error as Error)?.message ?? id}</div>
 
   const tasks = (recent?.tasks ?? []).filter((t) => t.tool_id === tool.id).slice(0, 5)
 
@@ -39,38 +39,27 @@ export function ToolDetail() {
       title={tool.name}
       tags={
         <>
-          <Tag color="blue">{tool.id}</Tag>
-          <Tag>v{tool.version}</Tag>
-          <Tag>{tool.runtime_kind}</Tag>
+          <Chip color="accent">{tool.id}</Chip>
+          <Chip>v{tool.version}</Chip>
+          <Chip>{tool.runtime_kind}</Chip>
         </>
       }
       description={tool.description}
       meta={
-        <Descriptions size="small" column={3}>
-          <Descriptions.Item label="超时">{tool.manifest.resources.timeout_s}s</Descriptions.Item>
-          <Descriptions.Item label="并发">{tool.manifest.resources.concurrency}</Descriptions.Item>
-          <Descriptions.Item label="重试上限">{tool.manifest.resources.max_attempts}</Descriptions.Item>
-        </Descriptions>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12 }}>
+          <span>超时：{tool.manifest.resources.timeout_s}s</span>
+          <span>并发：{tool.manifest.resources.concurrency}</span>
+          <span>重试上限：{tool.manifest.resources.max_attempts}</span>
+        </div>
       }
       docs={<DocPanel docMd={tool.manifest.doc_md} />}
     >
-      <Card size="small" title={PORTAL.run.formTitle}>
+      <Card><strong style={{ display: 'block', marginBottom: 12 }}>{PORTAL.run.formTitle}</strong>
         <ToolForm tool={tool} onSubmitted={setDrawerHandle} />
       </Card>
 
-      <Card size="small" title="近期任务">
-        <Table
-          size="small"
-          rowKey="handle"
-          pagination={false}
-          onRow={(record) => ({ onClick: () => setDrawerHandle(record.handle), style: { cursor: 'pointer' } })}
-          columns={[
-            { title: 'handle', dataIndex: 'handle', render: (v: string) => <code>{v.slice(0, 14)}…</code> },
-            { title: '状态', dataIndex: 'status', render: (v: string) => <StatusBadge value={v} /> },
-            { title: '创建', dataIndex: 'created_at', render: (v: string) => v?.slice(0, 19) },
-          ]}
-          dataSource={tasks}
-        />
+      <Card><strong style={{ display: 'block', marginBottom: 12 }}>近期任务</strong>
+        <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th>handle</th><th>状态</th><th>创建</th></tr></thead><tbody>{tasks.map((task) => <tr key={task.handle} onClick={() => setDrawerHandle(task.handle)} style={{ cursor: 'pointer' }}><td><code>{task.handle.slice(0, 14)}…</code></td><td><StatusBadge value={task.status} /></td><td>{task.created_at?.slice(0, 19)}</td></tr>)}</tbody></table></div>
       </Card>
 
       <TaskDetailModal handle={drawerHandle} onClose={() => setDrawerHandle(null)} />

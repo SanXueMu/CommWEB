@@ -2,7 +2,7 @@
  *  FlowRunner 唯一实现，本页只做装配。 */
 
 import { useQuery } from '@tanstack/react-query'
-import { Button, Space, Spin, Tag, Typography } from 'antd'
+import { Button, Chip } from '@/ui'
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { apiFor } from '@/api/client'
@@ -24,8 +24,8 @@ export function FlowDetail() {
     queryFn: () => apiFor(pid).getPipeline(id),
   })
 
-  if (isLoading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
-  if (error || !flow) return <Typography.Text type="danger">流加载失败：{(error as Error)?.message ?? id}</Typography.Text>
+  if (isLoading) return <div role="status" style={{ textAlign: 'center', padding: 80 }}>加载中...</div>
+  if (error || !flow) return <div role="alert" style={{ color: 'var(--cw-danger)' }}>流加载失败：{(error as Error)?.message ?? id}</div>
 
   return (
     <EntityDetailLayout
@@ -33,25 +33,25 @@ export function FlowDetail() {
       title={flow.name}
       tags={
         <>
-          <Tag color="purple">{flow.id}</Tag>
-          <Tag>{flow.steps.length} 步</Tag>
+          <Chip color="accent">{flow.id}</Chip>
+          <Chip>{flow.steps.length} 步</Chip>
         </>
       }
       meta={
-        <Typography.Text code type="secondary" style={{ fontSize: 12 }}>
+        <code style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           {flow.steps.map((s) => s.tool).join(' → ')}
-        </Typography.Text>
+        </code>
       }
       docs={<DocPanel docMd={flow.doc_md} />}
     >
       {runId != null || runOpened ? (
         <FlowRunner flow={flow} runId={runId} onRunIdChange={setRunId} providerId={pid} />
       ) : (
-        <PanelCard>
-          <Space size={12}>
-            <Button type="primary" onClick={() => setRunOpened(true)}>{PORTAL.run.startFlow}</Button>
-            <Typography.Text type="secondary">{PORTAL.run.startFlowHint}</Typography.Text>
-          </Space>
+          <PanelCard>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Button variant="primary" onClick={() => setRunOpened(true)}>{PORTAL.run.startFlow}</Button>
+              <span style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.run.startFlowHint}</span>
+            </div>
         </PanelCard>
       )}
     </EntityDetailLayout>

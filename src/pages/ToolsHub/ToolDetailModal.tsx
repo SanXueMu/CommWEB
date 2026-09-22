@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { Space, Typography } from 'antd'
 import { useState } from 'react'
 import { api, apiFor } from '@/api/client'
 import type { ToolSummary } from '@/api/types'
@@ -58,10 +57,10 @@ export function ToolDetailModal({ tool, open, onClose }: {
       title={tool.name}
       width={960}
       tags={
-        <Space size={4}>
+        <div style={{ display: 'flex', gap: 4 }}>
           <ProviderBadge pid={tool.providerId ?? 'default'} />
           {tool.enabled === false && <DisabledBadge />}
-        </Space>
+        </div>
       }
       description={detail.data?.description}
       footerAction={
@@ -72,34 +71,34 @@ export function ToolDetailModal({ tool, open, onClose }: {
     >
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Typography.Text type="secondary" strong>
+          <strong style={{ color: 'var(--cw-text-secondary)' }}>
             {PORTAL.toolDetail.lifecycle}
-          </Typography.Text>
+          </strong>
           <div style={{ margin: '10px 0 16px' }}>
             <LifeFlow nodes={lifecycleNodes(io?.input_types ?? [], io?.output_types ?? [])} />
           </div>
-          <Typography.Text type="secondary" strong>
+          <strong style={{ color: 'var(--cw-text-secondary)' }}>
             {PORTAL.toolDetail.performance}
-          </Typography.Text>
+          </strong>
           <div style={{ margin: '10px 0 16px', display: 'flex', gap: 24 }}>
             <span>
-              <Typography.Text type="secondary">{PORTAL.toolDetail.executions} </Typography.Text>
-              <Typography.Text strong>{stats.data?.executions ?? '—'}</Typography.Text>
+              <span style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.toolDetail.executions} </span>
+              <strong>{stats.data?.executions ?? '—'}</strong>
             </span>
             <span>
-              <Typography.Text type="secondary">{PORTAL.toolDetail.successRate} </Typography.Text>
-              <Typography.Text strong>
+              <span style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.toolDetail.successRate} </span>
+              <strong>
                 {stats.data?.success_rate == null ? '—' : `${Math.round(stats.data.success_rate * 100)}%`}
-              </Typography.Text>
+              </strong>
             </span>
             <span>
-              <Typography.Text type="secondary">{PORTAL.toolDetail.avgSeconds} </Typography.Text>
-              <Typography.Text strong>{fmtSeconds(stats.data?.avg_seconds ?? null)}</Typography.Text>
+              <span style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.toolDetail.avgSeconds} </span>
+              <strong>{fmtSeconds(stats.data?.avg_seconds ?? null)}</strong>
             </span>
           </div>
-          <Typography.Text type="secondary" strong>
+          <strong style={{ color: 'var(--cw-text-secondary)' }}>
             {PORTAL.toolDetail.recentTasks}
-          </Typography.Text>
+          </strong>
           <div style={{ marginTop: 10 }}>
             <DataListPanel
               panelKey="tool-detail-recent"
@@ -113,9 +112,9 @@ export function ToolDetailModal({ tool, open, onClose }: {
               renderRow={(t) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
                   <StatusBadge value={t.status} />
-                  <Typography.Text ellipsis style={{ flex: 1 }}>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {t.handle}
-                  </Typography.Text>
+                    </span>
                 </div>
               )}
             />

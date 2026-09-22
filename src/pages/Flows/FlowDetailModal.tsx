@@ -2,9 +2,7 @@
  *  + 右侧侧栏运行表单 + 底部发起运行 + 近期任务（分页/检索）。 */
 
 import { useQuery } from '@tanstack/react-query'
-import { Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
-import { App as AntApp } from 'antd'
 import { useMemo, useState } from 'react'
 import { api } from '@/api/client'
 import type { PipelineSummary } from '@/api/types'
@@ -42,7 +40,6 @@ export function FlowDetailModal({ flow, open, onClose }: {
   const [submitting, setSubmitting] = useState(false)
   const [taskKw, setTaskKw] = useState('')
   const queryClient = useQueryClient()
-  const { message } = AntApp.useApp()
 
   const fields = useMemo(
     () => (flow.input_schema?.properties ? resolveForm(flow.input_schema as never) : []),
@@ -85,9 +82,9 @@ export function FlowDetailModal({ flow, open, onClose }: {
       }
       description={
         flow.doc_md ? (
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+          <p style={{ color: 'var(--cw-text-secondary)', marginBottom: 0, whiteSpace: 'pre-wrap' }}>
             {flow.doc_md}
-          </Typography.Paragraph>
+          </p>
         ) : undefined
       }
       footerAction={
@@ -98,11 +95,11 @@ export function FlowDetailModal({ flow, open, onClose }: {
     >
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Typography.Text type="secondary" strong>{PORTAL.toolDetail.lifecycle}</Typography.Text>
+           <strong style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.toolDetail.lifecycle}</strong>
           <div style={{ margin: '10px 0 14px' }}>
-            {ioNodes.length > 0 ? <LifeFlow nodes={ioNodes} size="md" /> : <Typography.Text type="secondary">—</Typography.Text>}
+            {ioNodes.length > 0 ? <LifeFlow nodes={ioNodes} size="md" /> : <span style={{ color: 'var(--cw-text-secondary)' }}>—</span>}
           </div>
-          <Typography.Text type="secondary" strong>{PORTAL.toolDetail.performance}</Typography.Text>
+           <strong style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.toolDetail.performance}</strong>
           <div style={{ margin: '8px 0 14px', display: 'flex', gap: 20 }}>
             <span>{PORTAL.toolDetail.executions}：<b>{stats.data?.executions ?? '—'}</b></span>
             <span>
@@ -114,7 +111,7 @@ export function FlowDetailModal({ flow, open, onClose }: {
               <b>{stats.data?.avg_seconds != null ? `${stats.data.avg_seconds}s` : '—'}</b>
             </span>
           </div>
-          <Typography.Text type="secondary" strong>{PORTAL.toolDetail.recentTasks}</Typography.Text>
+           <strong style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.toolDetail.recentTasks}</strong>
           <DataListPanel
             panelKey="flow-detail-tasks"
             providerId={flow.providerId}
@@ -128,14 +125,14 @@ export function FlowDetailModal({ flow, open, onClose }: {
             onSearch={setTaskKw}
             renderRow={(t) => (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Typography.Text style={{ fontFamily: 'monospace', fontSize: 12 }}>{t.handle}</Typography.Text>
+                 <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{t.handle}</span>
                 <StatusBadge value={t.status} />
               </div>
             )}
           />
         </div>
         <div style={{ width: 300, flexShrink: 0 }}>
-          <Typography.Text type="secondary" strong>{PORTAL.run.panelTitle}</Typography.Text>
+           <strong style={{ color: 'var(--cw-text-secondary)' }}>{PORTAL.run.panelTitle}</strong>
           <div style={{ marginTop: 8 }}>
             <FlowForm
               refKeys={refKeysOf(flow.steps)}
@@ -146,7 +143,7 @@ export function FlowDetailModal({ flow, open, onClose }: {
               showSubmit={false}
               onRun={() => {
                 void queryClient.invalidateQueries({ queryKey: ['provider', flow.providerId, 'tasks'] })
-                message.success(PORTAL.run.queued)
+                 console.info(PORTAL.run.queued)
               }}
               onSubmittingChange={setSubmitting}
             />

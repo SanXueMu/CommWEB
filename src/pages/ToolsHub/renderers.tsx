@@ -2,7 +2,6 @@
  * 联动优先级：context.onItemClick（弹窗语义）优先，缺省回落详情路由 Link。 */
 
 import { Link } from 'react-router-dom'
-import { Typography } from 'antd'
 import { ProviderBadge } from '@/components/ProviderBadge'
 import { CatalogBadge } from '@/components/CatalogBadge'
 import { DisabledBadge } from '@/components/DisabledBadge'
@@ -26,7 +25,7 @@ export function ToolCard({ tool, onOpen }: { tool: ToolSummary; onOpen?: () => v
   const body = (
     <PanelCard radius="round">
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <Typography.Text strong>{tool.name}</Typography.Text>
+        <strong>{tool.name}</strong>
         {off && <DisabledBadge />}
         <ProviderBadge pid={tool.providerId ?? 'default'} />
       </div>
@@ -52,7 +51,7 @@ export function ToolRow({ tool, onOpen }: { tool: ToolSummary; onOpen?: () => vo
       style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 4px', opacity: off ? 0.55 : 1, cursor: onOpen ? 'pointer' : undefined }}
     >
       <div style={{ width: 170, flexShrink: 0 }}>
-        <Typography.Text strong>{tool.name}</Typography.Text>
+        <strong>{tool.name}</strong>
         {off && <DisabledBadge />}
         <ProviderBadge pid={tool.providerId ?? 'default'} />
       </div>

@@ -9,7 +9,6 @@ import { api } from '@/api/client'
 import { useActivePid } from '@/transfer/context'
 import { useStatusCatalog } from '@/config/useStatusCatalog'
 import { useQuery } from '@tanstack/react-query'
-import { Typography } from 'antd'
 import { slotsOf } from '@/protocol/slots'
 import { SlotRenderer } from '@/protocol/slotTemplates'
 import { useViewProps } from '@/protocol/ViewPropsContext'
@@ -106,9 +105,9 @@ export function Tasks() {
           paddingRight: 16,
         }}
       >
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           {PORTAL.sidebar.kind}
-        </Typography.Text>
+        </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, marginBottom: 16, alignItems: 'flex-start' }}>
           {KIND_ORDER.map((k) => (
             <span key={k || 'all'} onClick={() => setKind(k)} style={{ cursor: 'pointer', display: 'inline-flex' }}>
@@ -116,9 +115,9 @@ export function Tasks() {
             </span>
           ))}
         </div>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           {PORTAL.sidebar.status}
-        </Typography.Text>
+        </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, alignItems: 'flex-start' }}>
           {Object.keys(STATUS_GROUP_LABELS).map((g) => (
             <span key={g} onClick={() => setGroup(g === group ? '' : g)} style={{ cursor: 'pointer', display: 'inline-flex' }}>

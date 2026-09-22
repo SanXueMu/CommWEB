@@ -1,7 +1,6 @@
 /** 流工具货架：管线 = 串联通用小工具的全自动流，零前端代码自动上架。
  * v3 起支持视图 props.slots 槽位声明（sidebar/list），缺省回落内置双形态。 */
 
-import { Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { CatalogBadge } from '@/components/CatalogBadge'
 import { DataListPanel } from '@/components/DataListPanel'
@@ -70,9 +69,9 @@ export function Flows() {
               }}
             />
           )}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+           <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
             共 {flows.length} 条流 · {PORTAL.footNote.flows}
-          </Typography.Text>
+           </span>
         </div>
         {detailFlow && <FlowDetailModal flow={detailFlow} open onClose={() => setDetailFlow(null)} />}
       </div>
@@ -91,9 +90,9 @@ export function Flows() {
           paddingRight: 16,
         }}
       >
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           类型
-        </Typography.Text>
+        </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, alignItems: 'flex-start' }}>
           {TYPE_KEYS.map((k) => (
             <span
@@ -126,9 +125,9 @@ export function Flows() {
           renderCard={(flow) => <FlowCard flow={flow} onOpen={() => setDetailFlow(flow)} />}
           renderRow={(flow) => <FlowRow flow={flow} onOpen={() => setDetailFlow(flow)} />}
         />
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           共 {flows.length} 条流 · {PORTAL.footNote.flows}
-        </Typography.Text>
+        </span>
       </div>
       {detailFlow && <FlowDetailModal flow={detailFlow} open onClose={() => setDetailFlow(null)} />}
     </div>

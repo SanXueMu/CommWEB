@@ -1,6 +1,5 @@
 /** 任务域行/卡渲染器：v3 槽位 list.panel 以名引用（task-card / task-row）。 */
 
-import { Typography } from 'antd'
 import { PanelCard } from '@/components/ui/PanelCard'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TASK_KIND_COLORS, TASK_KIND_LABELS } from '@/config/portal'
@@ -31,9 +30,9 @@ export function TaskRow({ task: t, onOpen }: { task: Task; onOpen: () => void })
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', cursor: 'pointer' }} onClick={onOpen}>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
-        <Typography.Text strong ellipsis style={{ maxWidth: 260 }}>
+        <strong style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {t.tool_name ?? t.tool_id}
-        </Typography.Text>
+        </strong>
         <TaskKindBadge kind={t.task_kind} />
       </div>
       <StatusBadge value={t.status} />
@@ -45,9 +44,9 @@ export function TaskCard({ task: t, onOpen }: { task: Task; onOpen: () => void }
   return (
     <PanelCard onClick={onOpen} style={{ height: '100%', cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Typography.Text strong ellipsis style={{ flex: 1 }}>
+        <strong style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {t.tool_name ?? t.tool_id}
-        </Typography.Text>
+        </strong>
         <TaskKindBadge kind={t.task_kind} />
       </div>
       <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

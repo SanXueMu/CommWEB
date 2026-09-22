@@ -1,6 +1,5 @@
 /** 流域行/卡渲染器：v3 槽位 list.panel 以名引用（flow-card / flow-row）。 */
 
-import { Space, Typography } from 'antd'
 import { ProviderBadge } from '@/components/ProviderBadge'
 import { FlowTypeBadge } from '@/components/ui/FlowTypeBadge'
 import { LifeFlow } from '@/components/LifeFlow'
@@ -14,12 +13,12 @@ export function FlowCard({ flow, onOpen }: { flow: PipelineSummary; onOpen: () =
   return (
     <PanelCard radius="round" onClick={onOpen} style={{ cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <Typography.Text strong>{flow.name}</Typography.Text>
+        <strong>{flow.name}</strong>
         <FlowTypeBadge flow={flow} />
         <ProviderBadge pid={flow.providerId ?? 'default'} />
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           {flow.steps.length} 步
-        </Typography.Text>
+        </span>
       </div>
     </PanelCard>
   )
@@ -30,11 +29,11 @@ export function FlowRow({ flow, onOpen }: { flow: PipelineSummary; onOpen: () =>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px', cursor: 'pointer' }} onClick={onOpen}>
       <div style={{ width: 200, flexShrink: 0 }}>
-        <Typography.Text strong style={{ display: 'block' }}>{flow.name}</Typography.Text>
-        <Space size={6} style={{ marginTop: 2 }}>
+        <strong style={{ display: 'block' }}>{flow.name}</strong>
+        <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
           <FlowTypeBadge flow={flow} />
           <ProviderBadge pid={flow.providerId ?? 'default'} />
-        </Space>
+        </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <LifeFlow

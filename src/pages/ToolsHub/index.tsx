@@ -1,4 +1,3 @@
-import { Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import type { ToolSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
@@ -78,9 +77,9 @@ export function ToolsHub() {
               }}
             />
           )}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
             共 {filtered.length} 个工具 · {PORTAL.footNote.tools}
-          </Typography.Text>
+          </span>
         </main>
         {detailTool && <ToolDetailModal tool={detailTool} open onClose={() => setDetailToolId(null)} />}
       </div>
@@ -115,9 +114,9 @@ export function ToolsHub() {
           renderCard={(tool) => <ToolCard tool={tool} />}
           renderRow={(tool) => <ToolRow tool={tool} />}
         />
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           共 {filtered.length} 个工具 · {PORTAL.footNote.tools}
-        </Typography.Text>
+        </span>
       </main>
       {detailTool && (
         <ToolDetailModal tool={detailTool} open onClose={() => setDetailToolId(null)} />

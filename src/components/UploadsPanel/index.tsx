@@ -6,14 +6,19 @@
  * AN（2026-09-20）：目录行可**展开** → 勾选目录下文件 → 「用所选发起识别」——
  * 免重新上传即可对已上传过的原件重跑（onUseFiles 回调注入；不传则不显示复用入口）。
  */
-import { useMemo, useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Checkbox, message, Popconfirm, Space, Table, Tag, Tooltip, Typography } from 'antd'
-import { DeleteOutlined, DownOutlined, PlayCircleOutlined, RightOutlined } from '@ant-design/icons'
 import { SimplePager } from '@/components/ui/SimplePager'
 import { apiFor, type UploadFileItem } from '@/api/client'
 import { useActivePid } from '@/transfer/context'
 import { humanSize } from '@/lib/size'
+import { Button, Card, Chip } from '@/ui'
+import { useConfirm } from '@/components/ConfirmDialog'
+
+function Text({ children, ...props }: { children: ReactNode; [key: string]: unknown }) { return <span {...props}>{children}</span> }
+function Checkbox({ checked, disabled, onChange, children }: { checked?: boolean; disabled?: boolean; onChange: (event: { target: { checked: boolean } }) => void; children?: ReactNode }) { return <label><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange({ target: { checked: event.target.checked } })} /> {children}</label> }
+function Space({ children, style, direction, size }: { children: ReactNode; style?: React.CSSProperties; direction?: 'vertical' | 'horizontal'; size?: number }) { return <div style={{ display: 'flex', flexDirection: direction === 'vertical' ? 'column' : 'row', gap: size ?? 8, ...style }}>{children}</div> }
+const Typography = { Text }
 
 const SOURCE_LABEL: Record<string, string> = {
   translate: '翻译工作台', ocr: 'OCR 工作台', unknown: '未记录',
@@ -45,6 +50,9 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
   const [fileSel, setFileSel] = useState<string[]>([])
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const [filePage, setFilePage] = useState<Record<string, number>>({})
+  const [uploadPage, setUploadPage] = useState(1)
+  const [notice, setNotice] = useState<string | null>(null)
+  const { confirm } = useConfirm()
   const uploads = useQuery({
     queryKey: ['provider', pid, 'uploads'],
     queryFn: () => api.listUploads(),
@@ -52,11 +60,11 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
   const del = useMutation({
     mutationFn: (roots: string[]) => api.deleteUploads(roots),
     onSuccess: (r) => {
-      message.success(`已删除 ${r.removed.length} 个原件目录`)
+      setNotice(`已删除 ${r.removed.length} 个原件目录`)
       setPicked([])
       void qc.invalidateQueries({ queryKey: ['provider', pid, 'uploads'] })
     },
-    onError: (e: Error) => message.error(e.message),
+    onError: (e: Error) => setNotice(e.message),
   })
   const rows = (uploads.data?.uploads ?? []) as UploadRow[]
 
@@ -69,7 +77,7 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
       const out = await api.listUploadFiles(dir)
       setFilesByDir((prev) => ({ ...prev, [dir]: out.files }))
     } catch (e) {
-      message.error(`读取目录文件失败：${(e as Error).message}`)
+      setNotice(`读取目录文件失败：${(e as Error).message}`)
     } finally {
       setLoadingDir(null)
     }
@@ -84,37 +92,6 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
     setFileSel((prev) => (checked ? [...prev, path] : prev.filter((p) => p !== path)))
   }
 
-  const cols = useMemo(() => [
-    { title: '日期', dataIndex: 'date', width: 100 },
-    { title: '批次', dataIndex: 'label', ellipsis: true,
-      render: (_: unknown, r: UploadRow) => (
-        <Typography.Text title={r.path} ellipsis style={{ maxWidth: 220 }}>{r.label}</Typography.Text>
-      ) },
-    { title: '文件', dataIndex: 'count', width: 70, render: (n: number) => `${n} 个` },
-    { title: '大小', dataIndex: 'size', width: 90, render: (n: number) => humanSize(n) },
-    { title: '来源', dataIndex: 'source', width: 110,
-      render: (s: string) => <Tag>{SOURCE_LABEL[s] ?? s}</Tag> },
-    { title: '引用任务', key: 'runs', width: 130,
-      render: (_: unknown, r: UploadRow) => (
-        r.runs.count
-          ? <Tag color={r.runs.latest_status === 'succeeded' ? 'success' : 'processing'}>
-              {r.runs.count} 个 · {r.runs.latest_status}
-            </Tag>
-          : <Tag color="default">无引用</Tag>
-      ) },
-    { title: '', key: 'op', width: 80,
-      render: (_: unknown, r: UploadRow) => (
-        r.runs.count > 0
-          ? <Tooltip title={`仍被 ${r.runs.count} 个任务引用，先在任务清单删除对应任务`}>
-              <Button size="small" disabled icon={<DeleteOutlined />} />
-            </Tooltip>
-          : <Popconfirm title={`删除原件「${r.label}」？`}
-              onConfirm={() => del.mutate([r.dir])}>
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-      ) },
-  ], [del])
-
   const renderFiles = (r: UploadRow) => {
     const files = filesByDir[r.dir]
     if (loadingDir === r.dir && !files) return <Typography.Text type="secondary">读取中…</Typography.Text>
@@ -124,9 +101,9 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
     return (
       <Space direction="vertical" size={4} style={{ width: '100%' }}>
         <Space size={8}>
-          <Button size="small" onClick={() => setFileSel(
+              <Button size="sm" onClick={() => setFileSel(
             Array.from(new Set([...fileSel, ...usable.map((f) => f.path)])))}>全选本目录</Button>
-          <Button size="small" onClick={() => setFileSel(
+              <Button size="sm" onClick={() => setFileSel(
             fileSel.filter((p) => !files.some((f) => f.path === p)))}>取消本目录</Button>
           <Typography.Text type="secondary">
             {files.length} 个文件{extensions?.length ? `，${usable.length} 个可复用` : ''}；
@@ -159,44 +136,33 @@ export function UploadsPanel({ title = '已上传原件', extensions, onUseFiles
     )
   }
 
-  return (
-    <Card size="small" styles={{ body: { padding: 0 } }}
-      title={(
-        <span style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCollapsed((v) => !v)}>
-          {collapsed ? <RightOutlined style={{ fontSize: 11, marginRight: 6 }} /> : <DownOutlined style={{ fontSize: 11, marginRight: 6 }} />}
-          {title}
-          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>({rows.length})</Typography.Text>
-        </span>
-      ) }
-      extra={picked.length > 0 ? (
-        <Popconfirm title={`批量删除 ${picked.length} 个无引用原件？`}
-          onConfirm={() => del.mutate(picked)}>
-          <Button size="small" danger icon={<DeleteOutlined />}>批量删除（{picked.length}）</Button>
-        </Popconfirm>
-      ) : undefined}>
-      <Table size="small" rowKey="dir" columns={cols} dataSource={rows} style={{ display: collapsed ? 'none' : undefined }}
-        loading={uploads.isLoading} pagination={{ pageSize: 10, showSizeChanger: false }}
-        expandable={{
-          expandedRowKeys: expanded,
-          onExpand: (expand, record) => toggleDir((record as UploadRow).dir, expand),
-          expandedRowRender: (record) => renderFiles(record as UploadRow),
-        }}
-        rowSelection={{
-          selectedRowKeys: picked,
-          onChange: (keys) => setPicked(keys as string[]),
-          // 有引用的行不可勾选（后端 409 防呆兜底）
-          getCheckboxProps: (r: UploadRow) => ({ disabled: r.runs.count > 0 }),
-        }} />
-      {onUseFiles && fileSel.length > 0 && (
-        <div style={{ padding: '8px 12px', borderTop: '1px solid rgba(5,5,5,0.06)' }}>
-          <Space>
-            <Typography.Text>已选 {fileSel.length} 个已上传文件</Typography.Text>
-            <Button type="primary" size="small" icon={<PlayCircleOutlined />}
-              onClick={() => onUseFiles(fileSel)}>{useLabel}</Button>
-            <Button size="small" onClick={() => setFileSel([])}>清空选择</Button>
-          </Space>
-        </div>
-      )}
-    </Card>
-  )
+  return <Card>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <button type="button" style={{ background: 'none', border: 0, cursor: 'pointer' }} onClick={() => setCollapsed((v) => !v)}>{collapsed ? '▶' : '▼'} {title} <Text>({rows.length})</Text></button>
+      {picked.length > 0 && <Button size="sm" variant="danger" onClick={async () => {
+        if (await confirm({ title: `批量删除 ${picked.length} 个无引用原件？`, options: [{ value: true, label: '删除', danger: true }] })) del.mutate(picked)
+      }}>批量删除（{picked.length}）</Button>}
+    </div>
+    {notice && <div role="alert" style={{ marginBottom: 8 }}>{notice}</div>}
+    {!collapsed && <div style={{ overflowX: 'auto' }}>
+      {uploads.isLoading ? <Text>读取中...</Text> : <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>{['', '日期', '批次', '文件', '大小', '来源', '引用任务', '操作'].map((h) => <th key={h} style={{ textAlign: 'left', padding: 8 }}>{h}</th>)}</tr></thead>
+        <tbody>{rows.slice((uploadPage - 1) * 10, uploadPage * 10).map((r) => <>
+          <tr key={r.dir}>
+            <td style={{ padding: 8 }}><Checkbox checked={picked.includes(r.dir)} disabled={r.runs.count > 0} onChange={(e) => setPicked((prev) => e.target.checked ? [...prev, r.dir] : prev.filter((p) => p !== r.dir))} /></td>
+            <td style={{ padding: 8 }}>{r.date}</td><td style={{ padding: 8 }} title={r.path}>{r.label}</td><td style={{ padding: 8 }}>{r.count} 个</td><td style={{ padding: 8 }}>{humanSize(r.size)}</td>
+            <td style={{ padding: 8 }}><Chip>{SOURCE_LABEL[r.source] ?? r.source}</Chip></td>
+            <td style={{ padding: 8 }}>{r.runs.count ? <Chip>{r.runs.count} 个 · {r.runs.latest_status}</Chip> : <Chip>无引用</Chip>}</td>
+            <td style={{ padding: 8 }}><div style={{ display: 'flex', gap: 6 }}>
+              <Button size="sm" onClick={() => toggleDir(r.dir, !expanded.includes(r.dir))}>{expanded.includes(r.dir) ? '收起' : '展开'}</Button>
+              <Button size="sm" variant="danger" isDisabled={r.runs.count > 0} onClick={async () => { if (await confirm({ title: `删除原件「${r.label}」？`, options: [{ value: true, label: '删除', danger: true }] })) del.mutate([r.dir]) }}>删除</Button>
+            </div></td>
+          </tr>
+          {expanded.includes(r.dir) && <tr key={`${r.dir}-files`}><td colSpan={8} style={{ padding: 12, background: 'var(--cw-surface-muted)' }}>{renderFiles(r)}</td></tr>}
+        </>)}</tbody>
+      </table>}
+      {rows.length > 10 && <SimplePager page={uploadPage} pageSize={10} total={rows.length} onChange={setUploadPage} />}
+    </div>}
+    {onUseFiles && fileSel.length > 0 && <div style={{ paddingTop: 8 }}><Space><Text>已选 {fileSel.length} 个已上传文件</Text><Button variant="primary" size="sm" onClick={() => onUseFiles(fileSel)}>{useLabel}</Button><Button size="sm" onClick={() => setFileSel([])}>清空选择</Button></Space></div>}
+  </Card>
 }

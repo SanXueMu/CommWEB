@@ -1,10 +1,28 @@
 /** 批量上传组件：本地目录（webkitdirectory）/ 压缩包（.zip）/ 服务器目录三形态，产出文件清单。 */
 
-import { useRef, useState } from 'react'
-import { CheckCircleOutlined, DeleteOutlined, FolderOpenOutlined, InboxOutlined } from '@ant-design/icons'
-import { Alert, Button, Flex, Input, Progress, Segmented, Space, Tag, Typography, message } from 'antd'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { api, type BatchFileEntry } from '@/api/client'
 import { humanSize } from '@/lib/size'
+import { Button as HeroButton, Input as HeroInput } from '@/ui'
+
+function Button({ type, danger, loading, ghost, icon, disabled, ...props }: Record<string, any>) {
+  return <HeroButton {...props} variant={danger ? 'danger' : type === 'primary' ? 'primary' : ghost ? 'danger-soft' : undefined} isDisabled={disabled || loading}>{icon}{props.children}</HeroButton>
+}
+function Input(props: Record<string, any>) { return <HeroInput {...props} /> }
+function Progress({ percent, style }: { percent: number; style?: CSSProperties; size?: string }) { return <progress value={percent} max={100} style={style} /> }
+function Tag({ children }: { children: ReactNode; color?: string }) { return <span className="cw-chip">{children}</span> }
+function Text({ children, ...props }: { children: ReactNode; [key: string]: any }) { return <span {...props}>{children}</span> }
+const Typography = { Text }
+function Flex({ children, style, ...props }: { children: ReactNode; style?: CSSProperties; [key: string]: any }) { return <div {...props} style={{ display: 'flex', ...style }}>{children}</div> }
+function Space({ children, style, ...props }: { children: ReactNode; style?: CSSProperties; [key: string]: any }) { return <div {...props} style={{ display: 'flex', gap: 8, ...style }}>{children}</div> }
+function Alert({ message, description }: { message: ReactNode; description?: ReactNode; type?: string; showIcon?: boolean }) { return <div role="alert" style={{ padding: 10, borderRadius: 8, background: 'var(--cw-warning-soft)' }}><strong>{message}</strong>{description && <div>{description}</div>}</div> }
+function Segmented({ value, options, onChange, disabled }: { value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
+  return <div style={{ display: 'flex', gap: 4 }}>{options.map((option) => <Button key={option.value} variant={option.value === value ? 'primary' : 'outline'} disabled={disabled} onClick={() => onChange(option.value)}>{option.label}</Button>)}</div>
+}
+const CheckCircleOutlined = () => <span>✓</span>
+const DeleteOutlined = () => <span>×</span>
+const FolderOpenOutlined = () => <span>[dir]</span>
+const InboxOutlined = () => <span>[zip]</span>
 
 export type BatchMode = 'dir' | 'zip' | 'server'
 
@@ -28,6 +46,7 @@ export function BatchUpload({
   const [serverFiles, setServerFiles] = useState<BatchFileEntry[]>([])
   const [skipped, setSkipped] = useState<{ name: string; reason: string }[]>([])
   const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   // AH2：上传进度（fetch 无进度事件 → XHR onUploadProgress；大小已知时显示百分比）
   const [uploadPct, setUploadPct] = useState<number | null>(null)
   // 取消上传：持有当前 xhr 引用，abort 后 Promise 以「已取消上传」收场
@@ -37,6 +56,7 @@ export function BatchUpload({
   const zipRef = useRef<HTMLInputElement>(null)
   const extQuery = extensions.join(',')
   const maxBytes = maxTotalMB * 1024 * 1024
+  const notify = (text: string) => setNotice(text)
 
   const sizeOf = (files: File[]) => files.reduce((s, f) => s + f.size, 0)
   /** 操作系统垃圾文件：不参与翻译也不进交付目录（避免污染原目录结构）。 */
@@ -54,17 +74,17 @@ export function BatchUpload({
     // 仅忽略操作系统垃圾文件（.DS_Store / Thumbs.db / desktop.ini / ~$ 临时文件）。
     const ok = all.filter((f) => !isJunk(f.name))
     if (ok.length > maxFiles) {
-      message.error(`单批最多 ${maxFiles} 个文件（当前 ${ok.length} 个），请分批或改用压缩包`)
+      notify(`单批最多 ${maxFiles} 个文件（当前 ${ok.length} 个），请分批或改用压缩包`)
       return
     }
     if (sizeOf(ok) > maxBytes) {
-      message.error(`合计超过 ${maxTotalMB}MB，请分批或改用压缩包`)
+      notify(`合计超过 ${maxTotalMB}MB，请分批或改用压缩包`)
       return
     }
     setPicked(ok)
     const dropped = all.length - ok.length
     setSkipped(dropped > 0 ? [{ name: `${dropped} 个文件`, reason: '系统文件（.DS_Store/Thumbs.db 等），已忽略' }] : [])
-    if (!ok.length) message.warning('所选目录内没有符合扩展名的文件')
+    if (!ok.length) notify('所选目录内没有符合扩展名的文件')
   }
 
   const uploadDir = async () => {
@@ -79,13 +99,12 @@ export function BatchUpload({
       // 由工作台建一条暂停记录留档（用户能看到「哪些没处理、为什么」）
       const usable = result.files.filter((f) => !f.empty)
       onPicked(usable, result.name, { batch_id: result.batch_id, root: result.name })
-      message.success(`已上传 ${usable.length} 个文件（${humanSize(result.size)}）`
+      notify(`已上传 ${usable.length} 个文件（${humanSize(result.size)}）`
         + (skippedByServer.length ? `，跳过 ${skippedByServer.length} 条` : ''))
       setPicked([])
     } catch (error) {
       const msg = (error as Error).message
-      if (msg.includes('已取消')) message.info(msg)
-      else message.error(`上传失败：${msg}`)
+      notify(msg.includes('已取消') ? msg : `上传失败：${msg}`)
     } finally {
       setBusy(false)
       setUploadPct(null)
@@ -104,13 +123,12 @@ export function BatchUpload({
       setSkipped(skippedByServer)
       const usable = result.files.filter((f) => !f.empty)
       onPicked(usable, result.name, { batch_id: result.batch_id, root: result.name })
-      message.success(`已解压 ${usable.length} 个文件（${humanSize(result.size)}）`
+      notify(`已解压 ${usable.length} 个文件（${humanSize(result.size)}）`
         + (skippedByServer.length ? `，跳过 ${skippedByServer.length} 条` : ''))
       setPicked([])
     } catch (error) {
       const msg = (error as Error).message
-      if (msg.includes('已取消')) message.info(msg)
-      else message.error(`解压失败：${msg}`)
+      notify(msg.includes('已取消') ? msg : `解压失败：${msg}`)
     } finally {
       setBusy(false)
       setUploadPct(null)
@@ -120,7 +138,7 @@ export function BatchUpload({
 
   const listServer = async () => {
     if (!serverPath.trim()) {
-      message.warning('请填写服务器上的目录路径')
+      notify('请填写服务器上的目录路径')
       return
     }
     setBusy(true)
@@ -128,10 +146,10 @@ export function BatchUpload({
       const result = await api.listFiles(serverPath.trim(), extQuery)
       setServerFiles(result.files)
       setSkipped([])
-      if (!result.count) message.warning('该目录下没有符合扩展名的文件')
-      else message.success(`列出 ${result.count} 个文件${result.truncated ? '（已截断）' : ''}`)
+      if (!result.count) notify('该目录下没有符合扩展名的文件')
+      else notify(`列出 ${result.count} 个文件${result.truncated ? '（已截断）' : ''}`)
     } catch (error) {
-      message.error(`列举失败：${(error as Error).message}`)
+      notify(`列举失败：${(error as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -140,8 +158,8 @@ export function BatchUpload({
   const accept = extensions.join(',')
   return (
     <Space direction="vertical" size={8} style={{ width: '100%' }}>
-      <Segmented
-        block
+        {notice && <Alert message={notice} />}
+        <Segmented
         value={mode}
         disabled={disabled || busy}
         onChange={(v) => { setMode(v as BatchMode); setPicked([]); setServerFiles([]); setSkipped([]) }}
@@ -190,7 +208,7 @@ export function BatchUpload({
               setSkipped([])
               setPicked(f ? [f] : [])
               e.target.value = ''
-              if (f && f.size > maxBytes) message.warning(`压缩包 ${humanSize(f.size)} 超过 ${maxTotalMB}MB，可能被服务端拒绝`)
+              if (f && f.size > maxBytes) notify(`压缩包 ${humanSize(f.size)} 超过 ${maxTotalMB}MB，可能被服务端拒绝`)
             }}
           />
           <Flex gap={8} wrap="wrap" align="center">
@@ -221,7 +239,7 @@ export function BatchUpload({
             <Input
               style={{ minWidth: 280, flex: 1 }} placeholder="服务器容器内目录，如 /app/data/uploads/2026-09-14"
               value={serverPath} disabled={disabled || busy}
-              onChange={(e) => setServerPath(e.target.value)} onPressEnter={listServer}
+               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setServerPath(e.target.value)} onPressEnter={listServer}
             />
             <Button type="primary" loading={busy} disabled={disabled} onClick={listServer}>列举文件</Button>
           </Flex>

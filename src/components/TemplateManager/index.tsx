@@ -3,10 +3,11 @@
  *  数据面 = CommAND REST /ocr/templates（同步 CRUD，区别于 spec.template.* 异步工具链路）。 */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, Drawer, Form, Input, Modal as AntModal, Popconfirm, Select, Space, Switch, Table, Typography } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { apiFor } from '@/api/client'
 import { useActivePid } from '@/transfer/context'
+import { Button } from '@/ui'
+import { Form, useForm } from '@/ui/form'
 
 interface TemplateRow {
   id: string
@@ -26,7 +27,6 @@ const CATEGORIES = [
 
 export function TemplateManager() {
   const pid = useActivePid()
-  const { message } = AntApp.useApp()
   const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
   const [category, setCategory] = useState<string | undefined>()
@@ -52,18 +52,18 @@ export function TemplateManager() {
         method: 'PATCH',
         body: JSON.stringify({ enabled }),
       }),
-    onSuccess: () => { message.success('已更新启用状态'); invalidate() },
-    onError: (err) => message.error(`启停失败：${(err as Error).message ?? err}`),
+    onSuccess: () => { console.info('已更新启用状态'); invalidate() },
+    onError: (err) => console.error(`启停失败：${(err as Error).message ?? err}`),
   })
 
   const remove = useMutation({
     mutationFn: (id: string) =>
       apiFor(pid).send(`/ocr/templates/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => { message.success('已删除'); invalidate() },
-    onError: (err) => message.error(`删除失败：${(err as Error).message ?? err}`),
+    onSuccess: () => { console.info('已删除'); invalidate() },
+    onError: (err) => console.error(`删除失败：${(err as Error).message ?? err}`),
   })
 
-  const columns = [
+  const columns: any[] = [
     { title: '模版 ID', dataIndex: 'id', key: 'id' },
     { title: '名称', dataIndex: 'name', key: 'name' },
     {
@@ -73,11 +73,11 @@ export function TemplateManager() {
     {
       title: '启用', dataIndex: 'enabled', key: 'enabled', width: 80,
       render: (v: boolean, row: TemplateRow) => (
-        <Switch
-          size="small"
+        <input
+          type="checkbox"
           checked={v}
-          loading={setEnabled.isPending && setEnabled.variables?.id === row.id}
-          onChange={(checked) => setEnabled.mutate({ id: row.id, enabled: checked })}
+          disabled={setEnabled.isPending && setEnabled.variables?.id === row.id}
+          onChange={(event) => setEnabled.mutate({ id: row.id, enabled: event.target.checked })}
         />
       ),
     },
@@ -85,52 +85,36 @@ export function TemplateManager() {
     {
       title: '操作', key: 'actions', width: 130,
       render: (_: unknown, row: TemplateRow) => (
-        <Space size={4}>
-          <Button type="link" size="small" onClick={() => { setEditing(row); setDrawerOpen(true) }}>编辑</Button>
-          <Popconfirm title={`删除模版 ${row.id}？`} onConfirm={() => remove.mutate(row.id)}>
-            <Button type="link" size="small" danger>删除</Button>
-          </Popconfirm>
-        </Space>
+        <span style={{ display: 'flex', gap: 6 }}><Button size="sm" onClick={() => { setEditing(row); setDrawerOpen(true) }}>编辑</Button><Button size="sm" onClick={() => { if (window.confirm(`删除模版 ${row.id}？`)) remove.mutate(row.id) }}>删除</Button></span>
       ),
     },
   ]
 
   return (
-    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-      <Space wrap>
-        <Input.Search
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <input
           placeholder="搜索模版名称/ID"
-          allowClear
           style={{ width: 240 }}
-          onSearch={setKeyword}
+          onChange={(e) => setKeyword(e.target.value)}
         />
-        <Select
-          allowClear
-          placeholder="类别"
+        <select
+          value={category ?? ''}
           style={{ width: 120 }}
-          options={CATEGORIES}
-          onChange={setCategory}
-        />
-        <Button type="primary" onClick={() => { setEditing(null); setDrawerOpen(true) }}>
+          onChange={(e) => setCategory(e.target.value || undefined)}
+        ><option value="">类别</option>{CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+        <Button onClick={() => { setEditing(null); setDrawerOpen(true) }}>
           新建模版
         </Button>
-      </Space>
-      <Table<TemplateRow>
-        size="small"
-        rowKey="id"
-        loading={listQuery.isLoading}
-        dataSource={listQuery.data?.templates ?? []}
-        columns={columns}
-        pagination={false}
-        locale={{ emptyText: '暂无识别模版（可新建或运行 seed 脚本灌入内置模版）' }}
-      />
+      </div>
+      {listQuery.isLoading ? <div role="status">加载中...</div> : (listQuery.data?.templates ?? []).length === 0 ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>暂无识别模版（可新建或运行 seed 脚本灌入内置模版）</div> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{columns.map((column) => <th key={column.key} style={{ textAlign: 'left', padding: 8 }}>{column.title}</th>)}</tr></thead><tbody>{(listQuery.data?.templates ?? []).map((row) => <tr key={row.id}>{columns.map((column) => <td key={column.key} style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{column.render ? column.render((row as Record<string, unknown>)[column.dataIndex as string], row) : (row as Record<string, unknown>)[column.dataIndex as string] as ReactNode}</td>)}</tr>)}</tbody></table></div>}
       <TemplateDrawer
         open={drawerOpen}
         template={editing}
         providerId={pid}
         onClose={() => setDrawerOpen(false)}
       />
-    </Space>
+    </div>
   )
 }
 
@@ -141,9 +125,8 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
   providerId: string
   onClose: () => void
 }) {
-  const { message } = AntApp.useApp()
   const queryClient = useQueryClient()
-  const [form] = Form.useForm()
+  const [form] = useForm()
   const [bodyText, setBodyText] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -185,11 +168,11 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
         method: 'POST',
         body: JSON.stringify({ template: payload }),
       })
-      message.success(template ? '模版已更新' : '模版已创建')
+      console.info(template ? '模版已更新' : '模版已创建')
       queryClient.invalidateQueries({ queryKey: ['provider', providerId, 'ocr-templates'] })
       onClose()
     } catch (err) {
-      message.error(`保存失败：${(err as Error).message ?? err}`)
+      console.error(`保存失败：${(err as Error).message ?? err}`)
     } finally {
       setSaving(false)
     }
@@ -201,56 +184,42 @@ function TemplateDrawer({ open, template, providerId, onClose }: {
     try {
       body = bodyText.trim() ? JSON.parse(bodyText) : {}
     } catch (err) {
-      message.error(`高级主体不是合法 JSON：${(err as Error).message}`)
+      console.error(`高级主体不是合法 JSON：${(err as Error).message}`)
       return
     }
     // Z2 防呆：编辑态主体缺核心内容 → 多半是拿桩/空壳保存，确认后再放行
     if (template && (typeof body.prompt_template !== 'string' || !body.prompt_template.trim()
       || !Array.isArray(body.fields) || body.fields.length === 0)) {
-      AntModal.confirm({
-        title: '高级主体缺少识别逻辑',
-        content: '检测到 prompt_template 或 fields 为空。继续保存将清空该模版的识别规则（原内容不可从界面恢复），确定继续吗？',
-        okText: '仍然保存', okButtonProps: { danger: true }, cancelText: '返回检查',
-        onOk: () => send(head, body),
-      })
+      if (window.confirm('高级主体缺少识别逻辑。继续保存将清空该模版的识别规则，确定继续吗？')) await send(head, body)
       return
     }
     await send(head, body)
   }
 
   return (
-    <Drawer
-      title={template ? `编辑模版 ${template.id}` : '新建识别模版'}
-      open={open}
-      onClose={onClose}
-      width={560}
-      destroyOnHidden
-      extra={<Button type="primary" loading={saving || loadingBody} onClick={save} disabled={loadingBody}>保存</Button>}
-    >
-      <Form form={form} layout="vertical">
+    (!open ? null : <aside role="dialog" style={{ position: 'fixed', inset: '0 0 0 auto', zIndex: 1000, width: 'min(560px, 100vw)', overflow: 'auto', background: 'var(--cw-surface)', boxShadow: '-8px 0 24px rgba(0,0,0,.18)', padding: 16 }}><header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>{template ? `编辑模版 ${template.id}` : '新建识别模版'}</strong><span style={{ display: 'flex', gap: 8 }}><Button isDisabled={loadingBody || saving} onClick={save}>保存</Button><button type="button" onClick={onClose}>关闭</button></span></header><Form form={form}>
         <Form.Item name="id" label="模版 ID"
           rules={[{ required: true, pattern: /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, message: '点分小写 id，如 tpl.invoice.voucher' }]}>
-          <Input disabled={Boolean(template)} placeholder="tpl.invoice.voucher" />
+          <input disabled={Boolean(template)} placeholder="tpl.invoice.voucher" />
         </Form.Item>
-        <Space size={12} style={{ display: 'flex' }}>
-          <Form.Item name="name" label="名称" style={{ flex: 1 }}><Input /></Form.Item>
-          <Form.Item name="category" label="类别" style={{ width: 120 }}>
-            <Select options={CATEGORIES} />
+        <div style={{ display: 'flex', gap: 12 }}>
+          <Form.Item name="name" label="名称"><input /></Form.Item>
+          <Form.Item name="category" label="类别">
+            <select>{CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked">
-            <Switch />
+            <input type="checkbox" />
           </Form.Item>
-        </Space>
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+        </div>
+        <p style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>
           高级主体（JSON）：prompt_template / fields / rules / example / hooks / record_mode / view_spec / input_schema
-        </Typography.Paragraph>
-        <Input.TextArea
+        </p>
+        <textarea
           value={bodyText}
           onChange={(e) => setBodyText(e.target.value)}
           rows={14}
           style={{ fontFamily: 'monospace', fontSize: 12 }}
         />
-      </Form>
-    </Drawer>
+      </Form></aside>)
   )
 }

@@ -2,6 +2,7 @@
 export {
   Button,
   Card,
+  Input,
   Chip,
   Drawer,
   Modal,

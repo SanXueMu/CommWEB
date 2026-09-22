@@ -15,9 +15,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message, theme } from 'antd'
+import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, InputNumber, List, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message, theme } from 'antd'
 import { DeleteOutlined, EyeOutlined, HistoryOutlined, ScanOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons'
-import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { ApiError, apiFor } from '@/api/client'
@@ -65,6 +64,22 @@ function Alert({ message, type = 'info' }: { message: ReactNode; type?: string; 
 }
 
 const Empty = Object.assign(({ description, image: _image }: { description?: ReactNode; image?: unknown }) => <div style={{ padding: 24, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{description}</div>, { PRESENTED_IMAGE_SIMPLE: null })
+
+function Modal({ title, open, onCancel, footer, width = 520, children }: { title?: ReactNode; open?: boolean; onCancel?: () => void; footer?: ReactNode; width?: number; children?: ReactNode }) {
+  if (!open) return null
+  return <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.35)', display: 'grid', placeItems: 'center', padding: 16 }}><div style={{ width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto', background: 'var(--cw-surface)', borderRadius: 10, padding: 16 }}><header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>{title}</strong><button type="button" onClick={onCancel}>关闭</button></header><div style={{ padding: '16px 0' }}>{children}</div>{footer && <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>{footer}</footer>}</div></div>
+}
+
+namespace Modal {
+  export function confirm({ title, content, onOk }: { title?: ReactNode; content?: ReactNode; onOk?: () => void; [key: string]: unknown }) {
+    if (window.confirm(String(title ?? content ?? '确认操作？'))) onOk?.()
+  }
+}
+
+function Drawer({ title, open, onClose, width: _width, children }: { title?: ReactNode; open?: boolean; onClose?: () => void; width?: number; children?: ReactNode }) {
+  if (!open) return null
+  return <aside role="dialog" style={{ position: 'fixed', inset: '0 0 0 auto', zIndex: 1000, width: 'min(720px, 100vw)', overflow: 'auto', background: 'var(--cw-surface)', boxShadow: '-8px 0 24px rgba(0,0,0,.18)', padding: 16 }}><header style={{ display: 'flex', justifyContent: 'space-between' }}><strong>{title}</strong><button type="button" onClick={onClose}>关闭</button></header>{children}</aside>
+}
 
 function Table({ columns, dataSource = [], rowKey, loading, locale, rowClassName, pagination }: any) {
   return <div style={{ overflowX: 'auto' }}>{loading ? <div style={{ padding: 24, textAlign: 'center' }}>加载中...</div> : <><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{columns.map((column: any) => <th key={String(column.key ?? column.dataIndex ?? column.title)} style={{ textAlign: 'left', padding: 8 }}>{column.title}</th>)}</tr></thead><tbody>{dataSource.map((row: any, index: number) => <tr key={String(typeof rowKey === 'function' ? rowKey(row, index) : row[rowKey ?? 'id'] ?? index)} className={rowClassName?.(row)}>{columns.map((column: any) => <td key={String(column.key ?? column.dataIndex ?? column.title)} style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{column.render ? column.render(column.dataIndex ? row[column.dataIndex] : undefined, row, index) : column.dataIndex ? row[column.dataIndex] as ReactNode : null}</td>)}</tr>)}</tbody>{dataSource.length === 0 && <tfoot><tr><td colSpan={columns.length} style={{ padding: 24, textAlign: 'center' }}>{locale?.emptyText ?? '暂无数据'}</td></tr></tfoot>}</table>{pagination && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: 10, alignItems: 'center' }}><button type="button" disabled={pagination.current <= 1} onClick={() => pagination.onChange?.(pagination.current - 1)}>{'<'}</button><span>{pagination.showTotal?.(pagination.total ?? dataSource.length) ?? `${pagination.current}`}</span><button type="button" disabled={pagination.current * pagination.pageSize >= (pagination.total ?? dataSource.length)} onClick={() => pagination.onChange?.(pagination.current + 1)}>{'>'}</button></div>}</>}</div>

@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, AutoComplete, Button, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Tooltip, Typography, message, theme } from 'antd'
+import { Alert, AutoComplete, Button, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message, theme } from 'antd'
 import { DeleteOutlined, EyeOutlined, HistoryOutlined, ScanOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons'
 import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -51,6 +51,10 @@ function Panel({ title, extra, children, style, styles, size: _size, type: _type
 }
 
 const Card = Panel
+
+function TabsShim({ items, activeKey, onChange, style, renderTabBar: _renderTabBar }: { items: { key: string; label: ReactNode; children: ReactNode }[]; activeKey?: string; onChange?: (key: string) => void; style?: React.CSSProperties; renderTabBar?: () => ReactNode }) {
+  return <div style={style}><div role="tablist" style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--cw-border)' }}>{items.map((item) => <button key={item.key} type="button" role="tab" aria-selected={activeKey === item.key} onClick={() => onChange?.(item.key)}>{item.label}</button>)}</div><div>{items.find((item) => item.key === activeKey)?.children ?? items[0]?.children}</div></div>
+}
 
 const RUNNING = new Set(['running', 'pending', 'queued'])
 // 批量入队并发 2（多模态识别模型有 RPM 限速，并发过高会 429）
@@ -625,7 +629,7 @@ export function OcrStudio() {
             />
           </Card>
         </SidebarShell>
-        <Tabs
+        <TabsShim
           style={{ flex: 1, minWidth: 0 }}
           activeKey={tab}
           renderTabBar={() => <noscript />}

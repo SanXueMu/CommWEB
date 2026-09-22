@@ -16,7 +16,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, InputNumber, List, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message, theme } from 'antd'
-import { DeleteOutlined, EyeOutlined, HistoryOutlined, ScanOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { ApiError, apiFor } from '@/api/client'
@@ -572,7 +571,7 @@ export function OcrStudio() {
   // Tab 导航样式对齐最外层 CommWEB 页眉（14px + 图标，激活主色/600 字重），底部指示条强化当前位置
   const { token } = theme.useToken()
   const TAB_ICONS: Record<string, React.ReactNode> = {
-    recognize: <ScanOutlined />, records: <TableOutlined />, runs: <HistoryOutlined />, views: <EyeOutlined />,
+    recognize: '识别', records: '记录', runs: '运行', views: '视图',
   }
   const tabNavStyle = (active: boolean): React.CSSProperties => ({
     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -652,7 +651,7 @@ export function OcrStudio() {
                   okText="删除" okButtonProps={{ danger: true }} cancelText="取消"
                   onConfirm={() => deleteDbMutation.mutate({ path: d.path })}
                 >
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                  <Button size="small" type="text" danger>删除</Button>
                 </Popconfirm>
               )}
             />
@@ -694,13 +693,12 @@ export function OcrStudio() {
                             trigger="click"
                             content={<TemplateDetailPanel detail={detail.data} loading={detail.isLoading} />}
                           >
-                            <Tooltip title={t.detail}><Button size="small" icon={<EyeOutlined />} /></Tooltip>
+                            <Tooltip title={t.detail}><Button size="small">查看</Button></Tooltip>
                           </Popover>
                         )}
                         <Tooltip title={t.manage}>
                           <Button
                             size="small"
-                            icon={<SettingOutlined />}
                             onClick={() => dialog.openView(props.manageView ?? 'templates', {
                               title: t.manage,
                               size: 'lg',
@@ -877,7 +875,7 @@ export function OcrStudio() {
                             const src = rowSourceFile(row, scope)
                             return (
                               <Button
-                                size="small" type="link" icon={<EyeOutlined />}
+                                 size="small" type="link"
                                 disabled={!src}
                                 onClick={() => setPageView({ path: src, page: rowPage(row) })}
                               >

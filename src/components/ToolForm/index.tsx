@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { App as AntApp, Button, Form } from 'antd'
-import type { FormInstance } from 'antd'
+import { Button } from '@/ui'
+import { Form, useForm, type FormInstance } from '@/ui/form'
 import { api } from '@/api/client'
 import type { ToolDetail } from '@/api/types'
 import { FieldControl, fieldPropName } from '@/components/FieldControl'
@@ -16,9 +16,8 @@ export function ToolForm({ tool, onSubmitted, form: externalForm, showSubmit = t
   showSubmit?: boolean
   onSubmittingChange?: (submitting: boolean) => void
 }) {
-  const [internalForm] = Form.useForm()
+  const [internalForm] = useForm()
   const form = externalForm ?? internalForm
-  const { message } = AntApp.useApp()
   const [submitting, setSubmitting] = useState(false)
   const fields = useMemo(
     () => cachedResolveForm(tool.manifest.io.input_schema, tool.manifest.ui, tool.manifest.io.input_types),
@@ -41,11 +40,10 @@ export function ToolForm({ tool, onSubmitted, form: externalForm, showSubmit = t
         setBusy(true)
         try {
           const created = await api.createTask(tool.id, input)
-          message.success(`${PORTAL.run.queued}${created.handle}`)
           onSubmitted(created.handle)
           form.resetFields()
         } catch (error) {
-          message.error(`${PORTAL.run.submitFailed}${(error as Error).message}`)
+          console.error(`${PORTAL.run.submitFailed}${(error as Error).message}`)
         } finally {
           setBusy(false)
         }
@@ -64,7 +62,7 @@ export function ToolForm({ tool, onSubmitted, form: externalForm, showSubmit = t
         </Form.Item>
       ))}
       {showSubmit && (
-        <Button type="primary" htmlType="submit" loading={submitting}>
+        <Button type="submit" isDisabled={submitting}>
           {tool.manifest.ui?.submit_label ?? PORTAL.run.submit}
         </Button>
       )}

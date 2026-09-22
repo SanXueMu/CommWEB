@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button, Form, Space, Typography } from 'antd'
+import { Space, Typography } from 'antd'
 import { useState } from 'react'
 import { api, apiFor } from '@/api/client'
 import type { ToolSummary } from '@/api/types'
@@ -12,6 +12,8 @@ import { ProviderBadge } from '@/components/ProviderBadge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { ToolForm } from '@/components/ToolForm'
 import { PORTAL } from '@/config/portal'
+import { Button } from '@/ui'
+import { useForm } from '@/ui/form'
 
 const fmtSeconds = (v: number | null) =>
   v == null ? '—' : v >= 1 ? `${v.toFixed(1)}s` : `${Math.round(v * 1000)}ms`
@@ -25,7 +27,7 @@ export function ToolDetailModal({ tool, open, onClose }: {
   open: boolean
   onClose: () => void
 }) {
-  const [form] = Form.useForm()
+  const [form] = useForm()
   const [submitting, setSubmitting] = useState(false)
 
   const detail = useQuery({
@@ -63,7 +65,7 @@ export function ToolDetailModal({ tool, open, onClose }: {
       }
       description={detail.data?.description}
       footerAction={
-        <Button type="primary" loading={submitting} disabled={detail.data == null} onClick={() => form.submit()}>
+        <Button variant="primary" isDisabled={submitting || detail.data == null} onClick={() => form.submit()}>
           {PORTAL.toolDetail.run}
         </Button>
       }

@@ -2,7 +2,7 @@
  *  + 右侧侧栏运行表单 + 底部发起运行 + 近期任务（分页/检索）。 */
 
 import { useQuery } from '@tanstack/react-query'
-import { Button, Form, Typography } from 'antd'
+import { Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
 import { App as AntApp } from 'antd'
 import { useMemo, useState } from 'react'
@@ -11,6 +11,8 @@ import type { PipelineSummary } from '@/api/types'
 import { DataListPanel } from '@/components/DataListPanel'
 import { DetailModal } from '@/components/DetailModal'
 import { FlowForm } from '@/components/FlowForm'
+import { Button } from '@/ui'
+import { useForm } from '@/ui/form'
 import { LifeFlow } from '@/components/LifeFlow'
 import { ProviderBadge } from '@/components/ProviderBadge'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -36,7 +38,7 @@ export function FlowDetailModal({ flow, open, onClose }: {
 }) {
   const activePid = useActivePid()
   const pid = flow.providerId ?? (typeof activePid === 'string' ? activePid : 'default')
-  const [form] = Form.useForm<Record<string, unknown>>()
+  const [form] = useForm<Record<string, unknown>>()
   const [submitting, setSubmitting] = useState(false)
   const [taskKw, setTaskKw] = useState('')
   const queryClient = useQueryClient()
@@ -89,7 +91,7 @@ export function FlowDetailModal({ flow, open, onClose }: {
         ) : undefined
       }
       footerAction={
-        <Button type="primary" loading={submitting} onClick={() => form.submit()}>
+        <Button variant="primary" isDisabled={submitting} onClick={() => form.submit()}>
           {PORTAL.run.startFlow}
         </Button>
       }

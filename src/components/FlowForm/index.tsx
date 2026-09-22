@@ -2,8 +2,8 @@
  *  form 可外控（showSubmit=false 时由外部底部按钮触发 form.submit()）。 */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { App as AntApp, Button, Form, Select } from 'antd'
-import type { FormInstance } from 'antd'
+import { Button } from '@/ui'
+import { Form, useForm, useFormInstance, useWatch, type FormInstance } from '@/ui/form'
 import { useMemo, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { FieldControl, fieldPropName } from '@/components/FieldControl'
@@ -38,8 +38,8 @@ export function FormBody({ fields, cascade, providerId, refKeys }: {
   /** 被 steps args 模板引用的 input 键集合；命中的字段显示自动注入提示。 */
   refKeys?: Set<string>
 }) {
-  const form = Form.useFormInstance()
-  const templateId = Form.useWatch(cascade?.keyField ?? '__none__', form) as string | undefined
+  const form = useFormInstance()
+  const templateId = useWatch(cascade?.keyField ?? '__none__', form) as string | undefined
   const listQuery = useQuery({
     queryKey: ['provider', providerId, 'cascadeList', cascade?.listPath],
     queryFn: () => apiFor(providerId).get<{ templates: TemplateBrief[] }>(cascade!.listPath),
@@ -82,17 +82,10 @@ export function FormBody({ fields, cascade, providerId, refKeys }: {
           label={keyField.label}
           rules={keyField.required ? [{ required: true, message: `请选择 ${keyField.label}` }] : undefined}
         >
-          <Select
-            loading={listQuery.isLoading}
-            showSearch
-            optionFilterProp="label"
-            placeholder="选择后表单自动适配（提示词/字段/钩子随模版）"
-            options={(listQuery.data?.templates ?? []).map((tpl) => ({
-              value: tpl.id,
-              label: `${tpl.name ?? tpl.id}（${tpl.id}）`,
-              disabled: tpl.enabled === false,
-            }))}
-          />
+          <select disabled={listQuery.isLoading} style={{ background: 'var(--cw-surface)', border: '1px solid var(--cw-border)', borderRadius: 8, padding: '8px 10px', width: '100%' }}>
+            <option value="">选择后表单自动适配（提示词/字段/钩子随模版）</option>
+            {(listQuery.data?.templates ?? []).map((tpl) => <option key={tpl.id} value={tpl.id} disabled={tpl.enabled === false}>{`${tpl.name ?? tpl.id}（${tpl.id}）`}</option>)}
+          </select>
         </Form.Item>
       )}
       {base.map(renderItem)}
@@ -111,9 +104,8 @@ export function FlowForm({ flow, fields, providerId, form: externalForm, showSub
   onRun: (runId: string) => void
   onSubmittingChange?: (v: boolean) => void
 }) {
-  const [internalForm] = Form.useForm<Record<string, unknown>>()
+  const [internalForm] = useForm<Record<string, unknown>>()
   const form = externalForm ?? internalForm
-  const { message } = AntApp.useApp()
   const [submitting, setSubmitting] = useState(false)
   const queryClient = useQueryClient()
 
@@ -125,7 +117,7 @@ export function FlowForm({ flow, fields, providerId, form: externalForm, showSub
       queryClient.invalidateQueries({ queryKey: ['provider', providerId, 'runSnapshot', created.run_id] })
       onRun(created.run_id)
     } catch (err) {
-      message.error(`提交失败：${(err as Error).message ?? err}`)
+      console.error(`提交失败：${(err as Error).message ?? err}`)
     } finally {
       setSubmitting(false)
       onSubmittingChange?.(false)
@@ -136,7 +128,7 @@ export function FlowForm({ flow, fields, providerId, form: externalForm, showSub
     <Form form={form} layout="vertical" onFinish={submit} style={{ maxWidth: 560 }}>
       <FormBody fields={fields} cascade={cascadeOf((flow as { input_schema?: Record<string, unknown> | null }).input_schema)} providerId={providerId} refKeys={refKeys} />
       {showSubmit && (
-        <Button type="primary" htmlType="submit" loading={submitting}>
+        <Button type="submit" variant="primary" isDisabled={submitting}>
           {PORTAL.run.submit}
         </Button>
       )}

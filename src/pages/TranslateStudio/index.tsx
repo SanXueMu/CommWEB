@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, Modal, Tooltip,
-  Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography,
+  Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
@@ -712,26 +712,7 @@ export function TranslateStudio() {
                       key: 'templates', label: t.libTemplates,
                       children: (
                         <Card size="small" extra={<Button size="small" onClick={() => openEditor(null)}>＋ {t.newTemplate}</Button>}>
-                          <Table
-                            size="small" rowKey="id" dataSource={tplList} pagination={false}
-                            columns={[
-                              { title: t.colName, dataIndex: 'name' },
-                              { title: t.colLangPair, key: 'lang', width: 140, render: (_: unknown, r: TranslateTemplate) => `${r.source_lang}→${r.target_lang}` },
-                              { title: t.colTermsCount, key: 'terms', width: 100, render: (_: unknown, r: TranslateTemplate) => r.terms_count ?? r.terms?.length ?? 0 },
-                              { title: t.colModel, dataIndex: 'model', width: 180, render: (v: string | null) => v ?? '—' },
-                              {
-                                title: t.colActions, key: 'actions', width: 140,
-                                render: (_: unknown, r: TranslateTemplate) => (
-                                  <Space size={4}>
-                                    <Button size="small" type="link" onClick={() => openEditor(r)}>{t.edit}</Button>
-                                    <Popconfirm title={t.confirmDeleteTpl} onConfirm={() => delTplMutation.mutate(r.id)}>
-                                      <Button size="small" type="link" danger>{t.remove}</Button>
-                                    </Popconfirm>
-                                  </Space>
-                                ),
-                              },
-                            ]}
-                          />
+                          <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{[t.colName, t.colLangPair, t.colTermsCount, t.colModel, t.colActions].map((title) => <th key={title} style={{ textAlign: 'left', padding: 8 }}>{title}</th>)}</tr></thead><tbody>{tplList.map((r) => <tr key={r.id}><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.name}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.source_lang}→{r.target_lang}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.terms_count ?? r.terms?.length ?? 0}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{r.model ?? '—'}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}><button type="button" onClick={() => openEditor(r)}>{t.edit}</button> <button type="button" onClick={() => { if (window.confirm(t.confirmDeleteTpl)) delTplMutation.mutate(r.id) }}>{t.remove}</button></td></tr>)}</tbody></table></div>
                         </Card>
                       ),
                     },

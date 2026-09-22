@@ -3,8 +3,8 @@
  *  流类型徽章 / 启停徽章等同模式扩展，禁止再手写 value→Tag 的目录消费逻辑。
  *  可定制：三档大小 / 圆角（'round'=胶囊） / plain 无背景（仅描边文字色）。 */
 
-import { Tag } from 'antd'
 import type { CSSProperties } from 'react'
+import { Chip } from '@/ui'
 
 const SIZE_STYLES = {
   sm: { fontSize: 11, padding: '0 6px', lineHeight: '18px' },
@@ -43,8 +43,9 @@ export function CatalogBadge<V extends string, E extends { label?: string }>({
   const entry = catalog.get(value)
   const color = resolveColor ? resolveColor(value, entry) : fallback === 'auto' ? autoColor(value) : fallback
   return (
-    <Tag
-      color={plain ? undefined : color}
+    <Chip
+      size={size === 'lg' ? 'lg' : size === 'sm' ? 'sm' : 'md'}
+      variant={plain ? 'tertiary' : 'soft'}
       style={{
         marginRight: 0,
         ...SIZE_STYLES[size],
@@ -56,6 +57,6 @@ export function CatalogBadge<V extends string, E extends { label?: string }>({
       }}
     >
       {entry?.label ?? value}
-    </Tag>
+    </Chip>
   )
 }

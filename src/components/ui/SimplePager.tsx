@@ -4,9 +4,8 @@
  * 超过阈值回落完整分页。窄屏（narrow）一律简约形态。
  */
 
-import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { Pagination } from 'antd'
 import { useViewport } from '@/hooks/useViewport'
+import { Pagination } from '@/ui'
 
 export interface SimplePagerProps {
   page: number
@@ -24,14 +23,35 @@ export function SimplePager({ page, pageSize, total, onChange, simplePages = 3, 
   const simple = pages <= simplePages || breakpoint === 'narrow'
   if (!simple) {
     return (
-      <Pagination
-        size={size === 'small' ? 'small' : undefined}
-        current={page}
-        pageSize={pageSize}
-        total={total}
-        onChange={onChange}
-        showSizeChanger={false}
-      />
+      <Pagination size={size === 'small' ? 'sm' : 'md'} aria-label="分页">
+        <Pagination.Content>
+          <Pagination.Item>
+            <Pagination.Previous
+              aria-label="上一页"
+              isDisabled={page <= 1}
+              onClick={() => onChange(Math.max(1, page - 1))}
+            >
+              上一页
+            </Pagination.Previous>
+          </Pagination.Item>
+          {Array.from({ length: pages }, (_, index) => index + 1).map((item) => (
+            <Pagination.Item key={item}>
+              <Pagination.Link isActive={item === page} onClick={() => onChange(item)}>
+                {item}
+              </Pagination.Link>
+            </Pagination.Item>
+          ))}
+          <Pagination.Item>
+            <Pagination.Next
+              aria-label="下一页"
+              isDisabled={page >= pages}
+              onClick={() => onChange(Math.min(pages, page + 1))}
+            >
+              下一页
+            </Pagination.Next>
+          </Pagination.Item>
+        </Pagination.Content>
+      </Pagination>
     )
   }
   const btn = (disabled: boolean, icon: React.ReactNode, delta: number) => (
@@ -54,11 +74,11 @@ export function SimplePager({ page, pageSize, total, onChange, simplePages = 3, 
   )
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 12, color: 'var(--cw-text-muted)' }}>
-      {btn(page <= 1, <LeftOutlined />, -1)}
+      {btn(page <= 1, '‹', -1)}
       <span style={{ minWidth: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
         {page}/{pages}
       </span>
-      {btn(page >= pages, <RightOutlined />, 1)}
+      {btn(page >= pages, '›', 1)}
     </div>
   )
 }

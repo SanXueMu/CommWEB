@@ -3,8 +3,8 @@
  * 动画圆环展示进度百分比；中心 slot 放核心数字（如尝试次数）；整环可点击（如查看历史）。
  */
 
-import { Progress, Tooltip } from 'antd'
 import type { ReactNode } from 'react'
+import { ProgressCircle, Tooltip } from '@/ui'
 
 export interface ProgressRingProps {
   /** 进度 0-100；null 表示无进度数据（灰环） */
@@ -16,31 +16,31 @@ export interface ProgressRingProps {
   onClick?: () => void
   /** 直径 px（窄屏建议缩小） */
   size?: number
-  /** 状态色：active/success/exception（antd Progress status） */
+  /** 状态色：active/success/exception（兼容旧业务语义） */
   status?: 'active' | 'success' | 'exception' | 'normal'
 }
 
 export function ProgressRing({ percent, center, title, onClick, size = 34, status = 'active' }: ProgressRingProps) {
+  const color = status === 'success' ? 'success' : status === 'exception' ? 'danger' : 'accent'
   const ring = (
     <div
       onClick={onClick}
-      style={{ cursor: onClick ? 'pointer' : 'default', lineHeight: 0 }}
+      style={{ cursor: onClick ? 'pointer' : 'default', lineHeight: 0, position: 'relative', width: size, height: size }}
       role={onClick ? 'button' : undefined}
     >
-      <Progress
-        type="circle"
-        size={size}
-        percent={percent ?? 0}
-        status={percent === null ? 'normal' : status}
-        showInfo={false}
-        strokeWidth={Math.max(3, Math.round(size * 0.08))}
-        strokeLinecap="round"
+      <ProgressCircle
+        value={percent ?? 0}
+        maxValue={100}
+        color={percent === null ? 'default' : color}
+        size={size <= 28 ? 'sm' : size <= 44 ? 'md' : 'lg'}
+        aria-label={title ?? '进度'}
+        style={{ width: size, height: size }}
       />
       {center !== undefined && (
         <div
           style={{
-            marginTop: -size,
-            height: size,
+            position: 'absolute',
+            inset: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -55,5 +55,10 @@ export function ProgressRing({ percent, center, title, onClick, size = 34, statu
       )}
     </div>
   )
-  return title ? <Tooltip title={title}>{ring}</Tooltip> : ring
+  return title ? (
+    <Tooltip>
+      <Tooltip.Trigger>{ring}</Tooltip.Trigger>
+      <Tooltip.Content>{title}</Tooltip.Content>
+    </Tooltip>
+  ) : ring
 }

@@ -4,11 +4,10 @@
  * 「已上传原件」「结果库」「筛选栏」等一切侧栏统一走此壳，禁止再写死固定宽度。
  */
 
-import { MenuOutlined } from '@ant-design/icons'
-import { Button, Drawer } from 'antd'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useViewport } from '@/hooks/useViewport'
+import { Button, Drawer } from '@/ui'
 
 export interface SidebarShellProps {
   /** 触发按钮/侧栏标题文案 */
@@ -25,12 +24,22 @@ export function SidebarShell({ label, width = 240, children }: SidebarShellProps
   if (breakpoint === 'narrow') {
     return (
       <>
-        <Button size="small" icon={<MenuOutlined />} onClick={() => setOpen(true)} style={{ marginBottom: 8 }}>
+        <Button size="sm" onClick={() => setOpen(true)} style={{ marginBottom: 8 }}>
+          <span aria-hidden="true">☰</span>
           {label}
         </Button>
-        <Drawer title={label} placement="left" open={open} onClose={() => setOpen(false)} width="80%">
-          {children}
-        </Drawer>
+        <Drawer.Root isOpen={open} onOpenChange={setOpen}>
+          <Drawer.Backdrop>
+            <Drawer.Content placement="left">
+              <Drawer.Dialog>
+                <Drawer.Header>
+                  <Drawer.Heading>{label}</Drawer.Heading>
+                </Drawer.Header>
+                <Drawer.Body>{children}</Drawer.Body>
+              </Drawer.Dialog>
+            </Drawer.Content>
+          </Drawer.Backdrop>
+        </Drawer.Root>
       </>
     )
   }

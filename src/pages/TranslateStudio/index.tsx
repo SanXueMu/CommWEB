@@ -18,8 +18,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Button, Checkbox, Empty, Flex, Form, Input,
-  Progress, Select, Space, Tabs, Tag, Typography,
+  AutoComplete, Button, Checkbox, Empty, Flex, Form, Input,
+  Select, Space, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
@@ -587,11 +587,7 @@ export function TranslateStudio() {
                       </Space>
                       {batchOn && batchProgress.total > 0 && (
                         <div style={{ marginTop: 8 }}>
-                          <Progress
-                            size="small" percent={Math.round((batchProgress.done / batchProgress.total) * 100)}
-                            status={batchRunning ? 'active' : 'normal'}
-                            format={() => `${batchProgress.done}/${batchProgress.total}`}
-                          />
+                          <div role="progressbar" aria-valuenow={Math.round((batchProgress.done / batchProgress.total) * 100)} style={{ height: 8, borderRadius: 4, background: 'var(--cw-border)', overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.round((batchProgress.done / batchProgress.total) * 100)}%`, background: 'var(--cw-brand)', transition: 'width .2s' }} /></div><span style={{ fontSize: 12 }}>{batchProgress.done}/{batchProgress.total}</span>
                           <div style={{ maxHeight: 140, overflow: 'auto' }}>
                             {batchReport.map((r) => (
                               <Typography.Text key={r.file} type={r.runId ? 'secondary' : 'danger'}
@@ -610,8 +606,7 @@ export function TranslateStudio() {
                     <Panel title={t.runStatus}>
                       <StepTrack runId={activeRun} steps={steps} runStatus={activeStatus} />
                       {activeStatus === 'failed' && (
-                        <Alert type="error" showIcon style={{ marginTop: 8 }}
-                          message={(activeDetail.data?.run.error as { message?: string } | null)?.message ?? t.runFailed} />
+                         <div role="alert" style={{ marginTop: 8, color: 'var(--cw-danger)' }}>{(activeDetail.data?.run.error as { message?: string } | null)?.message ?? t.runFailed}</div>
                       )}
                       <UsagePanel usage={activeUsage} />
                     </Panel>

@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, InputNumber, List, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, message, theme } from 'antd'
+import { AutoComplete, Button, Checkbox, Descriptions, Flex, Form, Image, Input, InputNumber, List, Popconfirm, Popover, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography, theme } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { ApiError, apiFor } from '@/api/client'
@@ -63,6 +63,7 @@ function Alert({ message, type = 'info' }: { message: ReactNode; type?: string; 
 }
 
 const Empty = Object.assign(({ description, image: _image }: { description?: ReactNode; image?: unknown }) => <div style={{ padding: 24, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{description}</div>, { PRESENTED_IMAGE_SIMPLE: null })
+const message = { success: (text: string) => console.info(text), error: (text: string) => console.error(text), warning: (text: string) => console.warn(text) }
 
 function Modal({ title, open, onCancel, footer, width = 520, children }: { title?: ReactNode; open?: boolean; onCancel?: () => void; footer?: ReactNode; width?: number; children?: ReactNode }) {
   if (!open) return null

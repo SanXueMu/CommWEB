@@ -13,8 +13,9 @@
  *  builtinViews?: BuiltinView[] // 内置视图快选（名 + 完整 ViewSpec，声明下发）
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, AutoComplete, Button, Card, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Tooltip, Typography, message, theme } from 'antd'
+import { Alert, AutoComplete, Button, Checkbox, Descriptions, Empty, Flex, Form, Image, Input, InputNumber, List, Modal, Popconfirm, Popover, Progress, Segmented, Select, Space, Spin, Switch, Table, Tabs, Tag, Tooltip, Typography, message, theme } from 'antd'
 import { DeleteOutlined, EyeOutlined, HistoryOutlined, ScanOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons'
 import { Drawer } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -44,6 +45,12 @@ import { StepTrack } from '@/components/StepTrack'
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
+
+function Panel({ title, extra, children, style, styles, size: _size, type: _type }: { title?: ReactNode; extra?: ReactNode; children?: ReactNode; style?: React.CSSProperties; styles?: { body?: React.CSSProperties }; size?: string; type?: string }) {
+  return <section style={{ border: '1px solid var(--cw-border)', borderRadius: 8, background: 'var(--cw-surface)', overflow: 'hidden', ...style }}><header style={{ display: title || extra ? 'flex' : 'none', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--cw-border)', fontWeight: 600 }}>{title}<span>{extra}</span></header><div style={{ padding: 12, ...styles?.body }}>{children}</div></section>
+}
+
+const Card = Panel
 
 const RUNNING = new Set(['running', 'pending', 'queued'])
 // 批量入队并发 2（多模态识别模型有 RPM 限速，并发过高会 429）

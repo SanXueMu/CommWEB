@@ -17,7 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Form, Tag } from 'antd'
+import { Form, useForm } from '@/ui/form'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import type { BatchFileEntry } from '@/api/client'
@@ -41,7 +41,7 @@ import RunListPanel from '@/components/RunListPanel'
 import { StepTrack } from '@/components/StepTrack'
 import { TaskFloat, RunDetail, UsagePanel, aggregate } from '@/components/RunWidgets'
 import { SettingsKeys } from '@/components/SettingsKeys'
-import { Button as UiButton, Modal } from '@/ui'
+import { Button as UiButton, Chip, Modal } from '@/ui'
 
 function Panel({ title, extra, children, style, bodyStyle }: { title?: ReactNode; extra?: ReactNode; children: ReactNode; style?: React.CSSProperties; bodyStyle?: React.CSSProperties }) {
   return <section style={{ border: '1px solid var(--cw-border)', borderRadius: 8, background: 'var(--cw-surface)', overflow: 'hidden', ...style }}>
@@ -174,7 +174,7 @@ export function TranslateStudio() {
   const [dictModel, setDictModel] = useState<string>()
   const [dictPage, setDictPage] = useState(1)
   const [libTab, setLibTab] = useState('glossary')
-  const [editorForm] = Form.useForm()
+  const [editorForm] = useForm()
 
   // ── 查询 ──
   const flows = useQuery({ queryKey: ['provider', pid, 'translate-flows'], queryFn: () => api.listPipelines() })
@@ -426,13 +426,17 @@ export function TranslateStudio() {
   }
   const submitEditor = async () => {
     const v = await editorForm.validateFields()
+    const id = String(v.id ?? '')
+    const name = String(v.name ?? '')
+    if (!/^[a-z][a-z0-9_.]{2,63}$/.test(id)) { console.error(t.idRule); return }
+    if (!name.trim()) { console.error(`${t.colName}必填`); return }
     const terms = String(v.terms ?? '')
       .split('\n').map((line: string) => line.split('=>').map((s) => s.trim()))
       .filter((p: string[]) => p.length === 2 && p[0] && p[1]) as [string, string][]
     saveTplMutation.mutate({
-      id: v.id, name: v.name, desc: v.desc || null,
-      source_lang: v.source_lang || null, target_lang: v.target_lang || null,
-      model: v.model || null, terms,
+      id, name, desc: (v.desc as string) || null,
+      source_lang: (v.source_lang as string) || null, target_lang: (v.target_lang as string) || null,
+      model: (v.model as string) || null, terms,
     })
   }
 
@@ -561,34 +565,39 @@ export function TranslateStudio() {
                     ) : (
                       <FileUpload value={file ?? undefined} onChange={setFile} />
                     )}
-                    <Form layout="vertical" style={{ marginTop: 12 }}>
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <Flex gap={12} wrap="wrap">
-                        <Form.Item label={t.keyLabel} style={{ minWidth: 200 }}>
+                        <div style={{ minWidth: 200 }}>
+                          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{t.keyLabel}</label>
                            <select value={keyName} onChange={(e) => setKeyName(e.target.value)}><option value="">{t.keyPlaceholder}</option>{(keys.data?.keys ?? []).map((k) => <option key={k.name} value={k.name}>{k.name}{k.is_default ? t.defaultTag : ''}</option>)}</select>
-                        </Form.Item>
-                        <Form.Item label={t.sourceLabel} style={{ minWidth: 160 }}>
+                        </div>
+                        <div style={{ minWidth: 160 }}>
+                          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{t.sourceLabel}</label>
                            <select value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}><option value="">{t.autoLang}</option>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select>
-                        </Form.Item>
-                        <Form.Item label={t.targetLabel} style={{ minWidth: 160 }}>
+                        </div>
+                        <div style={{ minWidth: 160 }}>
+                          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{t.targetLabel}</label>
                            <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select>
-                        </Form.Item>
+                        </div>
                         {matchedRoutes.length > 1 && (
-                          <Form.Item label={t.routeLabel} style={{ minWidth: 240 }}>
+                          <div style={{ minWidth: 240 }}>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{t.routeLabel}</label>
                             <select value={flow} onChange={(e) => chooseFlow(e.target.value)}>{matchedRoutes.map((r) => <option key={r.flow} value={r.flow}>{r.label ?? r.flow}</option>)}</select>
-                          </Form.Item>
+                          </div>
                         )}
                         {activeParams.map((p) => (
-                          <Form.Item key={p.name} label={p.label} style={{ minWidth: 200 }}>
+                          <div key={p.name} style={{ minWidth: 200 }}>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{p.label}</label>
                              {p.type === 'select'
                                ? <select value={paramValue(p)} onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))}><option value="">{p.placeholder}</option>{(p.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                               : p.type === 'combo'
                                  ? <input list={`translate-param-${p.name}`} value={paramValue(p)} style={{ minWidth: 220 }} placeholder={p.placeholder} onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />
                                  : <input value={paramValue(p)} placeholder={p.placeholder}
                                      onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />}
-                          </Form.Item>
+                          </div>
                         ))}
                       </Flex>
-                    </Form>
+                    </div>
                     {selectedTemplate && (selectedTemplate.terms?.length ?? 0) > 0 && (
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                         {t.termsFromTpl}（{selectedTemplate.name}）：{selectedTemplate.terms!.map(([a]) => a).join('、')}
@@ -606,7 +615,7 @@ export function TranslateStudio() {
                             {t.start}
                           </Button>
                         )}
-                        {!batchOn && file && flow && <Tag>{flow}</Tag>}
+                         {!batchOn && file && flow && <Chip>{flow}</Chip>}
                         {!batchOn && probeNote && (
                           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                             {probeNote}
@@ -726,23 +735,29 @@ export function TranslateStudio() {
         <Modal.Container><Modal.Dialog>
           <Modal.Header>{editTpl ? t.editTemplate : t.newTemplate}</Modal.Header>
           <Modal.Body>
-        <Form form={editorForm} layout="vertical">
-          <Form.Item name="id" label="ID" rules={[{ required: true, pattern: /^[a-z][a-z0-9_.]{2,63}$/, message: t.idRule }]}>
+        <Form form={editorForm}>
+          <Form.Item name="id" label="ID">
             <Input disabled={Boolean(editTpl)} placeholder="tpl.translate.xxx" />
           </Form.Item>
-          <Form.Item name="name" label={t.colName} rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="name" label={t.colName}><Input /></Form.Item>
           <Form.Item name="desc" label={t.colDesc}><Input /></Form.Item>
           <Flex gap={12} wrap="wrap">
-            <Form.Item name="source_lang" label={t.sourceLabel} style={{ minWidth: 180 }}>
-              <Select options={languages.map((l) => ({ value: l.value, label: l.label }))} />
-            </Form.Item>
-            <Form.Item name="target_lang" label={t.targetLabel} style={{ minWidth: 180 }}>
-              <Select options={languages.map((l) => ({ value: l.value, label: l.label }))} />
-            </Form.Item>
-            <Form.Item name="model" label={t.modelLabel} style={{ minWidth: 200 }}>
-              <AutoComplete style={{ minWidth: 200 }} placeholder={t.modelPlaceholder}
-                options={comboOptions({ name: 'model', label: t.modelLabel, options: modelParam?.options })} />
-            </Form.Item>
+            <div style={{ minWidth: 180 }}>
+              <Form.Item name="source_lang" label={t.sourceLabel}>
+                <Select options={languages.map((l) => ({ value: l.value, label: l.label }))} />
+              </Form.Item>
+            </div>
+            <div style={{ minWidth: 180 }}>
+              <Form.Item name="target_lang" label={t.targetLabel}>
+                <Select options={languages.map((l) => ({ value: l.value, label: l.label }))} />
+              </Form.Item>
+            </div>
+            <div style={{ minWidth: 200 }}>
+              <Form.Item name="model" label={t.modelLabel}>
+                <AutoComplete style={{ minWidth: 200 }} placeholder={t.modelPlaceholder}
+                  options={comboOptions({ name: 'model', label: t.modelLabel, options: modelParam?.options })} />
+              </Form.Item>
+            </div>
           </Flex>
           <Form.Item name="terms" label={t.termsLabel} extra={t.termsHint}>
             <Input.TextArea rows={5} placeholder={'Audit Report => 审计报告'} />

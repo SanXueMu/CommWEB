@@ -1,8 +1,8 @@
 /** 工作区：浏览器式多标签工作台——工具/流会话多开互不干扰，流的全控制操作面板。 */
 
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Dropdown, Empty, Space, Spin, Tabs, Typography } from 'antd'
-import { useMemo } from 'react'
+import { Button, Card } from '@/ui'
+import { useMemo, useState } from 'react'
 import { apiFor } from '@/api/client'
 import { EventStream } from '@/components/EventStream'
 import { ResultRenderer } from '@/components/ResultRenderer'
@@ -39,7 +39,7 @@ export function Workspace() {
               {tab.kind === 'flow' ? '⛓ ' : '🔧 '}
               {tab.title}
               {tab.providerId && tab.providerId !== 'default' && (
-                <Typography.Text code style={{ fontSize: 10, marginLeft: 6 }}>{tab.providerId}</Typography.Text>
+                <code style={{ fontSize: 10, marginLeft: 6 }}>{tab.providerId}</code>
               )}
             </span>
           ),
@@ -56,61 +56,24 @@ export function Workspace() {
   )
 
   return (
-    <Card size="small">
-      <Tabs
-        type="editable-card"
-        hideAdd
-        className="workspace-tabs"
-        activeKey={activeKey}
-        items={items.length ? items : undefined}
-        onChange={setActive}
-        onEdit={(key, action) => {
-          if (action === 'remove' && typeof key === 'string') closeTab(key)
-        }}
-        tabBarExtraContent={<OpenButton onOpen={openTab} />}
-        destroyOnHidden
-      />
-      {items.length === 0 && (
-        <Empty description={PORTAL.empty.workspace} style={{ padding: '48px 0' }} />
-      )}
+    <Card>
+      <div className="workspace-tabs" style={{ display: 'flex', gap: 4, alignItems: 'center', overflowX: 'auto', paddingBottom: 12 }}>
+        {items.map((item) => <button key={item.key} type="button" onClick={() => setActive(item.key)} style={{ border: '1px solid var(--cw-border)', background: item.key === activeKey ? 'var(--cw-surface-raised)' : 'transparent', padding: '6px 10px', borderRadius: 6, whiteSpace: 'nowrap' }}>{item.label} <span onClick={(event) => { event.stopPropagation(); closeTab(item.key) }}>×</span></button>)}
+        <OpenButton onOpen={openTab} />
+      </div>
+      {items.length ? items.find((item) => item.key === activeKey)?.children : <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{PORTAL.empty.workspace}</div>}
     </Card>
   )
 }
 
 function OpenButton({ onOpen }: { onOpen: (tab: { kind: 'tool' | 'flow'; refId: string; title: string; providerId: string }) => void }) {
+  const [open, setOpen] = useState(false)
   const pid = useActivePid()
   const { data: toolsData } = useQuery({ queryKey: ['provider', pid, 'tools'], queryFn: () => apiFor(pid).listTools() })
   const { data: flowsData } = useQuery({ queryKey: ['provider', pid, 'pipelines'], queryFn: () => apiFor(pid).listPipelines() })
   const tools = toolsData?.tools ?? []
   const flows = flowsData?.pipelines ?? []
-  return (
-    <Dropdown
-      menu={{
-        items: [
-          {
-            key: 'tools',
-            label: '打开工具',
-            children: tools.map((t) => ({
-              key: t.id,
-              label: `${t.name}（${t.id}）`,
-              onClick: () => onOpen({ kind: 'tool', refId: t.id, title: t.name, providerId: pid }),
-            })),
-          },
-          {
-            key: 'flows',
-            label: '打开流',
-            children: flows.map((p) => ({
-              key: p.id,
-              label: `${p.name}（${p.id}）`,
-              onClick: () => onOpen({ kind: 'flow', refId: p.id, title: p.name, providerId: pid }),
-            })),
-          },
-        ],
-      }}
-    >
-      <Button size="small">＋ 打开</Button>
-    </Dropdown>
-  )
+  return <div style={{ position: 'relative' }}><Button size="sm" onClick={() => setOpen((value) => !value)}>＋ 打开</Button>{open && <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 5, background: 'var(--cw-surface)', border: '1px solid var(--cw-border)', padding: 8, minWidth: 220 }}>{[['工具', tools, 'tool'], ['流', flows, 'flow']].map(([label, values, kind]) => <div key={String(label)}><strong>{label as string}</strong>{(values as Array<{ id: string; name: string }>).map((item) => <button key={item.id} type="button" style={{ display: 'block', width: '100%', textAlign: 'left', padding: 6, border: 0, background: 'transparent' }} onClick={() => { onOpen({ kind: kind as 'tool' | 'flow', refId: item.id, title: item.name, providerId: pid }); setOpen(false) }}>{item.name}（{item.id}）</button>)}</div>)}</div>}</div>
 }
 
 /** 工具会话：表单提交 → tab 内联事件流 + 结果渲染。 */
@@ -131,25 +94,25 @@ function ToolSession({ tab, update }: { tab: { refId: string; providerId?: strin
     },
   })
 
-  if (isLoading) return <Spin />
-  if (!tool) return <Typography.Text type="secondary">工具不存在或已下架</Typography.Text>
+  if (isLoading) return <div role="status">加载中...</div>
+  if (!tool) return <span style={{ color: 'var(--cw-text-secondary)' }}>工具不存在或已下架</span>
 
   return (
     <div style={{ maxWidth: 860 }}>
       {tab.handle ? (
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Space>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <StatusBadge value={task?.status ?? 'queued'} />
-            <Typography.Text code style={{ fontSize: 12 }}>
+            <code style={{ fontSize: 12 }}>
               {tab.handle}
-            </Typography.Text>
-            <Button size="small" onClick={() => update({ handle: undefined })}>
+            </code>
+              <Button size="sm" onClick={() => update({ handle: undefined })}>
               再次提交
             </Button>
             {task && ['queued', 'running'].includes(task.status) && (
               <Button
-                size="small"
-                danger
+                size="sm"
+                variant="danger"
                 onClick={async () => {
                   try {
                     await api.cancelTask(tab.handle!)
@@ -161,14 +124,14 @@ function ToolSession({ tab, update }: { tab: { refId: string; providerId?: strin
                 {PORTAL.workspace.abort}
               </Button>
             )}
-          </Space>
+          </div>
           {task && <EventStream handle={tab.handle} />}
           {task?.status === 'succeeded' && task.output != null && (
-            <Card size="small" title="结果">
+            <Card><strong style={{ display: 'block', marginBottom: 8 }}>结果</strong>
               <ResultRenderer output={task.output} highlight={tool.manifest.ui?.render?.highlight} />
             </Card>
           )}
-        </Space>
+        </div>
       ) : (
         <ToolForm tool={tool} onSubmitted={(handle) => update({ handle })} />
       )}
@@ -184,8 +147,8 @@ function FlowSession({ tab, update }: { tab: { refId: string; title: string; pro
     queryFn: () => apiFor(pid).getPipeline(tab.refId),
   })
 
-  if (isLoading) return <Spin />
-  if (!flow) return <Typography.Text type="secondary">流不存在或已下架</Typography.Text>
+  if (isLoading) return <div role="status">加载中...</div>
+  if (!flow) return <span style={{ color: 'var(--cw-text-secondary)' }}>流不存在或已下架</span>
 
   return <FlowRunner flow={flow} runId={tab.runId ?? null} onRunIdChange={(id) => update({ runId: id ?? undefined })} />
 }

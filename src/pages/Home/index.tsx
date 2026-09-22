@@ -1,6 +1,6 @@
 /** 起始首页（蓝图04）：零状态界面——未激活时的唯一界面；点卡即激活。 */
 
-import { Alert, App as AntApp, Modal, Space, Typography } from 'antd'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { useNavigate } from 'react-router-dom'
 import { ProviderMenu } from '@/components/ProviderMenu'
 import { PORTAL } from '@/config/portal'
@@ -28,7 +28,7 @@ function capabilitySummary(p: ProviderDescriptor): string {
 
 export function Home() {
   const { providers, activeId, setActiveId, probeAll } = useProviders()
-  const { message } = AntApp.useApp()
+  const { confirm } = useConfirm()
   const navigate = useNavigate()
 
   const onlineFirst = [...providers].sort((a, b) => {
@@ -39,39 +39,24 @@ export function Home() {
 
   const activate = async (p: ProviderDescriptor) => {
     if (p.status === 'offline') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: '该系统当前不可达',
-          content: `${p.name}（${p.baseUrl}）探测失败，仍要进入？`,
-          okText: '仍要进入',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        })
-      })
+      const confirmed = await confirm({ title: '该系统当前不可达', content: `${p.name}（${p.baseUrl}）探测失败，仍要进入？`, options: [{ value: true, label: '仍要进入', danger: true }] })
       if (!confirmed) return
     }
     setActiveId(p.id)
-    message.success(`已选择 ${p.name}`)
+    console.info(`已选择 ${p.name}`)
     navigate('/')
   }
 
   return (
     <div className="home-shell">
       <div className="home-column">
-        <Typography.Title level={3} style={{ marginBottom: 4 }}>{PORTAL.home.title}</Typography.Title>
-        <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 4 }}>{PORTAL.home.title}</h3>
+        <span style={{ color: 'var(--cw-text-secondary)', fontSize: 13, display: 'block', marginBottom: 20 }}>
           {PORTAL.home.subtitle(providers.length)}
-        </Typography.Text>
+        </span>
 
         {allOffline && (
-          <Alert
-            type="warning"
-            showIcon
-            message={PORTAL.home.allOffline}
-            action={<a onClick={probeAll}>{PORTAL.home.retry}</a>}
-            style={{ marginBottom: 16 }}
-          />
+          <div role="alert" style={{ color: 'var(--cw-warning)', marginBottom: 16 }}>{PORTAL.home.allOffline} <a onClick={probeAll}>{PORTAL.home.retry}</a></div>
         )}
 
         <div className={providers.length > 6 ? 'home-grid home-grid-2' : 'home-grid'}>
@@ -101,15 +86,13 @@ export function Home() {
           })}
         </div>
 
-        <Space style={{ marginTop: 24 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+        <div style={{ marginTop: 24, color: 'var(--cw-text-secondary)', fontSize: 13 }}>
             <ProviderMenu asLink />
-          </Typography.Text>
-        </Space>
+        </div>
         {providers.length === 1 && (
-          <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+          <span style={{ color: 'var(--cw-text-secondary)', fontSize: 12, marginTop: 8, display: 'block' }}>
             {PORTAL.home.singleHint}
-          </Typography.Text>
+          </span>
         )}
       </div>
     </div>

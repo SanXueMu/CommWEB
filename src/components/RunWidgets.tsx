@@ -7,10 +7,24 @@
  * 翻译工作台与 OCR 工作台共用同一套（此前两份实现易漂移）。
  * 文案为协议级通用词（非业务词），两工作台一致。
  */
-import { Badge, Card, Descriptions, Flex, Progress, Space, Table, Tag, Tooltip, Typography } from 'antd'
+import { Card as HeroCard, Chip } from '@/ui'
+import type { ReactNode, CSSProperties } from 'react'
 import { DownloadButton } from '@/components/DownloadButton'
 import { StatusBadge } from '@/components/StatusBadge'
 import type { PipelineRun, RunEvent, RunSummary } from '@/api/types'
+
+function Card({ title, children, style }: { title?: ReactNode; children: ReactNode; style?: CSSProperties; size?: string; styles?: { body?: CSSProperties } }) { return <HeroCard style={style}><>{title && <strong style={{ display: 'block', marginBottom: 8 }}>{title}</strong>}{children}</></HeroCard> }
+function Space({ children, direction = 'horizontal', size = 8, style }: { children: ReactNode; direction?: 'vertical' | 'horizontal'; size?: number; wrap?: boolean; style?: CSSProperties }) { return <div style={{ display: 'flex', flexDirection: direction === 'vertical' ? 'column' : 'row', flexWrap: 'wrap', gap: size, ...style }}>{children}</div> }
+function Flex({ children, style }: { children: ReactNode; justify?: string; style?: CSSProperties }) { return <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...style }}>{children}</div> }
+function Text({ children, type, style, ellipsis }: { children: ReactNode; type?: string; style?: CSSProperties; ellipsis?: boolean }) { return <span style={{ color: type === 'danger' ? 'var(--cw-danger)' : type === 'warning' ? 'var(--cw-warning)' : type === 'secondary' ? 'var(--cw-text-secondary)' : undefined, overflow: ellipsis ? 'hidden' : undefined, textOverflow: ellipsis ? 'ellipsis' : undefined, whiteSpace: ellipsis ? 'nowrap' : undefined, ...style }}>{children}</span> }
+const Typography = { Text }
+function Tag({ children, color }: { children: ReactNode; color?: string }) { return <Chip color={color === 'green' ? 'success' : color === 'orange' ? 'warning' : color === 'red' ? 'danger' : color === 'blue' ? 'accent' : undefined}>{children}</Chip> }
+function Progress({ percent }: { percent?: number; size?: string; status?: string }) { return <progress value={percent} max={100} style={{ width: '100%' }} /> }
+function Badge({ status }: { status?: string }) { return <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: status === 'error' ? 'var(--cw-danger)' : 'var(--cw-accent)' }} /> }
+function Tooltip({ children, title }: { children: ReactNode; title: ReactNode }) { return <span title={typeof title === 'string' ? title : undefined}>{children}</span> }
+function Descriptions({ children }: { children: ReactNode; size?: string; column?: number; bordered?: boolean }) { return <div style={{ display: 'grid', gap: 8 }}>{children}</div> }
+namespace Descriptions { export const Item = ({ label, children }: { label: string; children: ReactNode }) => <div><Text type="secondary">{label}：</Text>{children}</div> }
+function Table({ dataSource, columns }: { dataSource: Record<string, unknown>[]; columns: { title: string; dataIndex: string; render?: (value: unknown, row?: Record<string, unknown>) => ReactNode; [key: string]: unknown }[]; rowKey?: (row: Record<string, unknown>) => unknown; [key: string]: unknown }) { return <table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{columns.map((c) => <th key={c.dataIndex} style={{ textAlign: 'left', padding: 6 }}>{c.title}</th>)}</tr></thead><tbody>{dataSource.map((row, i) => <tr key={i}>{columns.map((c) => <td key={c.dataIndex} style={{ padding: 6 }}>{c.render ? c.render(row[c.dataIndex], row) : String(row[c.dataIndex] ?? '')}</td>)}</tr>)}</tbody></table> }
 
 export function baseName(p?: unknown): string {
   return String(p ?? '').split('/').pop() ?? ''

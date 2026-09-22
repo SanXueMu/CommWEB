@@ -12,8 +12,8 @@
  *  模板键：{{source}}（库路径）/ {{records}}（当前记录）/ {{view.rows}} 等视图产物键。
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Divider, Select, Space, Typography } from 'antd'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { Button as HeroButton, Card as HeroCard } from '@/ui'
 
 import { apiFor } from '@/api/client'
 import { useViewProps } from '@/protocol/ViewPropsContext'
@@ -23,6 +23,14 @@ import { ResultRenderer } from '../ResultRenderer'
 import { SpecEditor } from '../SpecEditor'
 import { FileUpload } from '../FileUpload'
 import { DownloadButton } from '../DownloadButton'
+
+function Card({ title, children }: { title?: string; children: ReactNode; size?: string }) { return <HeroCard><>{title && <strong style={{ display: 'block', marginBottom: 12 }}>{title}</strong>}{children}</></HeroCard> }
+function Button({ children, loading, disabled, onClick, type }: { children: ReactNode; loading?: boolean; disabled?: boolean; onClick?: () => void; type?: string }) { return <HeroButton variant={type === 'primary' ? 'primary' : undefined} isDisabled={disabled || loading} onClick={onClick}>{loading ? '处理中...' : children}</HeroButton> }
+function Space({ children, direction = 'horizontal', size = 8, style, wrap }: { children: ReactNode; direction?: 'vertical' | 'horizontal'; size?: number; style?: CSSProperties; wrap?: boolean }) { return <div style={{ display: 'flex', flexDirection: direction === 'vertical' ? 'column' : 'row', flexWrap: wrap || direction === 'horizontal' ? 'wrap' : undefined, gap: size, ...style }}>{children}</div> }
+function Select({ value, onChange, options, placeholder, style }: { value?: string; onChange: (value: string) => void; options: { value: string; label: string }[]; placeholder?: string; style?: CSSProperties; showSearch?: boolean }) { return <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} style={style}><option value="">{placeholder}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> }
+function Alert({ message }: { message: string; type?: string; showIcon?: boolean }) { return <div role="alert" style={{ color: 'var(--cw-danger)', padding: 8 }}>{message}</div> }
+function Divider({ style }: { style?: CSSProperties }) { return <hr style={{ border: 0, borderTop: '1px solid var(--cw-border)', ...style }} /> }
+const Typography = { Text: ({ children, style, type }: { children: ReactNode; style?: CSSProperties; type?: string }) => <span style={{ color: type === 'secondary' ? 'var(--cw-text-secondary)' : undefined, ...style }}>{children}</span> }
 
 export interface DataBrowserProps {
   source: { kind: 'dbs' } | { kind: 'records_json' }
@@ -230,4 +238,3 @@ export function DataBrowser() {
     </Space>
   )
 }
-

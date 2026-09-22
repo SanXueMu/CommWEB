@@ -17,7 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AutoComplete, Form, Input, Select, Tag } from 'antd'
+import { Form, Tag } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import type { BatchFileEntry } from '@/api/client'
@@ -77,6 +77,20 @@ function Checkbox({ checked, disabled, onChange, children }: { checked?: boolean
 }
 
 const Empty = Object.assign(({ description, image: _image }: { description?: ReactNode; image?: unknown }) => <div style={{ padding: 24, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{description}</div>, { PRESENTED_IMAGE_SIMPLE: null })
+
+function Input({ value, defaultValue, onChange, placeholder, disabled, style }: { value?: string; defaultValue?: string; onChange?: React.ChangeEventHandler<HTMLInputElement>; placeholder?: string; disabled?: boolean; style?: React.CSSProperties }) {
+  return <input value={value} defaultValue={defaultValue} onChange={onChange} placeholder={placeholder} disabled={disabled} style={style} />
+}
+Input.TextArea = ({ value, defaultValue, onChange, placeholder, rows, style }: { value?: string; defaultValue?: string; onChange?: React.ChangeEventHandler<HTMLTextAreaElement>; placeholder?: string; rows?: number; style?: React.CSSProperties }) => <textarea value={value} defaultValue={defaultValue} onChange={onChange} placeholder={placeholder} rows={rows} style={style} />
+
+function Select({ value, defaultValue, onChange, options, placeholder, style }: { value?: string; defaultValue?: string; onChange?: (value: string) => void; options?: { value: string; label: ReactNode }[]; placeholder?: string; style?: React.CSSProperties }) {
+  return <select value={value} defaultValue={defaultValue} onChange={(event) => onChange?.(event.target.value)} style={style}><option value="">{placeholder}</option>{options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+}
+
+function AutoComplete({ value, defaultValue, onChange, options, placeholder, style }: { value?: string; defaultValue?: string; onChange?: (value: string) => void; options?: { value: string; label?: ReactNode }[]; placeholder?: string; style?: React.CSSProperties }) {
+  const listId = `translate-models-${Math.random().toString(36).slice(2)}`
+  return <><input list={listId} value={value} defaultValue={defaultValue} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} style={style} /><datalist id={listId}>{options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</datalist></>
+}
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)

@@ -11,11 +11,11 @@
  * 弹窗始终不超出视口高度（顶/底留白固定），避免长内容把弹窗撑破页面。
  */
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
-import { Modal } from 'antd'
 import { useProviders } from '@/transfer/context'
 import { useSiteCatalog } from '@/config/useSiteCatalog'
 import { ViewScope } from '@/protocol/ViewPropsContext'
 import { viewComponent } from '@/protocol/views'
+import { Modal } from '@/ui'
 
 export type DialogSize = 'sm' | 'md' | 'lg' | 'xl'
 
@@ -80,17 +80,24 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     <DialogContext.Provider value={api}>
       {children}
       <Modal
-        open={!!request}
-        title={request?.title}
-        width={`min(${width}px, 88vw)`}
-        onCancel={close}
-        footer={request?.footer ?? null}
-        destroyOnHidden
-        centered={false}
-        style={{ top: 72 }}
-        styles={{ body: { maxHeight: BODY_MAX, overflow: 'auto', paddingRight: 4 } }}
+        isOpen={!!request}
+        onOpenChange={(open) => !open && close()}
       >
-        {request?.content}
+        <Modal.Backdrop>
+          <div style={{ marginTop: 72, maxWidth: `min(${width}px, 88vw)`, width: '100%' }}>
+            <Modal.Container size="lg" placement="top">
+              <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>{request?.title}</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body style={{ maxHeight: BODY_MAX, overflow: 'auto', paddingRight: 4 }}>
+                {request?.content}
+              </Modal.Body>
+              {request?.footer != null && <Modal.Footer>{request.footer}</Modal.Footer>}
+              </Modal.Dialog>
+            </Modal.Container>
+          </div>
+        </Modal.Backdrop>
       </Modal>
     </DialogContext.Provider>
   )

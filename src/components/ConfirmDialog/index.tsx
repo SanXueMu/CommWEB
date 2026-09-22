@@ -12,8 +12,8 @@
  * - 需要 ConfirmProvider 在应用根部挂载一次
  */
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
-import { Button, Modal, Space, Typography } from 'antd'
 import type { ConfirmOption } from '@/protocol/confirm'
+import { Button, Modal } from '@/ui'
 
 export interface ConfirmRequest<T> {
   title: React.ReactNode
@@ -55,37 +55,44 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     <ConfirmContext.Provider value={api}>
       {children}
       <Modal
-        open={!!request}
-        title={request?.title}
-        width={request?.width ?? 460}
-        onCancel={() => close(null)}
-        maskClosable={false}
-        footer={
-          <Space>
-            <Button onClick={() => close(null)}>{request?.cancelText ?? '取消'}</Button>
-            {(request?.options ?? []).map((opt, index) => (
-              <Button
-                key={String(index)}
-                danger={opt.danger}
-                type={index === 0 && !opt.danger ? 'primary' : 'default'}
-                onClick={() => close(opt.value)}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </Space>
-        }
+        isOpen={!!request}
+        onOpenChange={(open) => !open && close(null)}
       >
-        {typeof request?.content === 'function' ? request.content({ close }) : request?.content}
-        {descriptions.length > 0 && (
-          <div style={{ marginTop: descriptions.length ? 12 : 0 }}>
-            {descriptions.map((opt, index) => (
-              <Typography.Text key={String(index)} type="secondary" style={{ display: 'block', fontSize: 12 }}>
-                <b>{opt.label}</b>：{opt.description}
-              </Typography.Text>
-            ))}
+        <Modal.Backdrop isDismissable={false}>
+          <div style={{ maxWidth: request?.width ?? 460, width: '100%' }}>
+            <Modal.Container size="sm">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>{request?.title}</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body>
+                {typeof request?.content === 'function' ? request.content({ close }) : request?.content}
+                {descriptions.length > 0 && (
+                  <div style={{ color: 'var(--cw-text-secondary)', fontSize: 12, marginTop: 12 }}>
+                    {descriptions.map((opt, index) => (
+                      <div key={String(index)}><b>{opt.label}</b>：{opt.description}</div>
+                    ))}
+                  </div>
+                )}
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="tertiary" onClick={() => close(null)}>
+                  {request?.cancelText ?? '取消'}
+                </Button>
+                {(request?.options ?? []).map((opt, index) => (
+                  <Button
+                    key={String(index)}
+                    variant={opt.danger ? 'danger' : index === 0 ? 'primary' : 'secondary'}
+                    onClick={() => close(opt.value)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </Modal.Footer>
+            </Modal.Dialog>
+            </Modal.Container>
           </div>
-        )}
+        </Modal.Backdrop>
       </Modal>
     </ConfirmContext.Provider>
   )

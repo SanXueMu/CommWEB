@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Descriptions, Flex, Form, Image, Input, List, Popconfirm, Popover, Segmented, Space, Spin, Tag, Tooltip, Typography, theme } from 'antd'
+import { Button, Flex, Form, Image, List, Popconfirm, Popover, Segmented, Space, Spin, Tag, Tooltip, Typography, theme } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { useDialog } from '@/components/DialogLayer'
 import { ApiError, apiFor } from '@/api/client'
@@ -69,6 +69,8 @@ function InputNumber({ value, onChange, style }: { value?: number; onChange?: (v
 function Checkbox({ checked, onChange, children }: { checked?: boolean; onChange?: (event: { target: { checked: boolean } }) => void; children?: ReactNode }) { return <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={checked} onChange={(e) => onChange?.({ target: { checked: e.target.checked } })} />{children}</label> }
 function Select({ value, onChange, options = [], placeholder, style, disabled }: any) { return <select value={value ?? ''} disabled={disabled} style={style} onChange={(e) => onChange?.(e.target.value)}><option value="">{placeholder ?? '请选择'}</option>{options.map((option: any) => <option key={String(option.value ?? option.label)} value={String(option.value ?? '')}>{option.label}</option>)}</select> }
 function AutoComplete({ value, onChange, options = [], placeholder, style }: any) { const id = `ocr-options-${options.length}`; return <><input list={id} value={value ?? ''} placeholder={placeholder} style={style} onChange={(e) => onChange?.(e.target.value)} /><datalist id={id}>{options.map((option: any) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</datalist></> }
+function Input({ value, onChange, placeholder, style }: any) { return <input value={value ?? ''} placeholder={placeholder} style={style} onChange={onChange} /> }
+Input.TextArea = function TextArea({ value, onChange, rows = 3, placeholder }: any) { return <textarea value={value ?? ''} rows={rows} placeholder={placeholder} onChange={onChange} style={{ width: '100%', resize: 'vertical' }} /> }
 
 function Modal({ title, open, onCancel, footer, width = 520, children }: { title?: ReactNode; open?: boolean; onCancel?: () => void; footer?: ReactNode; width?: number; children?: ReactNode }) {
   if (!open) return null
@@ -1037,7 +1039,7 @@ export function OcrStudio() {
         <Input
           placeholder={t.saveMyViewNameLabel}
           value={saveViewName}
-          onChange={(e) => setSaveViewName(e.target.value)}
+           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSaveViewName(e.target.value)}
           onPressEnter={() => {
             if (saveViewName.trim()) {
               try { saveMyViewMutation.mutate({ name: saveViewName.trim(), spec: JSON.parse(viewSpec ?? '{}') }) }
@@ -1087,10 +1089,7 @@ function TemplateDetailPanel({ detail, loading }: { detail?: TplDetail; loading:
   if (!detail) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
   return (
     <div style={{ maxWidth: 420 }}>
-      <Descriptions size="small" column={2}>
-        <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
-        <Descriptions.Item label={t.catLabel}>{detail.category ?? '—'}</Descriptions.Item>
-      </Descriptions>
+      <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 12px', fontSize: 13 }}><dt>ID</dt><dd style={{ margin: 0 }}>{detail.id}</dd><dt>{t.catLabel}</dt><dd style={{ margin: 0 }}>{detail.category ?? '—'}</dd></dl>
       <div style={{ marginTop: 8 }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t.fieldsLabel}</Typography.Text>
         <div style={{ marginTop: 4 }}>

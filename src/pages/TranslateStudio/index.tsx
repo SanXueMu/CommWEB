@@ -535,43 +535,27 @@ export function TranslateStudio() {
                     <Form layout="vertical" style={{ marginTop: 12 }}>
                       <Flex gap={12} wrap="wrap">
                         <Form.Item label={t.keyLabel} style={{ minWidth: 200 }}>
-                          <Select
-                            allowClear placeholder={t.keyPlaceholder} value={keyName} loading={keys.isLoading}
-                            options={(keys.data?.keys ?? []).map((k) => ({ value: k.name, label: `${k.name}${k.is_default ? t.defaultTag : ''}` }))}
-                            onChange={setKeyName}
-                          />
+                           <select value={keyName} onChange={(e) => setKeyName(e.target.value)}><option value="">{t.keyPlaceholder}</option>{(keys.data?.keys ?? []).map((k) => <option key={k.name} value={k.name}>{k.name}{k.is_default ? t.defaultTag : ''}</option>)}</select>
                         </Form.Item>
                         <Form.Item label={t.sourceLabel} style={{ minWidth: 160 }}>
-                          <Select allowClear placeholder={t.autoLang} value={sourceLang || undefined}
-                            options={languages.map((l) => ({ value: l.value, label: l.label }))} onChange={(v) => setSourceLang(v ?? '')} />
+                           <select value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}><option value="">{t.autoLang}</option>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select>
                         </Form.Item>
                         <Form.Item label={t.targetLabel} style={{ minWidth: 160 }}>
-                          <Select value={targetLang} options={languages.map((l) => ({ value: l.value, label: l.label }))} onChange={setTargetLang} />
+                           <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select>
                         </Form.Item>
                         {matchedRoutes.length > 1 && (
                           <Form.Item label={t.routeLabel} style={{ minWidth: 240 }}>
-                            <Select value={flow} onChange={chooseFlow}
-                              options={matchedRoutes.map((r) => ({ value: r.flow, label: r.label ?? r.flow }))} />
+                            <select value={flow} onChange={(e) => chooseFlow(e.target.value)}>{matchedRoutes.map((r) => <option key={r.flow} value={r.flow}>{r.label ?? r.flow}</option>)}</select>
                           </Form.Item>
                         )}
                         {activeParams.map((p) => (
                           <Form.Item key={p.name} label={p.label} style={{ minWidth: 200 }}>
-                            {p.type === 'select'
-                              ? <Select value={paramValue(p) || undefined} placeholder={p.placeholder}
-                                  options={(p.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
-                                  onChange={(v) => setParamVals((s) => ({ ...s, [p.name]: v ?? '' }))} />
+                             {p.type === 'select'
+                               ? <select value={paramValue(p)} onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))}><option value="">{p.placeholder}</option>{(p.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                               : p.type === 'combo'
-                                ? <AutoComplete
-                                    value={paramValue(p)}
-                                    style={{ minWidth: 220 }}
-                                    placeholder={p.placeholder}
-                                    options={comboOptions(p)}
-                                    filterOption={(input, option) =>
-                                      String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())}
-                                    onChange={(v) => setParamVals((s) => ({ ...s, [p.name]: v ?? '' }))}
-                                  />
-                                : <Input value={paramValue(p)} placeholder={p.placeholder}
-                                    onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />}
+                                 ? <input list={`translate-param-${p.name}`} value={paramValue(p)} style={{ minWidth: 220 }} placeholder={p.placeholder} onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />
+                                 : <input value={paramValue(p)} placeholder={p.placeholder}
+                                     onChange={(e) => setParamVals((s) => ({ ...s, [p.name]: e.target.value }))} />}
                           </Form.Item>
                         ))}
                       </Flex>

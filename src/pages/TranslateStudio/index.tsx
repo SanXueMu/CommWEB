@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, List, Modal, Tooltip,
+  Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, Modal, Tooltip,
   Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -446,32 +446,14 @@ export function TranslateStudio() {
       <Flex gap={16} align="stretch" style={{ minHeight: 480 }}>
         {/* 模板侧栏 */}
         <Card size="small" title={t.sidebar} style={{ width: 260, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
-          <List
-            size="small" loading={templates.isLoading} dataSource={tplList}
-            locale={{ emptyText: t.sidebarEmpty }}
-            renderItem={(tpl) => (
-              <List.Item
-                style={{ cursor: 'pointer', padding: '8px 12px', background: tpl.id === templateId ? 'rgba(91,141,239,0.10)' : undefined }}
-                onClick={() => selectTemplate(tpl)}
-                actions={[
-                  <button key="e" type="button" onClick={(e) => { e.stopPropagation(); openEditor(tpl) }}>编辑</button>,
-                  <Popconfirm key="d" title={t.confirmDeleteTpl} onConfirm={() => delTplMutation.mutate(tpl.id)} onCancel={(e) => e?.stopPropagation()}>
-                    <button type="button" onClick={(e) => e.stopPropagation()}>删除</button>
-                  </Popconfirm>,
-                ]}
-              >
-                <List.Item.Meta
-                  title={<Typography.Text ellipsis style={{ maxWidth: 150 }}>{tpl.name}</Typography.Text>}
-                  description={
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {tpl.source_lang}→{tpl.target_lang} · {(tpl.terms_count ?? tpl.terms?.length ?? 0)}{t.termUnit}
-                      {tpl.model ? ` · ${tpl.model}` : ''}
-                    </Typography.Text>
-                  }
-                />
-              </List.Item>
-            )}
-          />
+          <div style={{ minHeight: 120 }}>
+            {templates.isLoading ? <div role="status">加载中...</div> : tplList.length === 0 ? <div style={{ padding: 16, color: 'var(--cw-text-secondary)' }}>{t.sidebarEmpty}</div> : tplList.map((tpl) => (
+              <div key={tpl.id} style={{ cursor: 'pointer', padding: '8px 12px', background: tpl.id === templateId ? 'rgba(91,141,239,0.10)' : undefined, display: 'flex', justifyContent: 'space-between', gap: 8 }} onClick={() => selectTemplate(tpl)}>
+                <div style={{ minWidth: 0 }}><div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tpl.name}</div><span style={{ color: 'var(--cw-text-secondary)', fontSize: 12 }}>{tpl.source_lang}→{tpl.target_lang} · {(tpl.terms_count ?? tpl.terms?.length ?? 0)}{t.termUnit}{tpl.model ? ` · ${tpl.model}` : ''}</span></div>
+                <span style={{ display: 'flex', gap: 4 }}><button type="button" onClick={(e) => { e.stopPropagation(); openEditor(tpl) }}>编辑</button><button type="button" onClick={(e) => { e.stopPropagation(); if (window.confirm(t.confirmDeleteTpl)) delTplMutation.mutate(tpl.id) }}>删除</button></span>
+              </div>
+            ))}
+          </div>
         </Card>
 
         <Tabs

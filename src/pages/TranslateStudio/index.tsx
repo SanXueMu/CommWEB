@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, Modal, Tooltip,
-  Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography,
+  Progress, Segmented, Select, Space, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
@@ -671,11 +671,7 @@ export function TranslateStudio() {
                       children: selectedTemplate ? (
                         (selectedTemplate.terms?.length ?? 0) === 0
                           ? <Empty description={t.noTerms} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                          : <Table
-                              size="small" rowKey={(_, i) => String(i)} pagination={false}
-                              dataSource={selectedTemplate.terms!.map(([s, tg]) => ({ source: s, target: tg }))}
-                              columns={[{ title: t.colSource, dataIndex: 'source' }, { title: t.colTarget, dataIndex: 'target' }]}
-                            />
+                           : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th style={{ textAlign: 'left', padding: 8 }}>{t.colSource}</th><th style={{ textAlign: 'left', padding: 8 }}>{t.colTarget}</th></tr></thead><tbody>{selectedTemplate.terms!.map(([source, target], index) => <tr key={`${source}-${index}`}><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{source}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{target}</td></tr>)}</tbody></table></div>
                       ) : <Empty description={t.selectTemplateHint} image={Empty.PRESENTED_IMAGE_SIMPLE} />,
                     },
                     {
@@ -690,21 +686,8 @@ export function TranslateStudio() {
                               options={dictModels.map((m) => ({ value: m, label: m }))} />
                             {dict.data?.stats && <Typography.Text type="secondary">{t.statOk} {dict.data.stats.ok} · {t.statReview} {dict.data.stats.review}</Typography.Text>}
                           </Space>
-                          <Table
-                            size="small" rowKey={(_, i) => String(i)} loading={dict.isLoading}
-                            dataSource={dict.data?.rows ?? []}
-                            locale={{ emptyText: t.dictEmpty }}
-                            pagination={{
-                              size: 'small', current: dictPage, pageSize: 50, total: dict.data?.total ?? 0,
-                              showSizeChanger: false, onChange: setDictPage, showTotal: (n) => `${n} 条`,
-                            }}
-                            columns={[
-                              { title: t.colSource, dataIndex: 'source', ellipsis: true },
-                              { title: t.colTarget, dataIndex: 'translated', ellipsis: true },
-                              { title: t.colModel, dataIndex: 'model', width: 160, ellipsis: true },
-                              { title: t.colStatus, dataIndex: 'status', width: 100, render: (v: string) => <Tag color={v === 'ok' ? 'green' : 'orange'}>{v}</Tag> },
-                            ]}
-                          />
+                           {dict.isLoading ? <div role="status">加载中...</div> : (dict.data?.rows ?? []).length === 0 ? <div style={{ padding: 16, color: 'var(--cw-text-secondary)' }}>{t.dictEmpty}</div> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>{[t.colSource, t.colTarget, t.colModel, t.colStatus].map((title) => <th key={title} style={{ textAlign: 'left', padding: 8 }}>{title}</th>)}</tr></thead><tbody>{(dict.data?.rows ?? []).map((row, index) => <tr key={`${row.source}-${index}`}><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{row.source}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{row.translated}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}>{row.model}</td><td style={{ padding: 8, borderTop: '1px solid var(--cw-border)' }}><span className="cw-chip">{row.status}</span></td></tr>)}</tbody></table></div>}
+                           {(dict.data?.total ?? 0) > 50 && <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button type="button" disabled={dictPage <= 1} onClick={() => setDictPage((page) => page - 1)}>上一页</button><span>{dictPage}</span><button type="button" disabled={dictPage * 50 >= (dict.data?.total ?? 0)} onClick={() => setDictPage((page) => page + 1)}>下一页</button></div>}
                         </Space>
                       ),
                     },

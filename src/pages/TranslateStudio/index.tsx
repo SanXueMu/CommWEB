@@ -19,9 +19,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, List, Modal, Tooltip,
-  Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography, message,
+  Popconfirm, Progress, Segmented, Select, Space, Table, Tabs, Tag, Typography,
 } from 'antd'
-import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined } from '@ant-design/icons'
 import { useActivePid } from '@/transfer/context'
 import { apiFor } from '@/api/client'
 import type { BatchFileEntry } from '@/api/client'
@@ -256,10 +255,10 @@ export function TranslateStudio() {
   const runMutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => api.runPipeline(flow!, input),
     onSuccess: (created) => { setActiveRun(created.run_id); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }) },
-    onError: (e) => message.error(`${t.startFailed}${errMsg(e)}`),
+    onError: (e) => console.error(`${t.startFailed}${errMsg(e)}`),
   })
   const startTranslate = () => {
-    if (!flow || !file) { message.warning(t.noRoute); return }
+    if (!flow || !file) { console.warn(t.noRoute); return }
     runMutation.mutate(buildInput(file, file, flow))
   }
   // ── 批量：清单增删 + 客户端并发 2 排队（避免撞 MT 模型请求限速）──
@@ -279,7 +278,7 @@ export function TranslateStudio() {
     setBatchSel((prev) => (on ? [...new Set([...prev, path])] : prev.filter((p) => p !== path)))
   const startBatch = async () => {
     const targets = batchList.filter((f) => batchSel.includes(f.path))
-    if (!targets.length) { message.warning(t.batchNone); return }
+    if (!targets.length) { console.warn(t.batchNone); return }
     setBatchRunning(true)
     setBatchReport([])
     setBatchProgress({ done: 0, total: targets.length })
@@ -338,31 +337,31 @@ export function TranslateStudio() {
     }, ENQUEUE_CONCURRENCY)
     setBatchRunning(false)
     const ok = report.filter((r) => r.runId).length
-    if (ok) message.success(`${t.batchQueued} ${ok}/${report.length}`)
-    if (ok < report.length) message.warning(`${report.length - ok} ${t.batchSomeFailed}`)
+    if (ok) console.info(`${t.batchQueued} ${ok}/${report.length}`)
+    if (ok < report.length) console.warn(`${report.length - ok} ${t.batchSomeFailed}`)
     qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] })
   }
   const rerunMutation = useMutation({
     mutationFn: (id: string) => api.rerunRun(id),
     onSuccess: (r) => { setActiveRun(r.run_id); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }) },
-    onError: (e) => message.error(`${t.rerunFailed}${errMsg(e)}`),
+    onError: (e) => console.error(`${t.rerunFailed}${errMsg(e)}`),
   })
   const abortMutation = useMutation({
     mutationFn: (id: string) => api.abortRun(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-runs'] }),
-    onError: (e) => message.error(`${t.abortFailed}${errMsg(e)}`),
+    onError: (e) => console.error(`${t.abortFailed}${errMsg(e)}`),
   })
   const saveTplMutation = useMutation({
     mutationFn: (template: TranslateTemplate) => api.send(templatesPath, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ template }),
     }),
     onSuccess: () => { setEditorOpen(false); qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-templates'] }) },
-    onError: (e) => message.error(`${t.saveFailed}${errMsg(e)}`),
+    onError: (e) => console.error(`${t.saveFailed}${errMsg(e)}`),
   })
   const delTplMutation = useMutation({
     mutationFn: (id: string) => api.send(`${templatesPath}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['provider', pid, 'translate-templates'] }),
-    onError: (e) => message.error(`${t.deleteFailed}${errMsg(e)}`),
+    onError: (e) => console.error(`${t.deleteFailed}${errMsg(e)}`),
   })
 
   const openEditor = (tpl: TranslateTemplate | null) => {
@@ -436,8 +435,8 @@ export function TranslateStudio() {
             options={tplList.map((x) => ({ value: x.id, label: `${x.name}${x.builtin ? t.builtinTag : ''}` }))}
             onChange={(id) => { const tpl = tplList.find((x) => x.id === id); if (tpl) selectTemplate(tpl) }}
           />
-          <Button size="small" icon={<PlusOutlined />} onClick={() => openEditor(null)}>{t.newTemplate}</Button>
-          {settingsPath && <Button size="small" icon={<KeyOutlined />} onClick={() => setKeysOpen(true)}>{t.keys}</Button>}
+           <Button size="small" onClick={() => openEditor(null)}>＋ {t.newTemplate}</Button>
+           {settingsPath && <Button size="small" onClick={() => setKeysOpen(true)}>密钥：{t.keys}</Button>}
         </Space>
       }
     >
@@ -455,9 +454,9 @@ export function TranslateStudio() {
                 style={{ cursor: 'pointer', padding: '8px 12px', background: tpl.id === templateId ? 'rgba(91,141,239,0.10)' : undefined }}
                 onClick={() => selectTemplate(tpl)}
                 actions={[
-                  <EditOutlined key="e" onClick={(e) => { e.stopPropagation(); openEditor(tpl) }} />,
+                  <button key="e" type="button" onClick={(e) => { e.stopPropagation(); openEditor(tpl) }}>编辑</button>,
                   <Popconfirm key="d" title={t.confirmDeleteTpl} onConfirm={() => delTplMutation.mutate(tpl.id)} onCancel={(e) => e?.stopPropagation()}>
-                    <DeleteOutlined onClick={(e) => e.stopPropagation()} />
+                    <button type="button" onClick={(e) => e.stopPropagation()}>删除</button>
                   </Popconfirm>,
                 ]}
               >
@@ -730,7 +729,7 @@ export function TranslateStudio() {
                     {
                       key: 'templates', label: t.libTemplates,
                       children: (
-                        <Card size="small" extra={<Button size="small" icon={<PlusOutlined />} onClick={() => openEditor(null)}>{t.newTemplate}</Button>}>
+                        <Card size="small" extra={<Button size="small" onClick={() => openEditor(null)}>＋ {t.newTemplate}</Button>}>
                           <Table
                             size="small" rowKey="id" dataSource={tplList} pagination={false}
                             columns={[

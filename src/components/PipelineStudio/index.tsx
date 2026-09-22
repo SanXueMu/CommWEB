@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Button, Card, Empty, Modal, Space, Tag, Typography } from 'antd'
+import { Button as HeroButton, Card as HeroCard, Modal } from '@/ui'
 
 import { apiFor } from '@/api/client'
 import { useViewProps } from '@/protocol/ViewPropsContext'
@@ -20,6 +20,13 @@ import { useActivePid } from '@/transfer/context'
 import { FlowRunner } from '@/components/FlowRunner'
 import { ResultRenderer } from '@/components/ResultRenderer'
 import { buildPipelineFromSaveAs, type SaveAsDecl } from '@/lib/saveAsPipeline'
+
+function Card({ title, children }: { title?: string; children: React.ReactNode; size?: string }) { return <HeroCard>{title && <strong style={{ display: 'block', marginBottom: 12 }}>{title}</strong>}{children}</HeroCard> }
+function Button({ children, onClick, type, style }: { children: React.ReactNode; onClick?: () => void; type?: string; style?: React.CSSProperties }) { return <HeroButton variant={type === 'primary' ? 'primary' : undefined} onClick={onClick} style={style}>{children}</HeroButton> }
+function Space({ children, direction = 'horizontal', size = 8, style }: { children: React.ReactNode; direction?: 'vertical' | 'horizontal'; size?: number; wrap?: boolean; style?: React.CSSProperties }) { return <div style={{ display: 'flex', flexDirection: direction === 'vertical' ? 'column' : 'row', flexWrap: 'wrap', gap: size, ...style }}>{children}</div> }
+function Alert({ message }: { message?: string; type?: string; showIcon?: boolean }) { return <div role="alert" style={{ color: 'var(--cw-danger)', padding: 8 }}>{message}</div> }
+function Empty({ description }: { description: string }) { return <div style={{ padding: 32, textAlign: 'center', color: 'var(--cw-text-secondary)' }}>{description}</div> }
+const Typography = { Text: ({ children }: { children: React.ReactNode }) => <span>{children}</span> }
 
 export interface PipelineStudioProps {
   flow_ids?: string[]
@@ -86,9 +93,9 @@ export function PipelineStudio() {
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
       <Space size={8} wrap>
         {flows.map((f) => (
-          <Tag.CheckableTag key={f.id} checked={f.id === selected} onChange={() => setSelected(f.id)}>
+          <button type="button" key={f.id} onClick={() => setSelected(f.id)} style={{ border: 0, borderRadius: 6, padding: '6px 10px', background: f.id === selected ? 'var(--cw-accent)' : 'var(--cw-surface-muted)', cursor: 'pointer' }}>
             {f.name || f.id}
-          </Tag.CheckableTag>
+          </button>
         ))}
       </Space>
 
@@ -114,16 +121,15 @@ export function PipelineStudio() {
         <Alert type="error" showIcon message={finishedRun.run.error?.message ?? '运行失败'} />
       )}
 
-      <Modal open={!!saveAs?.error} onCancel={() => setSaveAs(null)} footer={null} title="另存失败">
+      <Modal isOpen={!!saveAs?.error} onOpenChange={(open) => !open && setSaveAs(null)}>
+        <Modal.Backdrop /><Modal.Container><Modal.Dialog><Modal.Header>另存失败</Modal.Header><Modal.Body>
         <Alert type="error" showIcon message={saveAs?.error} />
+        </Modal.Body><Modal.Footer><Button onClick={() => setSaveAs(null)}>关闭</Button></Modal.Footer><Modal.CloseTrigger /></Modal.Dialog></Modal.Container>
       </Modal>
-      <Modal
-        open={!!saveAs?.done}
-        onCancel={() => setSaveAs(null)}
-        footer={<Button type="primary" onClick={() => setSaveAs(null)}>好的</Button>}
-        title="已保存"
-      >
+      <Modal isOpen={!!saveAs?.done} onOpenChange={(open) => !open && setSaveAs(null)}>
+        <Modal.Backdrop /><Modal.Container><Modal.Dialog><Modal.Header>已保存</Modal.Header><Modal.Body>
         <Typography.Text>管线已注册：{saveAs?.done}</Typography.Text>
+        </Modal.Body><Modal.Footer><Button type="primary" onClick={() => setSaveAs(null)}>好的</Button></Modal.Footer><Modal.CloseTrigger /></Modal.Dialog></Modal.Container>
       </Modal>
     </Space>
   )

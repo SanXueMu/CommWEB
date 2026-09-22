@@ -4,8 +4,6 @@
  * 可配置（默认行为不变）：分页 / 搜索开关 / 多选 / 行内动作 / 密度 / 边框 / 卡片间隔 / 长宽（style）。
  */
 
-import { BarsOutlined, AppstoreOutlined, DownOutlined, RightOutlined, SearchOutlined } from '@ant-design/icons'
-import { Checkbox, Col, Empty, Input, List, Popover, Row, Segmented, Spin } from 'antd'
 import { SimplePager } from '@/components/ui/SimplePager'
 import { getViewPrefs, setViewProp } from '@/transfer/preferences'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -131,7 +129,7 @@ export function DataListPanel<T>({
           onClick={() => setCollapsed((v) => !v)}
           style={{ cursor: 'pointer', userSelect: 'none', color: 'var(--cw-text)', marginBottom: collapsed ? 0 : 8 }}
         >
-          {collapsed ? <RightOutlined style={{ fontSize: 11, marginRight: 6 }} /> : <DownOutlined style={{ fontSize: 11, marginRight: 6 }} />}
+          <span style={{ fontSize: 11, marginRight: 6 }}>{collapsed ? '▸' : '▾'}</span>
           <span style={{ fontSize: 13 }}>{collapsible.label ?? '列表'}</span>
           <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--cw-text-muted)' }}>({items.length})</span>
         </div>
@@ -149,47 +147,38 @@ export function DataListPanel<T>({
         }}
       >
         {onSearch && (
-          <Input
-            allowClear
-            prefix={<SearchOutlined style={{ color: 'var(--cw-text-muted)' }} />}
+          <input
             placeholder={searchPlaceholder}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            style={{ maxWidth: 'min(320px, 60%)' }}
+            style={{ maxWidth: 'min(320px, 60%)', border: '1px solid var(--cw-border)', borderRadius: 6, padding: '7px 10px' }}
           />
         )}
         <div style={{ flex: 1 }} />
         {extraActions}
         {renderCard && (
-          <Segmented
-            value={view}
-            onChange={(v) => switchView(v as 'card' | 'list')}
-            options={[
-              { value: 'card', icon: <AppstoreOutlined />, title: '卡片式' },
-              { value: 'list', icon: <BarsOutlined />, title: '列表式' },
-            ]}
-          />
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button type="button" onClick={() => switchView('card')} aria-pressed={view === 'card'}>卡片</button>
+            <button type="button" onClick={() => switchView('list')} aria-pressed={view === 'list'}>列表</button>
+          </div>
         )}
       </div>
 
       {loading ? (
-        <Spin style={{ display: 'block', margin: '60px auto' }} />
+        <div role="status" style={{ textAlign: 'center', padding: 60 }}>加载中...</div>
       ) : items.length === 0 ? (
-        <Empty description={emptyText} style={{ margin: '60px 0' }} />
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--cw-text-secondary)' }}>{emptyText}</div>
       ) : effectiveView === 'card' ? (
-        <Row gutter={cardGutter}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: `${cardGutter[1]}px ${cardGutter[0]}px` }}>
           {items.map((item) => (
-            <Col key={rowKey(item)} xs={24} sm={12} lg={8} xl={6}>
+            <div key={rowKey(item)}>
               {renderCard?.(item)}
-            </Col>
+            </div>
           ))}
-        </Row>
+        </div>
       ) : (
         <div style={{ padding: '0 12px' }}>
-          <List
-            dataSource={paged}
-            split={bordered}
-            renderItem={(item) => {
+          {paged.map((item) => {
               const key = rowKey(item)
               const rowBody = (
                 <div
@@ -207,7 +196,8 @@ export function DataListPanel<T>({
                   }}
                 >
                   {selectable && (
-                    <Checkbox
+                    <input
+                      type="checkbox"
                       checked={checked.includes(key)}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => toggle(key)}
@@ -221,14 +211,11 @@ export function DataListPanel<T>({
                 </div>
               )
               return hoverDetail ? (
-                <Popover content={hoverDetail(item)} placement="right" mouseEnterDelay={0.4} destroyTooltipOnHide>
-                  {rowBody}
-                </Popover>
+                <div title={typeof hoverDetail(item) === 'string' ? String(hoverDetail(item)) : undefined}>{rowBody}</div>
               ) : (
                 rowBody
               )
-            }}
-          />
+            })}
           {paged && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 12 }}>
               <SimplePager

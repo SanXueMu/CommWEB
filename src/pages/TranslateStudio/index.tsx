@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, Tooltip,
+  Alert, AutoComplete, Button, Card, Checkbox, Empty, Flex, Form, Input, Tooltip,
   Progress, Segmented, Select, Space, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -693,9 +693,10 @@ export function TranslateStudio() {
       </Flex>
 
       {/* 任务详情抽屉 */}
-      <Drawer title={t.detailTitle} width={720} open={Boolean(detailRun)} onClose={() => setDetailRun(null)}>
+      {detailRun && <aside role="dialog" aria-label={t.detailTitle} style={{ position: 'fixed', zIndex: 30, inset: '0 0 0 auto', width: 'min(720px, 100vw)', overflow: 'auto', background: 'var(--cw-surface)', borderLeft: '1px solid var(--cw-border)', padding: 20, boxShadow: '-8px 0 24px rgba(0,0,0,.16)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}><strong>{t.detailTitle}</strong><button type="button" onClick={() => setDetailRun(null)}>关闭</button></div>
         {detailDetail.data && <RunDetail run={detailDetail.data} logs={detailLogs.data?.events ?? []} toolNames={detailDetail.data.tool_names} />}
-      </Drawer>
+      </aside>}
 
       {/* 模板编辑 */}
       <Modal isOpen={editorOpen} onOpenChange={(open) => !open && setEditorOpen(false)}>
@@ -732,9 +733,9 @@ export function TranslateStudio() {
       </Modal>
 
       {/* 密钥管理（协议级组件） */}
-      <Drawer title={t.keys} width={720} open={keysOpen} onClose={() => { setKeysOpen(false); keys.refetch() }}>
-        <SettingsKeys />
-      </Drawer>
+      {keysOpen && <aside role="dialog" aria-label={t.keys} style={{ position: 'fixed', zIndex: 30, inset: '0 0 0 auto', width: 'min(720px, 100vw)', overflow: 'auto', background: 'var(--cw-surface)', borderLeft: '1px solid var(--cw-border)', padding: 20, boxShadow: '-8px 0 24px rgba(0,0,0,.16)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}><strong>{t.keys}</strong><button type="button" onClick={() => { setKeysOpen(false); keys.refetch() }}>关闭</button></div><SettingsKeys />
+      </aside>}
 
       <TaskFloat runs={runningRuns} onOpen={setDetailRun} title="翻译进行中" />
     </Card>

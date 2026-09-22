@@ -18,7 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, Modal, Tooltip,
+  Alert, AutoComplete, Button, Card, Checkbox, Drawer, Empty, Flex, Form, Input, Tooltip,
   Progress, Segmented, Select, Space, Tabs, Tag, Typography,
 } from 'antd'
 import { useActivePid } from '@/transfer/context'
@@ -44,6 +44,7 @@ import RunListPanel from '@/components/RunListPanel'
 import { StepTrack } from '@/components/StepTrack'
 import { TaskFloat, RunDetail, UsagePanel, aggregate } from '@/components/RunWidgets'
 import { SettingsKeys } from '@/components/SettingsKeys'
+import { Button as UiButton, Modal } from '@/ui'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -713,8 +714,11 @@ export function TranslateStudio() {
       </Drawer>
 
       {/* 模板编辑 */}
-      <Modal title={editTpl ? t.editTemplate : t.newTemplate} open={editorOpen} onOk={submitEditor}
-        confirmLoading={saveTplMutation.isPending} onCancel={() => setEditorOpen(false)} okText={t.save}>
+      <Modal isOpen={editorOpen} onOpenChange={(open) => !open && setEditorOpen(false)}>
+        <Modal.Backdrop />
+        <Modal.Container><Modal.Dialog>
+          <Modal.Header>{editTpl ? t.editTemplate : t.newTemplate}</Modal.Header>
+          <Modal.Body>
         <Form form={editorForm} layout="vertical">
           <Form.Item name="id" label="ID" rules={[{ required: true, pattern: /^[a-z][a-z0-9_.]{2,63}$/, message: t.idRule }]}>
             <Input disabled={Boolean(editTpl)} placeholder="tpl.translate.xxx" />
@@ -737,6 +741,10 @@ export function TranslateStudio() {
             <Input.TextArea rows={5} placeholder={'Audit Report => 审计报告'} />
           </Form.Item>
         </Form>
+          </Modal.Body>
+          <Modal.Footer><UiButton variant="outline" onClick={() => setEditorOpen(false)}>取消</UiButton><UiButton variant="primary" isDisabled={saveTplMutation.isPending} onClick={submitEditor}>{t.save}</UiButton></Modal.Footer>
+          <Modal.CloseTrigger />
+        </Modal.Dialog></Modal.Container>
       </Modal>
 
       {/* 密钥管理（协议级组件） */}
